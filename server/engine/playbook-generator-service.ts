@@ -295,7 +295,7 @@ export function generatePlaybook(
       priority: contentSignals.faqSectionCount === 0 ? 'critical' : 'high',
       title: 'Add FAQ Schema to Your Top Pages',
       targetPlatform: 'chatgpt',
-      estimatedImpact: `Could improve ChatGPT score by 10-15 points`,
+      estimatedImpact: 'Up to about 9 points on the ChatGPT estimate',
       timeToImplement: '30 minutes',
       difficulty: 'easy',
       currentState: `${contentSignals.faqSectionCount} FAQ sections detected`,
@@ -330,7 +330,7 @@ ${faqQuestionsJson}
       priority: contentSignals.tutorialCount === 0 ? 'critical' : 'high',
       title: 'Create Step-by-Step Tutorial Content',
       targetPlatform: 'chatgpt',
-      estimatedImpact: `Could improve ChatGPT score by 12-18 points`,
+      estimatedImpact: 'Up to about 13 points on the ChatGPT estimate',
       timeToImplement: '2-4 hours per tutorial',
       difficulty: 'medium',
       currentState: `${contentSignals.tutorialCount} tutorials detected`,
@@ -368,21 +368,21 @@ ${faqQuestionsJson}
 
   if (contentSignals.schemaTypeCount < 4) {
     actions.push({
-      id: getActionId('Implement Article & HowTo Schema Markup', 'gemini'),
+      id: getActionId('Implement Article & Breadcrumb Schema Markup', 'gemini'),
       priority: contentSignals.schemaTypeCount === 0 ? 'critical' : 'high',
-      title: 'Implement Article & HowTo Schema Markup',
+      title: 'Implement Article & Breadcrumb Schema Markup',
       targetPlatform: 'gemini',
-      estimatedImpact: `Could improve Gemini score by 12-18 points`,
+      estimatedImpact: `Up to about 16 points on the Gemini estimate`,
       timeToImplement: '1-2 hours',
       difficulty: 'easy',
       currentState: `${contentSignals.schemaTypeCount} schema types detected`,
-      targetState: `5+ schema types (Article, HowTo, Organization, FAQPage, BreadcrumbList)`,
+      targetState: `4+ schema types (Organization, Article, FAQPage, BreadcrumbList)`,
       stepByStep: [
         'Add Organization schema to your homepage',
         'Add Article schema to every blog post and content page',
-        'Add HowTo schema to tutorial and guide pages',
+        'Add FAQPage schema only where the questions and answers are visible on the page',
         'Add BreadcrumbList schema to all pages for navigation context',
-        'Validate all schemas at schema.org/docs/validator.html',
+        'Validate with validator.schema.org and Google\'s Rich Results Test',
       ],
       codeSnippet: {
         language: 'json',
@@ -406,28 +406,19 @@ ${faqQuestionsJson}
 }
 </script>
 
-<!-- HowTo Schema - add to tutorials -->
+<!-- BreadcrumbList Schema - add to inner pages -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "HowTo",
-  "name": "[Tutorial Title]",
-  "description": "[What this tutorial teaches]",
-  "step": [
-    {
-      "@type": "HowToStep",
-      "name": "Step 1",
-      "text": "[Detailed step instruction]"
-    },
-    {
-      "@type": "HowToStep",
-      "name": "Step 2",
-      "text": "[Detailed step instruction]"
-    }
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "[https://yoursite.com/]" },
+    { "@type": "ListItem", "position": 2, "name": "[Section]", "item": "[https://yoursite.com/section/]" },
+    { "@type": "ListItem", "position": 3, "name": "[Page title]" }
   ]
 }
 </script>`,
-        description: `Schema markup templates for ${companyName}. Add Article schema to content pages and HowTo schema to tutorials. Gemini heavily weights structured data.`,
+        description: `Schema markup templates for ${companyName}. Add Article schema to content pages and BreadcrumbList to inner pages. Ready-made versions are in your AEO Pack.`,
       },
     });
   }
@@ -439,7 +430,7 @@ ${faqQuestionsJson}
       priority: contentSignals.caseStudyCount === 0 ? 'critical' : 'high',
       title: 'Publish Customer Case Studies',
       targetPlatform: 'claude',
-      estimatedImpact: `Could improve Claude score by 8-12 points`,
+      estimatedImpact: 'Up to about 3 points on the Claude estimate',
       timeToImplement: '3-5 hours per case study',
       difficulty: 'medium',
       currentState: `${contentSignals.caseStudyCount} case studies detected`,
@@ -480,7 +471,7 @@ ${faqQuestionsJson}
       priority: contentSignals.dataPointCount < 5 ? 'critical' : 'high',
       title: 'Add Statistics and Data to Existing Content',
       targetPlatform: 'perplexity',
-      estimatedImpact: `Could improve Perplexity score by 10-15 points`,
+      estimatedImpact: 'Up to about 18 points on the Perplexity estimate',
       timeToImplement: '2-3 hours',
       difficulty: 'easy',
       currentState: `${contentSignals.dataPointCount} data points detected`,
@@ -504,7 +495,7 @@ ${faqQuestionsJson}
       priority: contentSignals.frameworkMentionCount === 0 ? 'high' : 'medium',
       title: 'Create a Proprietary Framework Article',
       targetPlatform: 'claude',
-      estimatedImpact: `Could improve Claude score by 8-12 points`,
+      estimatedImpact: 'Up to about 16 points on the Claude estimate',
       timeToImplement: '3-4 hours',
       difficulty: 'medium',
       currentState: `${contentSignals.frameworkMentionCount} framework mentions detected`,
@@ -547,7 +538,7 @@ ${faqQuestionsJson}
       priority: contentSignals.externalLinkCount < 3 ? 'high' : 'medium',
       title: 'Add Research Citations to Key Pages',
       targetPlatform: 'perplexity',
-      estimatedImpact: `Could improve Perplexity score by 8-12 points`,
+      estimatedImpact: 'Up to about 9 points on the Perplexity estimate',
       timeToImplement: '1-2 hours',
       difficulty: 'easy',
       currentState: `${contentSignals.externalLinkCount} external citations detected`,
@@ -569,7 +560,7 @@ ${faqQuestionsJson}
       priority: 'medium',
       title: 'Convert Tutorials into How-To Guides',
       targetPlatform: 'chatgpt',
-      estimatedImpact: `Could improve ChatGPT score by 5-8 points`,
+      estimatedImpact: 'Up to about 10 points on the ChatGPT estimate',
       timeToImplement: '1-2 hours',
       difficulty: 'easy',
       currentState: `${contentSignals.howToGuideCount} how-to guides detected`,
@@ -578,7 +569,7 @@ ${faqQuestionsJson}
         'Identify existing tutorials that answer "how to" questions',
         'Restructure titles to start with "How to..." for better AI matching',
         'Ensure each guide has clear numbered steps',
-        'Add HowTo schema markup (see schema action above)',
+        'Mark up the steps as a numbered list (ol) so AI can quote them in order',
         'Include estimated time and difficulty level at the top',
       ],
     });
@@ -590,7 +581,7 @@ ${faqQuestionsJson}
       priority: 'medium',
       title: 'Develop Long-Form Authoritative Content',
       targetPlatform: 'claude',
-      estimatedImpact: `Could improve Claude score by 6-10 points`,
+      estimatedImpact: 'Up to about 13 points on the Claude estimate',
       timeToImplement: '4-6 hours per piece',
       difficulty: 'hard',
       currentState: `Long-form content score: ${contentSignals.longFormContentScore}/100`,
@@ -612,7 +603,7 @@ ${faqQuestionsJson}
       priority: contentSignals.blogPostCount < 5 ? 'critical' : 'high',
       title: 'Start Regular Blog Publishing',
       targetPlatform: 'all',
-      estimatedImpact: 'Could improve all platform scores by 8-15 points',
+      estimatedImpact: 'Up to about 5 points on the ChatGPT estimate, less on the others',
       timeToImplement: 'Ongoing, 4-8 hours per post',
       difficulty: 'medium',
       currentState: `${contentSignals.blogPostCount} blog posts detected`,
@@ -634,7 +625,7 @@ ${faqQuestionsJson}
       priority: 'high',
       title: 'Build Comprehensive Documentation',
       targetPlatform: 'perplexity',
-      estimatedImpact: 'Could improve Perplexity and Claude scores by 10-15 points',
+      estimatedImpact: 'Not scored directly; helps AI assistants answer product questions accurately',
       timeToImplement: '2-4 weeks for initial documentation',
       difficulty: 'hard',
       currentState: `${contentSignals.documentationPageCount} documentation pages detected`,
@@ -656,7 +647,7 @@ ${faqQuestionsJson}
       priority: 'medium',
       title: 'Publish Original Research or Industry Report',
       targetPlatform: 'perplexity',
-      estimatedImpact: 'Could improve Perplexity score by 8-12 points',
+      estimatedImpact: 'Up to about 13 points on the Perplexity estimate',
       timeToImplement: '1-2 weeks for a full report',
       difficulty: 'hard',
       currentState: `${contentSignals.statisticMentionCount} statistical references detected`,
@@ -678,7 +669,7 @@ ${faqQuestionsJson}
       priority: 'medium',
       title: 'Deepen Existing Content with Analysis',
       targetPlatform: 'claude',
-      estimatedImpact: 'Could improve Claude score by 5-10 points',
+      estimatedImpact: 'Up to about 11 points on the Claude estimate',
       timeToImplement: '2-3 hours per article',
       difficulty: 'medium',
       currentState: 'Limited analytical depth detected in existing content',

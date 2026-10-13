@@ -12,6 +12,7 @@ import FixItPlaybook from "./fix-it-playbook";
 import IndustryBenchmark from "./industry-benchmark";
 import MethodologyTooltip, { MethodologyBanner } from "./methodology-tooltip";
 import BlueprintScoreDisplay from "@/components/blueprint-score-display";
+import CrawlerAccess from "@/components/crawler-access";
 
 interface AuditResultsProps {
   auditData: AuditData;
@@ -130,7 +131,7 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
             <div className="bg-emerald-500/10 rounded-lg p-4">
               <div className="flex items-center justify-center mb-2">
                 <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-                  <div className="w-4 h-4 bg-primary rounded-full"></div>
+                  <div className="w-4 h-4 bg-emerald-500 rounded-full"></div>
                 </div>
               </div>
               <div className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">ChatGPT</div>
@@ -141,7 +142,7 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
             <div className="bg-blue-500/10 rounded-lg p-4">
               <div className="flex items-center justify-center mb-2">
                 <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                  <div className="w-4 h-4 bg-primary rounded-full"></div>
+                  <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
                 </div>
               </div>
               <div className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">Perplexity</div>
@@ -152,7 +153,7 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
             <div className="bg-amber-500/10 rounded-lg p-4">
               <div className="flex items-center justify-center mb-2">
                 <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
-                  <div className="w-4 h-4 bg-primary rounded-full"></div>
+                  <div className="w-4 h-4 bg-amber-500 rounded-full"></div>
                 </div>
               </div>
               <div className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">Gemini</div>
@@ -163,7 +164,7 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
             <div className="bg-orange-500/10 rounded-lg p-4">
               <div className="flex items-center justify-center mb-2">
                 <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center">
-                  <div className="w-4 h-4 bg-primary rounded-full"></div>
+                  <div className="w-4 h-4 bg-orange-500 rounded-full"></div>
                 </div>
               </div>
               <div className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-1">Claude</div>
@@ -297,6 +298,9 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
           websiteUrl={websiteUrl} 
         />
       )}
+
+      {/* AI crawler access (robots.txt) */}
+      <CrawlerAccess botAccess={auditData.blueprintResult?.botAccess} />
 
       {/* AEO Blueprint Score */}
       {auditData.blueprintResult && (

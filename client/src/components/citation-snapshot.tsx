@@ -100,7 +100,7 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-3xl font-bold mb-2">AI Citation Check</h2>
-        <p className="text-muted-foreground">We asked AI platforms real questions about your industry. Here's whether they mentioned you.</p>
+        <p className="text-muted-foreground">We asked a live AI search engine real customer questions. Here's whether it mentioned you.</p>
         {lastCheckedAt && (
           <div className="flex flex-col sm:flex-row items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-2">
             <span className="flex items-center gap-1">
@@ -119,7 +119,7 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
                 {mentionRate}%
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Mentioned in <span className="font-semibold text-foreground">{mentionedCount}</span> out of <span className="font-semibold text-foreground">{totalPromptsChecked}</span> prompts
+                Mentioned in <span className="font-semibold text-foreground">{mentionedCount}</span> out of <span className="font-semibold text-foreground">{totalPromptsChecked}</span> questions
               </p>
             </div>
             <Badge className={`text-sm px-3 py-1 ${getMentionBadgeVariant(mentionRate)}`}>
@@ -140,9 +140,9 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
         <CardHeader className="pb-3">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Search className="h-5 w-5 text-primary" />
-            Prompt-by-Prompt Results
+            Question-by-Question Results
           </h3>
-          <p className="text-sm text-muted-foreground">Click each prompt to see details</p>
+          <p className="text-sm text-muted-foreground">Click each question to see the answer</p>
         </CardHeader>
         <CardContent className="pt-0">
           <Accordion type="multiple" className="w-full">
@@ -220,7 +220,7 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
                     <span className="text-sm font-medium">{competitor.name}</span>
                   </div>
                   <Badge variant="outline" className="text-xs">
-                    {competitor.timesFound}/{totalPromptsChecked} prompts
+                    {competitor.timesFound}/{totalPromptsChecked} questions
                   </Badge>
                 </div>
               ))}
