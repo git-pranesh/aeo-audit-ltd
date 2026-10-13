@@ -63,3 +63,14 @@ describe('content signals are observed, not inferred', () => {
     expect(s.caseStudyCount).toBe(1);
   });
 });
+
+describe('scores are earned, never floored', () => {
+  it('a big sitemap with no measured content does not get a minimum score', async () => {
+    const { calculatePlatformScoresV2 } = await import('../server/engine/scoring-service');
+    const sitemap = Array.from({ length: 6000 }, (_, i) => `https://big.test/p/${i}`);
+    const signals = extractContentSignals('<html><body><p>hi</p></body></html>', 'hi', sitemap, {}, 'big.test');
+    const r = calculatePlatformScoresV2(signals, sitemap.length, 5, 'SaaS', signals.totalPageCount);
+    expect(r.overallScore).toBeLessThan(10);
+    expect(Math.max(...Object.values(r.platformScores))).toBeLessThan(10);
+  });
+});

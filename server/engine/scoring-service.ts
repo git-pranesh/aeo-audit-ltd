@@ -268,51 +268,6 @@ function calculatePlatformScore(
 }
 
 /**
- * Apply small tie-breakers to ensure distinct scores.
- * Uses a symmetric search (±1, ±2, ...) so low-scoring platforms that
- * are all tied near 0 can spread upward instead of collapsing together.
- * Max offset applied: ±3 points.
- */
-function ensureDistinctScores(scores: PlatformScores): PlatformScores {
-  const platforms: ('chatgpt' | 'perplexity' | 'gemini' | 'claude')[] =
-    ['chatgpt', 'perplexity', 'gemini', 'claude'];
-
-  // Process highest-scoring platform first so it keeps the "true" value
-  const sorted = platforms
-    .map(p => ({ platform: p, score: scores[p] }))
-    .sort((a, b) => b.score - a.score);
-
-  const result: PlatformScores = { chatgpt: 0, perplexity: 0, gemini: 0, claude: 0 };
-  const usedScores = new Set<number>();
-
-  for (const item of sorted) {
-    const base = Math.round(item.score);
-    let finalScore = base;
-
-    // Symmetric search: 0, -1, +1, -2, +2, -3, +3
-    if (usedScores.has(finalScore)) {
-      let found = false;
-      for (let step = 1; step <= 3; step++) {
-        for (const delta of [-step, +step]) {
-          const candidate = Math.max(0, Math.min(100, base + delta));
-          if (!usedScores.has(candidate)) {
-            finalScore = candidate;
-            found = true;
-            break;
-          }
-        }
-        if (found) break;
-      }
-    }
-
-    usedScores.add(finalScore);
-    result[item.platform] = finalScore;
-  }
-
-  return result;
-}
-
-/**
  * Calculate letter grade from overall score
  * Stricter grading aligned with professional SEO tools
  */
@@ -347,61 +302,23 @@ export function calculatePlatformScoresV2(signals: ContentSignals, sitemapSize: 
   // Total base score (sum of categories, max 100)
   const totalBase = contentDepth + structureTechnical + researchCitations + authority;
   
-  // SCALE-AWARE CONFIDENCE FLOOR:
-  // When a site has a large sitemap but detected signals are near-zero,
-  // the scoring system failed to detect content, not the site failed to have content.
-  // Apply a minimum score floor based on site scale.
-  let adjustedTotalBase = totalBase;
-  
-  if (sitemapSize >= 500 && totalBase < 50) {
-    const scaleFloor = sitemapSize >= 5000 ? 55 : sitemapSize >= 1000 ? 50 : 45;
-    if (totalBase < scaleFloor) {
-      adjustedTotalBase = scaleFloor;
-    } else {
-      const taperTarget = Math.min(scaleFloor + 10, 60);
-      const taperAmount = (taperTarget - totalBase) * 0.5;
-      if (taperAmount > 0) {
-        adjustedTotalBase = totalBase + taperAmount;
-      }
-    }
-    console.log(`📊 Scale-aware floor applied: ${totalBase.toFixed(1)} → ${adjustedTotalBase.toFixed(1)} (sitemap: ${sitemapSize} URLs, ${subdomainCount} subdomains)`);
-  } else if (sitemapSize >= 100 && totalBase < 25) {
-    adjustedTotalBase = Math.max(totalBase, 30);
-    console.log(`📊 Medium scale floor applied: ${totalBase.toFixed(1)} → ${adjustedTotalBase.toFixed(1)} (sitemap: ${sitemapSize} URLs)`);
-  }
-  
-  if (subdomainCount >= 3 && adjustedTotalBase < 40) {
-    adjustedTotalBase = Math.max(adjustedTotalBase, 45);
-    console.log(`📊 Subdomain authority floor applied: → ${adjustedTotalBase} (${subdomainCount} subdomains)`);
-  }
-  
-  // Calculate platform-specific scores (each platform weights categories differently)
+  // Scores are exactly what the measured signals earn: no floors for site size
+  // or subdomains, and no nudging of platform scores to make them differ.
+  const adjustedTotalBase = totalBase;
+
   const rawPlatformScores: PlatformScores = {
     chatgpt: calculatePlatformScore(contentDepth, structureTechnical, researchCitations, authority, 'chatgpt'),
     perplexity: calculatePlatformScore(contentDepth, structureTechnical, researchCitations, authority, 'perplexity'),
     gemini: calculatePlatformScore(contentDepth, structureTechnical, researchCitations, authority, 'gemini'),
     claude: calculatePlatformScore(contentDepth, structureTechnical, researchCitations, authority, 'claude')
   };
-  
-  // Apply small tie-breakers to ensure distinct scores
-  const platformScores = ensureDistinctScores(rawPlatformScores);
-  
-  // Apply scale-aware minimum to platform scores too
-  if (adjustedTotalBase > totalBase) {
-    const platformFloor = adjustedTotalBase * 0.85;
-    const platforms: ('chatgpt' | 'perplexity' | 'gemini' | 'claude')[] = ['chatgpt', 'perplexity', 'gemini', 'claude'];
-    for (const platform of platforms) {
-      if (platformScores[platform] < platformFloor) {
-        platformScores[platform] = Math.round(platformFloor);
-      }
-    }
-    const flooredScores = ensureDistinctScores(platformScores);
-    platformScores.chatgpt = flooredScores.chatgpt;
-    platformScores.perplexity = flooredScores.perplexity;
-    platformScores.gemini = flooredScores.gemini;
-    platformScores.claude = flooredScores.claude;
-  }
-  
+  const platformScores: PlatformScores = {
+    chatgpt: Math.round(rawPlatformScores.chatgpt),
+    perplexity: Math.round(rawPlatformScores.perplexity),
+    gemini: Math.round(rawPlatformScores.gemini),
+    claude: Math.round(rawPlatformScores.claude),
+  };
+
   // Overall score is the adjusted total base score
   const overallScore = Math.round(adjustedTotalBase);
   
