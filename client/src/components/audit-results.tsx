@@ -108,7 +108,7 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
         <CardContent className="p-8 text-center">
           <div className="mb-6">
             <h2 className="text-2xl font-bold mb-2">Overall AI Readiness Score</h2>
-            <p className="text-muted-foreground">Your website's visibility across AI platforms</p>
+            <p className="text-muted-foreground">Estimated readiness for AI assistants, from signals measured on your site</p>
           </div>
           <div className="flex items-center justify-center space-x-8 mb-8">
             <div>

@@ -58,7 +58,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       score: blueprint.eeat.eeAtScore,
       max: 35,
       description: 'Author credentials, entity recognition, trust signals',
-      correlation: 'r=0.81',
+      correlation: 'Shows who is behind the content',
       details: [
         { label: 'Author byline', value: blueprint.eeat.hasAuthorByline },
         { label: 'Knowledge Graph entity', value: blueprint.eeat.knowledgeGraphEntityFound },
@@ -72,7 +72,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       score: blueprint.offsite.offsiteScore,
       max: 30,
       description: 'G2, Wikipedia, Wikidata, Reddit brand presence',
-      correlation: 'r=0.664',
+      correlation: 'Mentions on other trusted sites',
       details: [
         { label: 'G2 profile', value: blueprint.offsite.g2ProfileExists },
         { label: 'Wikipedia article', value: blueprint.offsite.wikipediaArticleExists },
@@ -86,7 +86,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       score: blueprint.answerCapsule.answerCapsuleScore,
       max: 25,
       description: 'First 150 words structured as AI-extractable answer',
-      correlation: 'Strongest on-site predictor',
+      correlation: 'A direct answer AI can quote',
       details: [
         { label: 'Definition-first opening', value: blueprint.answerCapsule.hasDefinitionFirstPattern },
         { label: 'Declarative H1', value: blueprint.answerCapsule.h1IsDeclarative },
@@ -99,7 +99,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       score: blueprint.schemaCompleteness.schemaCompletenessScore,
       max: 20,
       description: 'Organization, Article, FAQPage, BreadcrumbList schemas',
-      correlation: 'Consistent positive signal',
+      correlation: 'Machine-readable facts about you',
       details: [
         { label: 'Organization schema', value: blueprint.schemaCompleteness.organization.present },
         { label: 'Article schema', value: blueprint.schemaCompleteness.article.present },
@@ -113,7 +113,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       score: blueprint.freshness.freshnessScore,
       max: 15,
       description: 'Content age, dateModified schema, visible update annotations',
-      correlation: '25.7% fresher than non-cited',
+      correlation: 'Shows content is current',
       details: [
         {
           label: blueprint.freshness.daysSinceModified !== null
@@ -130,7 +130,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       score: blueprint.botAccess.botAccessScore,
       max: 10,
       description: 'robots.txt allows citation bots, llms.txt present',
-      correlation: 'Blocking = invisible to AI',
+      correlation: 'Blocked crawlers cannot read your pages',
       details: [
         {
           label: blueprint.botAccess.robotsTxtFetched === false
@@ -150,7 +150,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       score: blueprint.fanOut.fanOutScore,
       max: 10,
       description: 'Heading structure, answer density, section length',
-      correlation: 'Structural optimisation',
+      correlation: 'Covers related follow-up questions',
       details: [
         { label: 'H1 is declarative (not question)', value: !blueprint.fanOut.h1IsQuestionStyle },
         { label: `Answer blocks under headings: ${blueprint.fanOut.headingsWithAnswerBlockBelow}`, value: blueprint.fanOut.headingsWithAnswerBlockBelow > 0 },
@@ -162,7 +162,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       score: blueprint.entityConsistency.entityConsistencyScore,
       max: 5,
       description: 'Brand name consistent across platforms',
-      correlation: 'Entity coherence',
+      correlation: 'Same name and facts everywhere',
       details: [
         { label: `Entity coherence: ${blueprint.entityConsistency.entityCoherenceRating}`, value: blueprint.entityConsistency.entityCoherenceRating === 'strong' },
       ],
@@ -177,7 +177,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold">AEO Blueprint Score</h3>
-          <p className="text-sm text-muted-foreground">Based on research-backed citation correlation signals</p>
+          <p className="text-sm text-muted-foreground">On-page and public checks that help AI assistants understand and trust a site</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
@@ -255,7 +255,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
               <div>
                 <div className="font-semibold">{mod.label}</div>
                 <div className="text-sm text-muted-foreground">{mod.description}</div>
-                <div className="text-xs text-muted-foreground mt-1">Correlation: {mod.correlation}</div>
+                <div className="text-xs text-muted-foreground mt-1">Why it matters: {mod.correlation}</div>
               </div>
               <div className="text-right">
                 <div className="text-xl font-bold">{mod.score}/{mod.max}</div>

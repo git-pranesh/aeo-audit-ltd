@@ -1019,10 +1019,10 @@ export class AuditPDFGenerator {
 
   private addTopics(): void {
     const categories = [
-      { key: 'authoritative' as const, label: 'Authoritative Topics (85-95%)', color: COLORS.primary },
-      { key: 'thoughtLeadership' as const, label: 'Thought Leadership (70-84%)', color: COLORS.purple },
-      { key: 'competitiveAdvantage' as const, label: 'Competitive Advantage (50-69%)', color: COLORS.blue },
-      { key: 'emergingOpportunity' as const, label: 'Emerging Opportunities (30-49%)', color: COLORS.green },
+      { key: 'authoritative' as const, label: 'Authoritative Topics', color: COLORS.primary },
+      { key: 'thoughtLeadership' as const, label: 'Thought Leadership', color: COLORS.purple },
+      { key: 'competitiveAdvantage' as const, label: 'Competitive Advantage', color: COLORS.blue },
+      { key: 'emergingOpportunity' as const, label: 'Emerging Opportunities', color: COLORS.green },
     ];
 
     const totalTopics = categories.reduce((sum, cat) => sum + this.auditData.contentTopics[cat.key].length, 0);

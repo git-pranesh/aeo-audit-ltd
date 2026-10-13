@@ -249,7 +249,7 @@ export default function FixItPlaybook({ playbook }: FixItPlaybookProps) {
             <span className="text-muted-foreground"> estimated improvement</span>
           </p>
         )}
-        <p className="text-sm text-muted-foreground">Actionable steps ranked by impact to boost your visibility across AI platforms</p>
+        <p className="text-sm text-muted-foreground">Actions ranked by priority, with steps, time estimates and code</p>
       </div>
 
       {hasQuickWins && (

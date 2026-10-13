@@ -4,26 +4,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
 const AUDIT_STAGES = [
-  { name: "Scanning Website", description: "Fetching pages and sitemap" },
-  { name: "Extracting Content Signals", description: "Analyzing content structure" },
-  { name: "Calculating Platform Scores", description: "Scoring across AI platforms" },
-  { name: "Generating Topics", description: "Creating content recommendations" },
-  { name: "Finalizing Report", description: "Compiling your audit results" }
+  { name: "Reading your website", description: "Fetching up to 10 pages, your sitemap and robots.txt" },
+  { name: "Counting content signals", description: "FAQs, guides, schema, headings, data points, citations" },
+  { name: "Calculating scores", description: "Same formula for every site, whichever AI model you use" },
+  { name: "Writing topic ideas", description: "One call to your chosen model on OpenRouter" },
+  { name: "Finalizing report", description: "Building your playbook and AEO Pack" }
 ];
 
 const DEFAULT_LOADING_MESSAGES = [
-  "Good things take time, like getting recommended by AI engines..",
-  "Analyzing how ChatGPT, Perplexity, Gemini, and Claude view your website",
-  "Scanning 1000+ AI search patterns to find your AI readiness opportunities..",
-  "Comparing your domain authority against top-ranked AI recommendations...",
-  "Identifying content gaps where your competitors are getting recommended...",
-  "We're building your roadmap to AI search dominance. Worth the wait!",
-  "Fun fact: 99% of businesses aren't on AI search radar. You're about to join the 1%.",
-  "Deep analysis in progress. Your competitors wish they had this intel...",
-  "Scoring your content across ChatGPT, Perplexity, Gemini and Claude...",
-  "Our AI is analyzing millions of successful AI recommendations to predict your best topics...",
-  "Running advanced entity recognition and content structure optimization...",
-  "Drafting content topics that AI platforms will love recommending. Almost there!"
+  "Checking which AI search and training crawlers your robots.txt allows...",
+  "Reading your sitemap to count blog posts, guides, docs and case studies...",
+  "Parsing the schema.org markup on the pages we read...",
+  "Counting outbound citations and data points in your content...",
+  "Comparing your signals with reference targets for your industry...",
+  "Writing 20 topic ideas from your confirmed business details...",
+  "Picking the fixes that move your score most for the least effort...",
+  "Preparing your AEO Pack: llms.txt, schema markup and robots.txt rules...",
 ];
 
 interface LoadingStateProps {
