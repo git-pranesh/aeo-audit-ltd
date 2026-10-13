@@ -1,0 +1,264 @@
+FINAL LAUNCH READINESS AUDIT — USER PERSPECTIVE
+Do not change any code. Do not fix anything. 
+This is a real, live, hands-on test — actually click through 
+everything as a real user would. Report only what you 
+personally see happen, not what the code says should happen.
+
+Create 5 test accounts before starting:
+- test-free@[yourdomain].com (Free plan)
+- test-starter@[yourdomain].com (Starter plan — use Dodo test mode)
+- test-pro@[yourdomain].com (Pro plan — use Dodo test mode)
+- test-enterprise@[yourdomain].com (Enterprise plan)
+- test-lifetime@[yourdomain].com (manually set plan: 'lifetime' in Firestore)
+
+═══════════════════════════════════════════════════════
+PART 1 — FIRST IMPRESSION (unauthenticated visitor)
+═══════════════════════════════════════════════════════
+
+Visit app.citationrocket.com with no account, in an 
+incognito window.
+
+1. Does the homepage load? What's the first thing you see?
+2. Is there a clear call to action?
+3. Can you tell what the product does within 5 seconds 
+   of landing, without reading deeply?
+4. Try to run an audit without signing up — what happens?
+5. Is pricing visible/discoverable?
+6. Screenshot or describe the overall visual quality — 
+   does it look production-ready or unfinished?
+
+═══════════════════════════════════════════════════════
+PART 2 — SIGNUP & ONBOARDING (new free user)
+═══════════════════════════════════════════════════════
+
+Using test-free@[yourdomain].com:
+
+1. Sign up with email/password. Does it work smoothly?
+2. Also test signup with Google. Does that work smoothly?
+3. Is a welcome email received? Check inbox. 
+   How long did it take? Does it look good on mobile?
+4. After signup, what's the very next screen? 
+   Is it obvious what to do?
+5. Run your first audit on a real site (use a site you know 
+   well, e.g. a competitor or your own past client).
+6. Time how long the full audit takes, start to finish.
+7. Is there a loading state that explains what's happening, 
+   or does it just look frozen?
+
+═══════════════════════════════════════════════════════
+PART 3 — FREE PLAN — FULL FEATURE WALKTHROUGH
+═══════════════════════════════════════════════════════
+
+As test-free@[yourdomain].com, go through every single 
+feature and mark what you see:
+
+[ ] Overall score displayed
+[ ] Platform scores (ChatGPT/Perplexity/Gemini/Claude) shown
+[ ] Blueprint score section (E-E-A-T, Answer Capsule, etc.) visible?
+[ ] How many content topics shown? (should be 3 per category)
+[ ] Playbook — how many actions visible? Any locked/blurred?
+[ ] Checklist — can you mark items complete?
+[ ] PDF export — available or blocked? What happens if blocked?
+[ ] Re-audit button — available or blocked?
+[ ] Citation snapshot — available or blocked?
+[ ] Citation monitoring — available or blocked?
+[ ] Score history — visible?
+[ ] Can you run a 2nd audit? A 3rd? What happens after the limit?
+[ ] AEO file generator — available or blocked?
+[ ] Any upgrade prompts? Are they annoying or tasteful?
+
+Report exactly what you see for each line, not what 
+should happen.
+
+═══════════════════════════════════════════════════════
+PART 4 — STARTER PLAN — FULL FEATURE WALKTHROUGH
+═══════════════════════════════════════════════════════
+
+Upgrade test-starter@[yourdomain].com to Starter via 
+real Dodo checkout (test mode). 
+
+1. Does checkout complete without errors?
+2. Is there a payment confirmation email?
+3. Does the plan update immediately or require a refresh/relogin?
+4. Now repeat the SAME checklist as Part 3, noting what's 
+   different from Free:
+[ ] Topics per category (should be 12)
+[ ] Citation refresh button
+[ ] Monitoring frequency (should be monthly)
+[ ] Multi-domain limit
+[ ] Anything else unlocked vs Free
+
+═══════════════════════════════════════════════════════
+PART 5 — PRO PLAN — FULL FEATURE WALKTHROUGH
+═══════════════════════════════════════════════════════
+
+Upgrade test-pro@[yourdomain].com to Pro via Dodo checkout.
+
+1. Checkout flow — smooth?
+2. Repeat the checklist, noting differences from Starter:
+[ ] Topics per category (should be 25)
+[ ] Citation alerts (email) enabled
+[ ] Weekly monitoring
+[ ] Whitelabel PDF export
+[ ] AEO file generator — unlocked now?
+[ ] Full playbook priority ordering
+
+═══════════════════════════════════════════════════════
+PART 6 — ENTERPRISE PLAN — FULL FEATURE WALKTHROUGH
+═══════════════════════════════════════════════════════
+
+Same as above for Enterprise:
+[ ] Topics per category (should be 100)
+[ ] Daily monitoring
+[ ] Full whitelabel playbooks
+[ ] Any enterprise-only features visible?
+
+═══════════════════════════════════════════════════════
+PART 7 — LIFETIME/APPSUMO PLAN — BYOK JOURNEY
+═══════════════════════════════════════════════════════
+
+Using test-lifetime@[yourdomain].com (plan manually set 
+to 'lifetime' in Firestore):
+
+1. Try to run an audit WITHOUT adding an API key first.
+2. Does the "API key required" modal appear?
+3. Does the modal correctly say "OpenRouter" (not Perplexity) 
+   after our fix?
+4. Does it link to openrouter.ai?
+5. Add a real OpenRouter key (sk-or-...).
+6. Does the key save successfully?
+7. Run an audit — does it now work?
+8. Confirm in OpenRouter's own dashboard that the usage 
+   shows up on the USER's account, not yours.
+
+═══════════════════════════════════════════════════════
+PART 8 — CHROME EXTENSION — LIVE TEST
+═══════════════════════════════════════════════════════
+
+With the extension freshly reloaded (production URLs):
+
+1. Install/reload extension. Icon appears in toolbar?
+2. Visit 3 different real websites (pick ones you haven't 
+   tested before). For each:
+   [ ] Click icon, sidebar opens
+   [ ] Click "Scan Page" — how long until results appear?
+   [ ] Do all 5 free modules show scores?
+   [ ] Does Reddit result appear (may take a few extra seconds)?
+   [ ] Any console errors? (right-click sidebar → Inspect)
+3. Click "Sign In Free" on one of them.
+   [ ] Auth tab opens correctly
+   [ ] After signing in, does it auto-return to the original tab?
+   [ ] Does Full Analysis load automatically after sign-in?
+   [ ] E-E-A-T, Off-Site sections populate correctly?
+4. Switch to a different tab/website while sidebar is open.
+   [ ] Does it correctly detect the new site?
+   [ ] Or does it show stale data from the previous site?
+5. Check Firestore extension_signals collection — 
+   did new documents get created for each scan?
+
+═══════════════════════════════════════════════════════
+PART 9 — PUBLIC API — LIVE TEST
+═══════════════════════════════════════════════════════
+
+1. As a logged-in user, call GET /api/keys/me — 
+   do you get a cr_live_ key back?
+2. Call POST /api/v1/score with that key on a real URL.
+   Show the actual JSON response.
+3. Call POST /api/v1/audit — show the actual JSON response.
+4. Call GET /api/v1/benchmarks?industry=saas — show response.
+5. Call /api/v1/score more than the free limit (50/month) — 
+   does it correctly return a 429 with upgrade messaging?
+6. Confirm /api/keys/checkout now correctly returns the 
+   "not yet available" message (per our fix).
+
+═══════════════════════════════════════════════════════
+PART 10 — AEO FILE GENERATOR — LIVE TEST
+═══════════════════════════════════════════════════════
+
+As test-pro@[yourdomain].com:
+1. Find the "Generate AEO Files" feature/button 
+   (report where it is or if you can't find it).
+2. Trigger it for a real audited site.
+3. Does a ZIP download? What's inside it?
+4. Open llms.txt, AGENTS.md, one schema file — 
+   do they look correct and usable?
+5. As test-free@[yourdomain].com, try the same — 
+   confirm it's correctly blocked with an upgrade message.
+
+═══════════════════════════════════════════════════════
+PART 11 — EMAIL SYSTEM — LIVE TEST
+═══════════════════════════════════════════════════════
+
+1. Trigger a citation refresh manually for a Pro test account 
+   with a real mention rate change — does the alert email arrive?
+2. Check spam folder too — did it land in spam or inbox?
+3. Open the email on mobile — does it render correctly?
+4. Check the unsubscribe/preferences link if one exists.
+
+═══════════════════════════════════════════════════════
+PART 12 — MOAT / DATA VERIFICATION
+═══════════════════════════════════════════════════════
+
+1. Open Firebase console → Firestore.
+2. Count total documents in audit_dataset right now.
+3. Count total documents in extension_signals right now.
+4. Open the most recent audit_dataset document — 
+   does it have all expected fields (score, industry, 
+   signals, competitors, etc.)?
+5. Open the most recent extension_signals document — 
+   same check.
+
+═══════════════════════════════════════════════════════
+PART 13 — PRICING PAGE ACCURACY
+═══════════════════════════════════════════════════════
+
+1. Visit the pricing page as an unauthenticated visitor.
+2. List every plan shown with its price and stated features.
+3. Cross-check: do the stated features on the pricing page 
+   actually match what you observed in Parts 3-6? 
+   Flag any mismatches (e.g. pricing page says "unlimited 
+   audits" but the code limits to X).
+
+═══════════════════════════════════════════════════════
+PART 14 — MOBILE RESPONSIVENESS
+═══════════════════════════════════════════════════════
+
+1. Open app.citationrocket.com on a mobile browser 
+   (or Chrome DevTools mobile emulation).
+2. Can you sign up, run an audit, and view results 
+   on mobile without visual breakage?
+3. Report anything that looks broken or cut off.
+
+═══════════════════════════════════════════════════════
+FINAL DELIVERABLE — REPORT FORMAT
+═══════════════════════════════════════════════════════
+
+Produce two things:
+
+1. FEATURE MATRIX TABLE — every feature down the left, 
+   every plan across the top, mark what you actually 
+   observed (✅ works / ⚠️ partial / ❌ broken / 🚫 not found):
+
+| Feature | Free | Starter | Pro | Enterprise | Lifetime |
+|---------|------|---------|-----|------------|----------|
+| Overall score | | | | | |
+| Platform scores | | | | | |
+| Blueprint score | | | | | |
+| Topics per category | | | | | |
+| Playbook actions | | | | | |
+| Checklist persistence | | | | | |
+| PDF export | | | | | |
+| Re-audit | | | | | |
+| Citation snapshot | | | | | |
+| Citation monitoring freq | | | | | |
+| Citation alerts (email) | | | | | |
+| Score history | | | | | |
+| Multi-domain limit | | | | | |
+| AEO file generator | | | | | |
+| API access | | | | | |
+
+2. LAUNCH VERDICT — one paragraph: is this genuinely ready 
+   to launch today, or what's the single biggest thing 
+   still standing in the way?
+
+Do not fix anything during this audit. Report only.

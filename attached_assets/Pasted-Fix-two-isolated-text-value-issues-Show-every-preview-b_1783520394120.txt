@@ -1,0 +1,61 @@
+Fix two isolated text/value issues. Show every preview 
+before saving. Do not touch anything else.
+
+═══════════════════════════════════════
+FIX 1 — Lifetime popup topic count
+═══════════════════════════════════════
+
+In client/src/components/appsumo-key-required-modal.tsx, 
+find the line claiming "100 topics per category" 
+(around line 37).
+
+Replace "100 topics per category" with 
+"25 topics per category" — this matches the actual 
+enforced value in shared/feature-flags.ts 
+(lifetime.topicsPerCategory = 25).
+
+Show me the exact before/after of that one line.
+
+═══════════════════════════════════════
+FIX 2 — Enterprise price conflict ($399 → $299)
+═══════════════════════════════════════
+
+In server/subscription-service.ts, find the 
+getPlanPrices() function and locate where Enterprise 
+is set to 399.
+
+Show me the full getPlanPrices() function first 
+before changing anything — I want to see exactly 
+what else references that number and whether it's 
+monthly, annual, or both.
+
+Once shown, change the Enterprise value from 399 to 299 
+to match the live pricing page and the database 
+system/planSettings record.
+
+Also check if this same $399 value appears anywhere 
+else in the codebase so we don't fix one spot and 
+leave another:
+grep -rn "399" server/ client/src/ --include="*.ts" --include="*.tsx" | grep -v "node_modules"
+
+Show me all locations where 399 appears related to 
+Enterprise pricing before making any changes. If there 
+are multiple locations, list them all first — do not 
+fix them one at a time blindly.
+
+═══════════════════════════════════════
+VERIFICATION
+═══════════════════════════════════════
+
+After both fixes are saved:
+
+1. Confirm no other file references Enterprise at $399:
+grep -rn "399" server/ client/src/ --include="*.ts" --include="*.tsx" | grep -v "node_modules"
+
+2. Run tests to confirm nothing broke:
+npx vitest run 2>&1 | tail -10
+
+3. Confirm TypeScript has no new errors:
+npx tsc --noEmit 2>&1 | grep "error TS" | grep -v "test-all-fixes"
+
+Show me all 3 verification outputs.

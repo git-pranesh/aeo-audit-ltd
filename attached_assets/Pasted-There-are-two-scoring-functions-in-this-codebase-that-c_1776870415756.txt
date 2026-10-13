@@ -1,0 +1,41 @@
+There are two scoring functions in this codebase that calculate platform scores differently and must not both be active:
+
+calculatePlatformScores in server/content-signal-service.ts — the old V1 system with a minimum floor of 50, always returns scores between 50-95
+
+calculatePlatformScoresV2 in server/scoring-service.ts — the current zero-based earned model, returns 0-100 based on actual content signals
+
+The problem is that server/routes.ts may be importing and calling both functions at different points in the same audit flow, causing the displayed score to come from a different calculation than the one used for playbook generation and benchmark comparisons.
+
+Make the following changes:
+
+Change 1 — server/routes.ts
+
+Search the entire file for any import of calculatePlatformScores from ./content-signal-service. It will look like:
+
+ts
+import { ..., calculatePlatformScores, ... } from "./content-signal-service";
+Remove calculatePlatformScores from that import. Keep all other imports from content-signal-service intact — only remove calculatePlatformScores specifically.
+
+Then search the entire file for every call to calculatePlatformScores( (without the V2 suffix). For each call found, replace it with the equivalent call to calculatePlatformScoresV2( from ./scoring-service. The function signatures may differ slightly — calculatePlatformScoresV2 accepts (signals: ContentSignals, sitemapSize?: number, subdomainCount?: number). Pass the content signals as the first argument, sitemapUrls?.length ?? 0 as the second, and discoveredSubdomains?.length ?? 0 as the third.
+
+Change 2 — server/content-signal-service.ts
+
+Find the calculatePlatformScores function (the V1 version with the 50-minimum floor). Add a @deprecated comment above it so it is clearly marked as retired:
+
+ts
+/**
+ * @deprecated Use calculatePlatformScoresV2 from scoring-service.ts instead.
+ * This V1 function has a minimum floor of 50 and always returns scores between 50-95,
+ * making it incompatible with the zero-based earned scoring model.
+ * It is kept here only to avoid breaking any type references but must not be called.
+ */
+Do not delete the function — only mark it deprecated. Deleting it may break type imports elsewhere.
+
+Change 3 — Verify single scoring path
+
+After making both changes, search server/routes.ts for all remaining calls to any scoring function. Confirm that every score calculation in the file goes through calculatePlatformScoresV2 only. If any call to calculatePlatformScores (V1) remains, remove it.
+
+Then run npx tsx server/test-fixes.ts to confirm all 5 tests still pass.
+
+Do not change the scoring logic inside either function. Do not change any other imports or exports. Only consolidate all scoring calls onto the V2 path.
+

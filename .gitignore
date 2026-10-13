@@ -1,0 +1,15 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+.env
+
+# PII exports / data dumps — never commit user data
+exports/
+*.csv
+
+# Service-account / credential files
+*serviceAccount*.json
+*service-account*.json

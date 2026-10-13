@@ -1,0 +1,106 @@
+You are making ONE surgical change to `server/scoring-service.ts` ONLY.
+Do NOT touch any other file. Do NOT change function signatures.
+
+THE PROBLEM:
+The `COMPETITOR_BENCHMARKS` object is a single static set of SaaS-level numbers
+used for ALL industries. A bakery, a dental clinic, a restaurant, a gold mining 
+company are all scored against SaaS benchmarks. This causes thin-content 
+non-tech sites to score F unfairly.
+
+THE FIX:
+Replace the single `COMPETITOR_BENCHMARKS` object with an 
+industry-aware benchmark lookup. Here is the exact implementation:
+
+Step 1 — Replace the existing COMPETITOR_BENCHMARKS const with this:
+
+  const BENCHMARKS_BY_INDUSTRY: Record<string, typeof BASE_BENCHMARKS> = {};
+  
+  const BASE_BENCHMARKS = {
+    tutorials: 15, howToGuides: 12, faqSections: 5, caseStudies: 8,
+    blogPosts: 50, stepByStepLists: 10, dataPoints: 30, statistics: 15,
+    externalLinks: 50, researchTerms: 10, schemaTypes: 5, headingScore: 80,
+    images: 30, frameworkMentions: 8, longFormScore: 70, nuancedTerms: 15,
+    documentationPages: 20
+  };
+  
+  const INDUSTRY_BENCHMARK_OVERRIDES: Record<string, Partial<typeof BASE_BENCHMARKS>> = {
+    // Healthcare, dental, medical — conservative content expectations
+    healthcare: { tutorials: 3, howToGuides: 4, caseStudies: 2, faqSections: 6, 
+                  frameworkMentions: 3, blogPosts: 15, dataPoints: 20 },
+    // Local services: plumbing, restaurants, salons, bakeries, gyms
+    localservice: { tutorials: 2, howToGuides: 3, caseStudies: 1, faqSections: 3,
+                    frameworkMentions: 2, blogPosts: 10, dataPoints: 10 },
+    // E-commerce, retail, apparel, printing
+    ecommerce: { tutorials: 4, howToGuides: 5, caseStudies: 2, faqSections: 5,
+                 frameworkMentions: 3, blogPosts: 20, dataPoints: 15 },
+    // Industrial, mining, agriculture, manufacturing  
+    industrial: { tutorials: 2, howToGuides: 3, caseStudies: 3, faqSections: 2,
+                  frameworkMentions: 3, blogPosts: 10, dataPoints: 15 },
+    // Real estate, construction
+    realestate: { tutorials: 2, howToGuides: 3, caseStudies: 2, faqSections: 3,
+                  frameworkMentions: 2, blogPosts: 15, dataPoints: 12 },
+    // Legal services
+    legal: { tutorials: 2, howToGuides: 3, caseStudies: 5, faqSections: 4,
+             frameworkMentions: 4, blogPosts: 15, dataPoints: 10 },
+    // Marketing agencies, PR
+    marketing: { tutorials: 8, howToGuides: 8, caseStudies: 6, faqSections: 4,
+                 frameworkMentions: 6, blogPosts: 40, dataPoints: 30 },
+    // SaaS, software, developer tools (original values, keep as is)
+    saas: { tutorials: 15, howToGuides: 12, caseStudies: 8, faqSections: 5,
+            frameworkMentions: 8, blogPosts: 50, dataPoints: 30 },
+    // New/tiny website (fewer than 20 pages detected)
+    newsite: { tutorials: 1, howToGuides: 1, caseStudies: 1, faqSections: 1,
+               frameworkMentions: 1, blogPosts: 5, dataPoints: 5 },
+  };
+  
+  function getBenchmarks(industry: string, totalPageCount: number): typeof BASE_BENCHMARKS {
+    // New/tiny site override takes priority
+    if (totalPageCount < 20) {
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['newsite'] };
+    }
+    const norm = (industry || '').toLowerCase();
+    if (norm.match(/health|dental|clinic|medical|hospital|pharma|therapy|wellness/))
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['healthcare'] };
+    if (norm.match(/restaurant|bakery|cafe|salon|spa|gym|plumb|electrician|cleaner|tailor|florist|catering|local/))
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['localservice'] };
+    if (norm.match(/ecommerce|retail|shop|apparel|fashion|print|merchandise|clothing/))
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['ecommerce'] };
+    if (norm.match(/mining|agriculture|farm|manufactur|industrial|construction|engineering/))
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['industrial'] };
+    if (norm.match(/real estate|property|realtor|mortgage|realty/))
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['realestate'] };
+    if (norm.match(/legal|law|attorney|lawyer/))
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['legal'] };
+    if (norm.match(/marketing|agency|advertising|branding|pr |seo/))
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['marketing'] };
+    if (norm.match(/saas|software|tech|platform|developer|api|devtools|cloud|app/))
+      return { ...BASE_BENCHMARKS, ...INDUSTRY_BENCHMARK_OVERRIDES['saas'] };
+    return BASE_BENCHMARKS; // default: general/unknown industry
+  }
+
+Step 2 — Update the `calculatePlatformScoresV2` function signature to accept industry:
+
+  Change: export function calculatePlatformScoresV2(signals: ContentSignals, sitemapSize: number = 0, subdomainCount: number = 0): ScoringResult
+  To:     export function calculatePlatformScoresV2(signals: ContentSignals, sitemapSize: number = 0, subdomainCount: number = 0, industry: string = '', totalPageCount: number = 0): ScoringResult
+
+Step 3 — At the very top of `calculatePlatformScoresV2`, before calculateContentDepth is called, add:
+
+  const COMPETITOR_BENCHMARKS = getBenchmarks(industry, totalPageCount);
+
+Step 4 — Find every place in `routes.ts` or `server/routes.ts` that calls 
+`calculatePlatformScoresV2(signals, ...)` and add the industry and totalPageCount 
+arguments. The industry string should come from companyIntelligence.industry 
+(already extracted earlier in the audit pipeline). totalPageCount comes from 
+signals.totalPageCount.
+
+Example:
+  Before: calculatePlatformScoresV2(signals, sitemapUrls.length, subdomainCount)
+  After:  calculatePlatformScoresV2(signals, sitemapUrls.length, subdomainCount, companyIntelligence?.industry || '', signals.totalPageCount || 0)
+
+---
+
+AFTER CHANGES:
+- Run: npx tsx server/test-all-fixes.ts
+- Confirm 12/12 still passing
+- Show diff
+- Restart workflow cleanly

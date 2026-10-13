@@ -1,0 +1,78 @@
+import { useState, useEffect } from 'react';
+import { Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { citationHistoryDb } from '@/lib/firestore-utils';
+import type { CitationHistoryEntry } from '@/lib/firestore-utils';
+
+interface CitationHistoryTimelineProps {
+  auditId: string;
+}
+
+export default function CitationHistoryTimeline({ auditId }: CitationHistoryTimelineProps) {
+  const [history, setHistory] = useState<CitationHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    citationHistoryDb.getCitationHistory(auditId)
+      .then((data) => setHistory([...data].reverse())) // most recent first
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [auditId]);
+
+  if (loading || history.length < 2) return null;
+
+  const last3 = history.slice(0, 3);
+  const deltas = last3.slice(0, -1).map((entry, i) => entry.mentionRate - last3[i + 1].mentionRate);
+  const avgDelta = deltas.reduce((a, b) => a + b, 0) / (deltas.length || 1);
+  const trend = avgDelta > 0 ? { label: '↑ Improving', color: 'text-green-600' }
+    : avgDelta < 0 ? { label: '↓ Declining', color: 'text-red-500' }
+    : { label: '→ Stable', color: 'text-muted-foreground' };
+
+  const visible = showAll ? history : history.slice(0, 5);
+
+  return (
+    <Card className="bg-card border border-border shadow-lg fade-in-up">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
+              <Clock className="h-4 w-4 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold">Citation Monitoring History</h3>
+          </div>
+          <span className={`text-sm font-medium ${trend.color}`}>{trend.label}</span>
+        </div>
+
+        <div className="space-y-0">
+          {visible.map((entry, i) => {
+            const prev = history[i + 1];
+            const delta = prev ? entry.mentionRate - prev.mentionRate : null;
+            return (
+              <div key={entry.runId ?? i} className="flex items-center justify-between py-2.5 border-b border-border/50 text-sm last:border-0">
+                <span className="text-muted-foreground w-28 shrink-0">
+                  {new Date(entry.runAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+                <span className="font-semibold text-foreground">{entry.mentionRate}%</span>
+                <span className={`w-24 text-center ${delta === null ? 'text-muted-foreground' : delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {delta === null ? '—' : delta > 0 ? `▲ +${delta}%` : delta < 0 ? `▼ ${delta}%` : '→ no change'}
+                </span>
+                <Badge variant="outline" className="text-[10px] capitalize">{entry.trigger}</Badge>
+              </div>
+            );
+          })}
+        </div>
+
+        {history.length > 5 && (
+          <div className="text-center pt-3">
+            <Button variant="ghost" size="sm" onClick={() => setShowAll(!showAll)} className="gap-1 text-xs text-muted-foreground">
+              {showAll ? <><ChevronUp className="h-3 w-3" /> Show less</> : <><ChevronDown className="h-3 w-3" /> Show all {history.length} entries</>}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

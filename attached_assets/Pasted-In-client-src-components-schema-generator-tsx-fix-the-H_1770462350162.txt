@@ -1,0 +1,203 @@
+In client/src/components/schema-generator.tsx, fix the HowTo
+schema generation. The FAQ schema is already good (uses
+INDUSTRY_FAQ_MAP for industry-specific questions). But the
+HowTo schema (line 142-172) always generates generic SaaS
+steps like "Visit the Website", "Create Your Account" etc.
+A law firm shouldn't see "Create Your Account".
+
+Add an INDUSTRY_HOWTO_MAP constant near the top of the file
+(after INDUSTRY_FAQ_MAP around line 84) with this structure:
+
+const INDUSTRY_HOWTO_MAP: Record<string, {
+  title: string;
+  description: string;
+  steps: Array<{ name: string; text: string }>;
+}> = {
+  legal: {
+    title: 'How to Get Legal Help from {company}',
+    description: 'A step-by-step guide to getting the legal
+      representation you need from {company}.',
+    steps: [
+      { name: 'Describe Your Situation',
+        text: 'Visit {url} and fill out the free case
+        evaluation form, describing your legal issue.' },
+      { name: 'Schedule Free Consultation',
+        text: 'Book a no-obligation consultation by phone
+        or video to discuss your case with an attorney.' },
+      { name: 'Review Your Options',
+        text: 'Your attorney will explain your legal options,
+        potential outcomes, and recommended strategy.' },
+      { name: 'Engage Representation',
+        text: 'If you decide to proceed, sign the
+        representation agreement and let your legal team
+        start working on your case.' },
+      { name: 'Stay Informed',
+        text: 'Receive regular case updates and communicate
+        with your legal team through the client portal.' },
+    ]
+  },
+  marketing: {
+    title: 'How to Start a Marketing Project with {company}',
+    description: 'A guide to launching your marketing
+      campaign with {company}.',
+    steps: [
+      { name: 'Request a Strategy Session',
+        text: 'Visit {url} and schedule a free marketing
+        strategy session to discuss your goals.' },
+      { name: 'Get Your Custom Proposal',
+        text: 'Receive a tailored marketing plan with
+        recommended channels, timeline, and budget.' },
+      { name: 'Approve the Strategy',
+        text: 'Review the proposal, provide feedback, and
+        approve the final strategy and deliverables.' },
+      { name: 'Launch Your Campaign',
+        text: 'Your dedicated team sets up campaigns,
+        creates content, and begins execution.' },
+      { name: 'Track Results',
+        text: 'Access real-time reporting dashboards and
+        receive monthly performance reviews.' },
+    ]
+  },
+  saas: {
+    title: 'How to Get Started with {company}',
+    description: 'A step-by-step guide to setting up and
+      using {company} for your business.',
+    steps: [
+      { name: 'Create Your Account',
+        text: 'Visit {url} and sign up for a free trial
+        or choose the plan that fits your needs.' },
+      { name: 'Set Up Your Workspace',
+        text: 'Configure your settings, add your team
+        members, and customize your preferences.' },
+      { name: 'Connect Your Tools',
+        text: 'Integrate with your existing tools and import
+        your data for a seamless transition.' },
+      { name: 'Complete Onboarding',
+        text: 'Follow the guided setup wizard and explore
+        key features with interactive tutorials.' },
+      { name: 'Go Live',
+        text: 'Start using the platform with your team and
+        monitor your dashboard for insights.' },
+    ]
+  },
+  healthcare: {
+    title: 'How to Book an Appointment with {company}',
+    description: 'A step-by-step guide to scheduling your
+      visit with {company}.',
+    steps: [
+      { name: 'Check Your Insurance',
+        text: 'Visit {url} or call to verify your insurance
+        is accepted and check coverage details.' },
+      { name: 'Schedule Your Appointment',
+        text: 'Book online through the patient portal or
+        call during office hours to schedule.' },
+      { name: 'Complete Intake Forms',
+        text: 'Download and fill out new patient forms
+        before your visit to save time.' },
+      { name: 'Attend Your Visit',
+        text: 'Arrive 15 minutes early with your ID,
+        insurance card, and completed forms.' },
+      { name: 'Follow Up',
+        text: 'Access visit notes and follow-up
+        instructions through the patient portal.' },
+    ]
+  },
+  realestate: {
+    title: 'How to Buy or Sell a Home with {company}',
+    description: 'A guide to the real estate process with
+      {company}.',
+    steps: [
+      { name: 'Get a Free Consultation',
+        text: 'Contact {company} to discuss your buying or
+        selling goals and timeline.' },
+      { name: 'Get Pre-Approved or List Your Home',
+        text: 'Buyers: get mortgage pre-approval. Sellers:
+        get a market analysis and list your property.' },
+      { name: 'Search or Show Your Property',
+        text: 'Browse listings or host showings with your
+        dedicated agent guiding the process.' },
+      { name: 'Make or Negotiate Offers',
+        text: 'Submit or review offers with expert
+        negotiation support from your agent.' },
+      { name: 'Close the Deal',
+        text: 'Complete inspections, finalize financing,
+        and close on your new home.' },
+    ]
+  },
+  ecommerce: {
+    title: 'How to Shop with {company}',
+    description: 'A quick guide to finding and ordering
+      products from {company}.',
+    steps: [
+      { name: 'Browse Products',
+        text: 'Visit {url} and explore categories or use
+        search to find what you need.' },
+      { name: 'Compare Options',
+        text: 'Read product descriptions, reviews, and
+        compare similar items side by side.' },
+      { name: 'Add to Cart and Checkout',
+        text: 'Select your items, choose shipping options,
+        and complete secure checkout.' },
+      { name: 'Track Your Order',
+        text: 'Receive shipping confirmation with tracking
+        number and delivery estimates.' },
+      { name: 'Return if Needed',
+        text: 'Use the easy return process within 30 days
+        if the product does not meet your needs.' },
+    ]
+  },
+  default: {
+    title: 'How to Get Started with {company}',
+    description: 'A step-by-step guide to working with
+      {company}.',
+    steps: [
+      { name: 'Visit the Website',
+        text: 'Go to {url} and explore the services and
+        solutions available.' },
+      { name: 'Request Information',
+        text: 'Fill out the contact form or call to discuss
+        your specific needs.' },
+      { name: 'Get a Custom Proposal',
+        text: 'Receive a tailored recommendation based on
+        your requirements and budget.' },
+      { name: 'Start Working Together',
+        text: 'Begin your project with a dedicated point of
+        contact managing the process.' },
+      { name: 'Review Results',
+        text: 'Track progress and review outcomes with
+        regular check-ins and reporting.' },
+    ]
+  },
+};
+
+Then modify the HowTo generation block (lines 142-172).
+Replace the hardcoded steps with:
+
+  const industryKey = getIndustryKey(industry);
+  const howToData = INDUSTRY_HOWTO_MAP[industryKey]
+    || INDUSTRY_HOWTO_MAP.default;
+
+  const howToSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    'name': howToData.title
+      .replace('{company}', companyName),
+    'description': howToData.description
+      .replace('{company}', companyName),
+    'totalTime': 'PT15M',
+    'step': howToData.steps.map((s, i) => ({
+      '@type': 'HowToStep',
+      'position': i + 1,
+      'name': s.name,
+      'text': s.text
+        .replace('{company}', companyName)
+        .replace('{url}', websiteUrl),
+    })),
+  };
+
+The existing getIndustryKey() function on line 86 already
+maps industry strings to keys — reuse it for the HowTo map.
+
+Do NOT change the FAQ schema generation (it's already good),
+the Article schema, the LocalBusiness schema, the Copy Code
+button, or any styling. Only replace the HowTo schema steps.

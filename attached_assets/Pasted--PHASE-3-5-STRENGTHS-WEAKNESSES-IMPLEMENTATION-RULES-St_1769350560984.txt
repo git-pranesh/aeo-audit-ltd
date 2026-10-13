@@ -1,0 +1,52 @@
+## PHASE 3.5: STRENGTHS & WEAKNESSES - IMPLEMENTATION RULES
+
+### Strengths (Site-Specific Analysis)
+Before writing any strength, ask:
+1. "What does THIS company do better than their competitors?"
+2. "Is there blog post, case study, or content that proves this?"
+
+Write format: "[COMPANY] has [X feature/content type] that competitors lack because [reason]"
+
+Examples:
+✅ "Contra emphasizes two-in-one profile switching (freelancer + client roles); Upwork requires separate accounts"
+✅ "Contra's blog covers commission-free payment mechanics in depth (12+ posts); Fiverr focuses on vendor earnings guides instead"
+❌ "Strong authoritative content" (too generic)
+
+### Weaknesses (Competitor-Specific Gaps)
+Before writing any weakness, ask:
+1. "What content does a COMPETITOR publish that this company lacks?"
+2. "Can you verify the competitor actually has this content?"
+
+Write format: "[COMPETITOR] has [X] posts on [topic]; [COMPANY] has [Y]—this is a gap"
+
+Examples:
+✅ "Upwork publishes 18 posts on 'scaling flexible teams'; Contra has 4—content gap for enterprise hiring"
+✅ "Fiverr has 40+ client case studies; Contra has 2—weak social proof vs competitors"
+❌ "Opportunity to expand topic coverage further" (too vague, no competitor reference)
+
+### Emerging Topics - VALIDATION REQUIRED
+For every emerging topic (30-49% confidence), verify:
+1. Search: "Does [COMPANY] have a blog post about [topic]?"
+2. Search: "Has [COMPANY] announced this in a press release?"
+3. Search: "Is there a job posting suggesting they're hiring for this?"
+
+If ALL three are NO → DELETE the topic
+If ANY is YES → KEEP the topic and cite the evidence
+
+Target: 25-35 emerging topics with evidence (not 75)
+
+### Recommendations - METRIC-DRIVEN
+Replace generic "create content on X" with specific actions:
+
+Format: "[COMPANY] blog: X posts on [topic] | [COMPETITOR]: Y posts | Action: Create Z posts to reach parity"
+
+Examples:
+✅ "Contra: 3 posts on 'freelance pricing models' | Upwork: 18 posts | Action: Create 10 detailed pricing strategy posts"
+✅ "Contra: 0 case studies | Fiverr: 30 case studies | Action: Create 8 customer success case studies"
+❌ "Prioritize creating content for top 10 authoritative topics"
+
+Verify competitor post counts by:
+1. Visiting their blog
+2. Filtering by category/tag
+3. Counting posts from last 2 years
+4. Including that count in recommendation

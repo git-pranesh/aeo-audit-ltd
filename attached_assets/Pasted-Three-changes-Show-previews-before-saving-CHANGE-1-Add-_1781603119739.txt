@@ -1,0 +1,161 @@
+Three changes. Show previews before saving.
+
+CHANGE 1 — Add scripting permission to extension/manifest.json:
+
+Find the permissions array and add "scripting":
+
+  "permissions": [
+    "activeTab",
+    "storage", 
+    "tabs",
+    "sidePanel",
+    "scripting"
+  ],
+
+CHANGE 2 — Add Reddit-via-Google function to extension/background.js:
+
+Add this function and message handler to background.js:
+
+async function getRedditMentionsViaGoogle(brandName) {
+  return new Promise(async (resolve) => {
+    const query = `site:reddit.com "${brandName}"`;
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=10&hl=en`;
+    
+    let tab;
+    try {
+      tab = await chrome.tabs.create({ url: searchUrl, active: false });
+    } catch (err) {
+      return resolve({ found: null, status: 'error', mentionCount: null, topSubreddits: [] });
+    }
+    
+    // Timeout safety — close tab after 15s regardless
+    const timeout = setTimeout(async () => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      await chrome.tabs.remove(tab.id).catch(() => {});
+      resolve({ found: null, status: 'timeout', mentionCount: null, topSubreddits: [] });
+    }, 15000);
+    
+    const listener = async (tabId, changeInfo) => {
+      if (tabId !== tab.id || changeInfo.status !== 'complete') return;
+      chrome.tabs.onUpdated.removeListener(listener);
+      clearTimeout(timeout);
+      
+      // Small delay to ensure page renders
+      await new Promise(r => setTimeout(r, 800));
+      
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            // Detect CAPTCHA or unusual traffic page
+            if (
+              document.querySelector('#captcha-form') ||
+              document.querySelector('form[action*="sorry"]') ||
+              document.title.toLowerCase().includes('unusual traffic') ||
+              document.body.textContent.includes('unusual traffic')
+            ) {
+              return { blocked: true };
+            }
+            
+            // Get result count from stats bar
+            const statsEl = document.querySelector('#result-stats');
+            const statsText = statsEl?.textContent || '';
+            const countMatch = statsText.match(/([\d,]+)\s+result/);
+            const totalResults = countMatch
+              ? parseInt(countMatch[1].replace(/,/g, ''), 10)
+              : 0;
+            
+            // Extract subreddit names from all links on page
+            const subreddits = [...new Set(
+              Array.from(document.querySelectorAll('a[href]'))
+                .map(a => {
+                  const m = a.href.match(/reddit\.com\/r\/([a-zA-Z0-9_]+)/);
+                  return m ? 'r/' + m[1] : null;
+                })
+                .filter(s => s && s !== 'r/reddit.com' && s !== 'r/all')
+            )].slice(0, 5);
+            
+            // Get page titles as snippet preview
+            const titles = Array.from(document.querySelectorAll('h3'))
+              .slice(0, 3)
+              .map(h => h.textContent.trim())
+              .filter(Boolean);
+            
+            return { totalResults, subreddits, titles, blocked: false };
+          },
+        });
+        
+        await chrome.tabs.remove(tab.id).catch(() => {});
+        
+        const data = results?.[0]?.result;
+        
+        if (!data || data.blocked) {
+          resolve({ found: null, status: 'blocked', mentionCount: null, topSubreddits: [] });
+        } else {
+          resolve({
+            found: data.totalResults > 0,
+            mentionCount: data.totalResults,
+            topSubreddits: data.subreddits,
+            titles: data.titles,
+            status: 'ok',
+          });
+        }
+      } catch (err) {
+        await chrome.tabs.remove(tab.id).catch(() => {});
+        resolve({ found: null, status: 'error', mentionCount: null, topSubreddits: [] });
+      }
+    };
+    
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+// Add this to the existing chrome.runtime.onMessage listener in background.js
+// Inside the listener, add this case alongside existing ones:
+if (message.action === 'checkRedditMentions') {
+  getRedditMentionsViaGoogle(message.brandName)
+    .then(result => sendResponse({ result }))
+    .catch(() => sendResponse({ 
+      result: { found: null, status: 'error', mentionCount: null, topSubreddits: [] } 
+    }));
+  return true; // keep async channel open
+}
+
+CHANGE 3 — Update checkRedditPresence in extension/content.js:
+
+Replace the entire checkRedditPresence function with:
+
+async function checkRedditPresence(domain) {
+  const brandName = domain.split('.')[0];
+  // Handle compound names: "apollohospitals" → "Apollo Hospitals"
+  const brand = brandName
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, c => c.toUpperCase());
+  
+  return new Promise((resolve) => {
+    // Ask background script to do the Google search
+    // (background can open tabs, content scripts cannot)
+    chrome.runtime.sendMessage(
+      { action: 'checkRedditMentions', brandName: brand },
+      (response) => {
+        if (chrome.runtime.lastError || !response?.result) {
+          resolve({ 
+            found: null, status: 'error', 
+            mentionCount: null, topSubreddits: [] 
+          });
+        } else {
+          resolve(response.result);
+        }
+      }
+    );
+  });
+}
+
+Show me:
+1. The updated permissions array in manifest.json
+2. The full getRedditMentionsViaGoogle function in background.js
+3. The updated checkRedditPresence in content.js
+4. Confirm the onMessage listener in background.js 
+   has the checkRedditMentions case added
+
+Do nothing else until I confirm.

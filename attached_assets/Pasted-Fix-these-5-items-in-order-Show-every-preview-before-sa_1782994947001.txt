@@ -1,0 +1,99 @@
+Fix these 5 items in order. Show every preview before saving. 
+Stop after each numbered item and wait for my go-ahead 
+before starting the next one.
+
+═══════════════════════════════════════
+FIX 1 — Chrome extension: dev URL → production URL
+═══════════════════════════════════════
+
+In extension/content.js, find the line starting with:
+  const CR_CAPTURE_URL = 
+Replace whatever URL is there with:
+  const CR_CAPTURE_URL = 'https://app.citationrocket.com/api/extension/capture';
+
+In extension/side-panel.js, find the line starting with:
+  const CR_APP = 
+Replace whatever URL is there with:
+  const CR_APP = 'https://app.citationrocket.com';
+
+Do not touch background.js — it is already correct.
+Show me both changed lines before saving.
+
+═══════════════════════════════════════
+FIX 2 — Disable separate API billing (simplify)
+═══════════════════════════════════════
+
+We are not selling API access as a separate paid product 
+right now. Keep the /api/v1/* endpoints working (they stay 
+free/testable with a cr_live_ key), but remove the broken 
+checkout path so it can't be triggered or confuse anyone.
+
+In server/routes.ts, find the route:
+  app.post('/api/keys/checkout', ...)
+
+Change its handler to return a simple "not available yet" 
+response instead of calling Dodo:
+
+  app.post('/api/keys/checkout', requireAuth, async (req, res) => {
+    return res.status(503).json({ 
+      error: 'API billing is not yet available. Contact support for API access.' 
+    });
+  });
+
+Do not delete dodo-api-billing.ts or api-key-service.ts — 
+just disconnect the checkout route so it can't fail silently 
+in production. Show me the before/after of this one route.
+
+═══════════════════════════════════════
+FIX 3 — Rate limiter back to production values
+═══════════════════════════════════════
+
+In server/routes.ts, find auditLimiter 
+(currently max: 1000, windowMs: 60 * 1000).
+
+Change to:
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 audit requests per 15 min per IP
+
+This matches what real production traffic should look like — 
+generous enough for a real user running a few audits, 
+tight enough to stop abuse.
+
+Show me before/after. Save.
+
+═══════════════════════════════════════
+FIX 4 — AppSumo modal naming (OpenRouter not Perplexity)
+═══════════════════════════════════════
+
+In client/src/components/appsumo-key-required-modal.tsx, 
+find every instance of the word "Perplexity" in user-facing 
+text (labels, headings, help text, links). Replace with 
+"OpenRouter". If there's a link to perplexity.ai, change it 
+to https://openrouter.ai/settings/keys.
+
+Do the same in client/src/components/profile/api-configuration.tsx.
+
+Do not touch any validation logic, only visible text and links.
+Show me both file diffs before saving.
+
+═══════════════════════════════════════
+FIX 5 — Verification (run after all 4 above are saved)
+═══════════════════════════════════════
+
+a) Confirm extension URLs are correct:
+grep -n "CR_CAPTURE_URL\|CR_APP" extension/content.js extension/side-panel.js
+
+b) Confirm rate limiter is fixed:
+grep -A 3 "auditLimiter" server/routes.ts
+
+c) Confirm API checkout route returns 503:
+grep -A 3 "api/keys/checkout" server/routes.ts
+
+d) Run full test suite one more time:
+npx vitest run 2>&1 | tail -10
+
+e) Confirm TypeScript errors are unchanged (same 3 
+   pre-existing ones, nothing new):
+npx tsc --noEmit 2>&1 | grep "error TS" | grep -v "test-all-fixes"
+
+Show me all 5 verification outputs.

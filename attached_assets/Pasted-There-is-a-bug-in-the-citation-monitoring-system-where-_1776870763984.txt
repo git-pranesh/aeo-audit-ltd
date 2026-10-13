@@ -1,0 +1,53 @@
+There is a bug in the citation monitoring system where the scheduler can run a different number of prompts than the initial audit, causing totalPromptsChecked to differ between runs. Even though Bug #13 fixed the fixedPrompts path for audits that have snapshotPrompts stored, there is a gap: audits created before the Bug #13 fix was deployed have no snapshotPrompts field in Firestore. For those audits, the scheduler falls back to regenerating prompts from keywords — and if the keyword list changed or is empty, a different number of prompts runs, making mentionRateChange unreliable.
+
+Additionally, the initial audit endpoint and the scheduler may call generateCitationSnapshot with different keywords arrays because suggestedKeywords is stored at audit creation time but may have been edited or may be missing for older records.
+
+Make the following changes:
+
+Change 1 — server/citation-scheduler.ts
+
+Find the section inside the batch processing loop where generateCitationSnapshot is called. It currently spreads fixedPrompts only when audit.snapshotPrompts.length > 0. After that call returns newSnapshot, add a guard that checks whether the prompt count is consistent with the previous entry:
+
+ts
+// Guard: if totalPromptsChecked differs from previous run by more than 1,
+// skip the change detection and save as a calibration run instead
+if (previousEntry && Math.abs(newSnapshot.totalPromptsChecked - previousEntry.totalPromptsChecked) > 1) {
+  console.warn(
+    `Prompt count mismatch for audit ${audit.auditId}: ` +
+    `previous=${previousEntry.totalPromptsChecked}, current=${newSnapshot.totalPromptsChecked}. ` +
+    `Saving as calibration run — no alert will fire.`
+  );
+  await saveCitationSnapshot(audit.auditId, newSnapshot, "scheduled", false);
+  const auditRef = doc(db, "audits", audit.auditId);
+  await updateDoc(auditRef, {
+    lastScheduledCitationAt: new Date().toISOString(),
+  });
+  result.refreshed++;
+  return; // skip detectCitationChanges and email sending for this run
+}
+Place this guard immediately after newSnapshot is returned and before detectCitationChanges is called. This means if the prompt count shifts for any reason, the run is saved to history (so the data is not lost) but no alert email fires. The next scheduler run will use the new prompt count as the baseline, and from that point forward the counts will be consistent.
+
+Change 2 — server/citation-history-service.ts
+
+Find the CitationHistoryEntry interface. It already has totalPromptsChecked: number. Confirm this field is present — if it is, no change needed here. If it is missing, add it:
+
+ts
+totalPromptsChecked: number;
+This field is what the guard in Change 1 reads from previousEntry.totalPromptsChecked. It must exist on the stored history entry.
+
+Change 3 — server/citation-scheduler.ts
+
+Find where the scheduler logs a successful citation refresh. Add a log line that records the prompt count used, so you can monitor for mismatches in production:
+
+ts
+console.log(
+  `Refreshed citation for ${audit.websiteUrl} — ` +
+  `${newSnapshot.totalPromptsChecked} prompts, ` +
+  `mentionRate: ${newSnapshot.mentionRate}%`
+);
+Replace any existing simpler log line for successful refresh with this more informative version.
+
+Do not change the saveCitationSnapshot function signature. Do not change how alerts are sent when the prompt count IS consistent. Only add the mismatch guard and the log line.
+
+Run npx tsx server/test-fixes.ts after to confirm all 5 tests still pass.
+

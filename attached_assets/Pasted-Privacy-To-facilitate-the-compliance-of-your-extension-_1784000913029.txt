@@ -1,0 +1,39 @@
+Privacy
+To facilitate the compliance of your extension with the Chrome Web Store Developer Program Policies, you are required to provide the information listed below. The information provided in this form will be shared with the Chrome Web Store team. Please ensure that the information provided is accurate, as it will improve the review time of your extension and decrease the risk of this version being rejected.
+
+Single purpose
+An extension must have a single purpose that is narrow and easy-to-understand. Learn more
+
+Single purpose description
+Citation Rocket is a AEO (Answer Engine Optimization) checker. It runs a client-side audit of the currently active browser tab and scores the page across five AI-readiness modules: Answer Capsule (answer structure), Schema (structured data markup), Freshness (content recency), Fan-Out (internal link depth), and Bot Access (whether AI crawlers are blocked by robots.txt and whether llms.txt is present). The purpose is narrow and singular: tell the user, on the page they are currently viewing, whether that page is set up to be recommended by AI assistants like ChatGPT, Perplexity, Gemini, and Claude. No browsing history is tracked. No personal data is collected. The extension runs only when the user clicks the toolbar icon.
+730/1,000730 of 1000 characters entered
+Permission justification
+A permission is either one of a list of known strings, such as "activeTab", or a match pattern giving access to one or more hosts.
+Remove any permission that is not needed to fulfill the single purpose of your extension. Requesting an unnecessary permission will result in this version being rejected.
+
+Due to the Host Permission, your extension may require an in-depth review which will delay publishing.
+
+activeTab justification
+The activeTab permission is required to read the DOM of the currently active browser tab when the user clicks the extension icon. This is the core function of the extension: analyzing the page the user has open for AI-readiness signals (answer structure, schema markup, heading structure, freshness indicators, and internal link depth). The extension only reads the active tab's content at the moment the user explicitly clicks the toolbar icon. It does not run automatically on any page, does not monitor browsing, and does not read any tab the user has not actively chosen to audit.
+584/1,000584 of 1000 characters entered
+storage justification
+The storage permission is used to persist the user's audit results and scores locally in the browser so that results remain visible if the user closes and reopens the extension popup without re-running the audit. No personal data, browsing history, or credentials are stored. Only the most recent audit output (page scores across five modules) for the currently audited URL is stored locally. Storage is read and written only when the user actively triggers an audit by clicking the extension icon.
+498/1,000498 of 1000 characters entered
+tabs justification
+The tabs permission is required to retrieve the URL of the currently active browser tab so the extension can (a) display which page is being audited in the popup UI, and (b) make a targeted background request to the same domain's robots.txt and llms.txt files to check whether AI crawlers are blocked. The extension does not enumerate, read, or monitor other open tabs. It accesses only the URL of the single active tab at the moment the user clicks the icon.
+459/1,000459 of 1000 characters entered
+sidePanel justification
+The sidePanel permission is used to display the audit results in Chrome's native side panel, allowing the user to view their five AEO scores (Answer Capsule, Schema, Freshness, Fan-Out, Bot Access) alongside the page being audited without the popup closing when they interact with the page. This improves usability for consultants and marketers who need to cross-reference the audit results with the live page content. The side panel displays only the output of the user-triggered audit and no other data.
+505/1,000505 of 1000 characters entered
+scripting justification
+The scripting permission is required to inject a content script into the active tab's DOM when the user clicks the extension icon. The injected script reads the page's visible HTML structure to extract AI-readiness signals: the presence and types of schema markup (JSON-LD), heading structure, answer clarity, internal link count, freshness signals (dates, copyright year), and whether the page's content is structured in a way AI assistants can extract. The script runs only on user demand, reads only structural page content (no personal data, no form fields, no credentials), and terminates once the audit is complete. No data is sent to any external server from the injected script.
+686/1,000686 of 1000 characters entered
+Host permission justification
+The host permission (matching the domain of the active tab) is required for one specific purpose: to make a background fetch request to the same domain's publicly accessible robots.txt file and to check for the presence of an llms.txt file at the root of that domain. Both are standard, publicly served text files. This check determines whether the site has blocked AI crawlers (e.g., OAI-SearchBot for ChatGPT) and whether it has an llms.txt file — a key AI-readiness signal. The extension only requests these two specific files from the domain of the page the user is currently auditing. It does not request any other URLs, does not access user data on those domains, and does not run on any host the user has not chosen to audit.
+732/1,000732 of 1000 characters entered
+A host permission is any match pattern specified in the "permissions" and "content_scripts" fields of the extension manifest
+Are you using remote code?
+
+No, I am not using Remote code
+
+Yes, I am using Remote code

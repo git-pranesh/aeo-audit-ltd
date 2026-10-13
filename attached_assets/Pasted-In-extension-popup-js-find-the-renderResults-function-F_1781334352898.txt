@@ -1,0 +1,79 @@
+In extension/popup.js, find the renderResults function.
+
+Find where criticalIssues are displayed (the critical-banner block).
+
+Replace the entire critical banner section with this logic:
+
+// Check specifically for bot-blocking (the most dramatic finding)
+const botBlocking = criticalIssues && criticalIssues.find(i => 
+  i.text && i.text.toLowerCase().includes('blocked')
+);
+
+if (botBlocking) {
+  // Bot blocking gets its own full-width dramatic banner
+  const banner = document.getElementById('critical-banner');
+  banner.style.display = 'block';
+  banner.style.background = 'rgba(239,68,68,0.18)';
+  banner.style.border = '1px solid rgba(239,68,68,0.5)';
+  
+  const title = document.querySelector('.critical-title');
+  title.textContent = '🚫 ChatGPT Cannot Read This Site';
+  title.style.fontSize = '12px';
+  
+  const itemsEl = document.getElementById('critical-items');
+  
+  // Extract which specific bots are blocked
+  const blockedBots = (audit.modules.botScore?.citationBotsBlocked || []);
+  const botNames = blockedBots.length > 0 
+    ? blockedBots.slice(0,3).join(', ')
+    : 'AI citation bots';
+  
+  itemsEl.innerHTML = `
+    <div class="critical-item" style="margin-bottom:6px;">
+      ${botNames} ${blockedBots.length > 3 ? `+${blockedBots.length-3} more` : ''} 
+      blocked in robots.txt
+    </div>
+    <div style="font-size:10px;color:#f87171;margin-top:4px;">
+      Fix: Add "Allow: /" for these bots in robots.txt
+    </div>
+  `;
+} else if (criticalIssues && criticalIssues.length > 0) {
+  // Other critical issues - normal display
+  document.getElementById('critical-banner').style.display = 'block';
+  const itemsEl = document.getElementById('critical-items');
+  itemsEl.innerHTML = criticalIssues.slice(0, 2).map(i => 
+    `<div class="critical-item">• ${i.text}</div>`
+  ).join('');
+}
+
+Also in content.js, update the getCriticalIssues function to 
+return structured objects with a 'type' field:
+
+function getCriticalIssues(botScore, schemaScore, answerScore) {
+  const issues = [];
+  if (botScore.citationBotsBlocked?.length > 0) {
+    issues.push({ 
+      severity: 'critical', 
+      type: 'bot-blocking',
+      text: `Citation bots blocked: ${botScore.citationBotsBlocked.join(', ')}` 
+    });
+  }
+  if (!schemaScore.detected?.hasOrg) {
+    issues.push({ 
+      severity: 'high', 
+      type: 'schema',
+      text: 'Missing Organization schema markup' 
+    });
+  }
+  if (answerScore.score < 8) {
+    issues.push({ 
+      severity: 'high', 
+      type: 'answer-capsule',
+      text: 'Opening content not structured as answer capsule' 
+    });
+  }
+  return issues;
+}
+
+Show me the updated getCriticalIssues and the banner section 
+of renderResults before saving.

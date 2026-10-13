@@ -1,0 +1,88 @@
+In extension/content.js, replace the G2 check entirely 
+with a Wikipedia article check.
+
+1. Delete the checkG2Profile function completely.
+2. Delete the checkWikidataG2Property function completely.
+3. Add this new function:
+
+async function checkWikipedia(domain) {
+  const base = domain.split('.')[0];
+  const brandVariants = [
+    base.charAt(0).toUpperCase() + base.slice(1),
+    base.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    base.length <= 5 ? base.toUpperCase() : null,
+  ].filter(Boolean);
+
+  for (const brand of brandVariants) {
+    try {
+      const url = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(brand)}&limit=5&format=json&origin=*`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const titles = data?.[1] ?? [];
+      const descriptions = data?.[2] ?? [];
+      const b = brand.toLowerCase();
+      
+      const match = titles.findIndex((title, i) => {
+        const t = title.toLowerCase();
+        const desc = (descriptions[i] || '').toLowerCase();
+        const titleMatch = t === b || t.startsWith(b + ' ') || t === b + ' corporation' || t === b + ' inc';
+        const notConcept = !desc.includes('commune') && !desc.includes('river') && 
+                           !desc.includes('mountain') && !desc.includes('municipality');
+        return titleMatch && notConcept;
+      });
+
+      if (match !== -1) {
+        const articleTitle = titles[match];
+        return {
+          found: true,
+          articleTitle,
+          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(articleTitle)}`,
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+  return { found: false, articleTitle: null, url: null };
+}
+
+4. In runFullClientAudit(), replace the g2Result logic:
+
+FIND:
+  const g2Result = wikidataResult.found && wikidataResult.qNumber
+    ? await checkWikidataG2Property(wikidataResult.qNumber)
+    : { found: false, url: 'https://www.g2.com' };
+
+REPLACE WITH:
+  const wikipediaResult = await checkWikipedia(domain);
+  const g2Result = wikipediaResult; // renamed for minimal UI change
+
+5. In side-panel.js, find renderBonusGrid() and update the 
+   second bonus card to show Wikipedia instead of G2:
+
+Find this in renderBonusGrid():
+    <div class="bonus-card">
+      <div class="bonus-icon">${g2Result.found ? '✅' : '❌'}</div>
+      <div class="bonus-name">G2 Profile</div>
+      <div class="bonus-value ${g2Result.found ? 'green' : 'red'}">
+        ${g2Result.found ? 'Profile found' : 'No profile'}
+      </div>
+    </div>
+
+Replace with:
+    <div class="bonus-card">
+      <div class="bonus-icon">${g2Result.found ? '✅' : '❌'}</div>
+      <div class="bonus-name">Wikipedia</div>
+      <div class="bonus-value ${g2Result.found ? 'green' : 'red'}">
+        ${g2Result.found ? (g2Result.articleTitle || 'Article found') : 'No article'}
+      </div>
+    </div>
+
+After saving, reload the extension and test on:
+1. zoho.com — should show ✅ Wikipedia
+2. answerthepublic.com — should show ✅ Wikipedia  
+3. floqer.com — small SaaS, should show ❌ Wikipedia
+
+Show me the new checkWikipedia function and 
+updated renderBonusGrid before saving.

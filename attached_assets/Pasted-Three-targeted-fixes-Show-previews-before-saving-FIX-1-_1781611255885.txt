@@ -1,0 +1,99 @@
+Three targeted fixes. Show previews before saving.
+
+FIX 1 — Author detection in server/eeat-detector.ts:
+
+Find the AUTHOR_BYLINE_PATTERNS array. It currently has 
+patterns for regex on raw HTML strings. Add these patterns:
+
+  /<a[^>]*(author|byline|writer)[^>]*>/i,
+  /itemprop="author"/i,
+  /"@type"\s*:\s*"Person"/i,
+  /class="[^"]*author[^"]*"/i,
+  /class="[^"]*byline[^"]*"/i,
+  /href="[^"]*\/author\//i,
+  /href="[^"]*\/blog\/authors\//i,
+
+These are regex patterns that match raw HTML strings — 
+they work when the HTML is passed from the extension 
+to the server.
+
+Show me the full updated AUTHOR_BYLINE_PATTERNS array 
+before saving.
+
+FIX 2 — Schema scoring in extension/content.js:
+
+Find the schema scoring section where hasOrg, hasArticle, 
+hasFaq, hasBreadcrumb, hasHowTo are checked.
+
+Currently BreadcrumbList gives 3 points. Add these 
+additional scoring lines BEFORE the final return:
+
+  // Give 2 baseline points for ANY detected JSON-LD schema
+  // This prevents Coursera/Ahrefs-type sites from getting 0
+  // when they have valid schema but not our primary types
+  if (schemas.length > 0 && score === 0) {
+    score += 2; // has schema, just not the high-value types
+  }
+  
+  // Course schema (common on educational sites like Coursera)
+  const hasCourse = schemas.some(s => s['@type'] === 'Course');
+  if (hasCourse) score += 3;
+  
+  // WebPage schema
+  const hasWebPage = schemas.some(s => 
+    ['WebPage', 'AboutPage', 'ContactPage', 'FAQPage']
+      .includes(s['@type'])
+  );
+  if (hasWebPage) score += 2;
+
+Add to the detected object:
+  hasCourse,
+  hasWebPage,
+
+Show me the updated schema scoring section.
+
+FIX 3 — Freshness logic bug in extension/content.js:
+
+In scoreFreshness(), find where daysSince is calculated:
+
+  if (foundDate && daysSince !== null) {
+    // existing scoring
+  } else if (hasBlog && hasDateEl) {
+    score = 3;
+  } else if (hasBlog) {
+    score = 1;
+  }
+
+Add a new branch for the "invalid date found" case:
+
+  if (foundDate && daysSince !== null) {
+    // existing scoring — keep as-is
+    if (daysSince <= 30) score += 7;
+    else if (daysSince <= 90) score += 5;
+    else if (daysSince <= 180) score += 3;
+    else score += 1;
+    if (hasVisibleUpdated) score += 4;
+  } else if (foundDate && daysSince === null) {
+    // Date found but couldn't parse it — give minimal credit
+    // and add it to issues so UI doesn't show "no issues"
+    score = 1;
+  } else if (hasBlog && hasDateEl) {
+    score = 3;
+  } else if (hasBlog) {
+    score = 1;
+  }
+
+Also update the issues array to handle this case:
+
+  issues: [
+    !foundDate && 'No date signals found — add dateModified to schema',
+    foundDate && daysSince === null && 
+      'Date found but could not be parsed — use ISO format (YYYY-MM-DD)',
+    !hasVisibleUpdated && foundDate && daysSince !== null && 
+      daysSince <= 365 && 'No visible "Last Updated" annotation',
+    daysSince !== null && daysSince > 180 && 
+      `Content is ${daysSince} days old — refresh recommended`,
+  ].filter(Boolean),
+
+Show me the full updated scoreFreshness scoring block 
+and issues array before saving.

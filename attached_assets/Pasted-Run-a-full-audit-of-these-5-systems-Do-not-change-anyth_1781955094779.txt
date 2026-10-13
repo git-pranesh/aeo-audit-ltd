@@ -1,0 +1,109 @@
+Run a full audit of these 5 systems. Do not change anything. 
+Just report findings for each.
+
+═══════════════════════════════════════════
+1. DODO BILLING / API KEY SYSTEM
+═══════════════════════════════════════════
+
+a) Confirm files exist:
+ls -la server/api-key-service.ts server/dodo-api-billing.ts server/api-key-middleware.ts
+
+b) Check if routes are registered in routes.ts:
+grep -n "api/keys/me\|api/keys/issue\|api/keys/checkout\|apiKeyAuth" server/routes.ts
+
+c) Check if Dodo webhook handler calls handleDodoApiWebhook:
+grep -n "handleDodoApiWebhook" server/routes.ts
+
+d) Check if DODO_API_KEY and DODO_WEBHOOK_SECRET are set:
+printenv | grep -E "DODO_API_KEY|DODO_WEBHOOK_SECRET" | sed 's/=.*/=<set>/'
+
+e) Check if any API keys exist in Firestore (manually report 
+   if you can check the api_keys collection, otherwise skip)
+
+
+═══════════════════════════════════════════
+2. PUBLIC API ENDPOINTS (/api/v1/*)
+═══════════════════════════════════════════
+
+a) Confirm api-router.ts exists and is registered:
+grep -n "registerApiV1" server/routes.ts
+
+b) List the actual registered routes:
+grep -n "app.post('/api/v1\|app.get('/api/v1\|router.post('/api/v1\|router.get('/api/v1" server/api-router.ts server/routes.ts
+
+c) Check if apiKeyAuth middleware is applied:
+grep -n "app.use('/api/v1'" server/routes.ts
+
+d) Test the health/score endpoint exists by checking the 
+   function signature:
+grep -n "handleScore\|handleAudit\|handleGenerateFiles\|handleBenchmarks" server/api-router.ts
+
+
+═══════════════════════════════════════════
+3. DRIP CAMPAIGN (7-day re-engagement)
+═══════════════════════════════════════════
+
+a) Confirm drip-scheduler.ts exists:
+ls -la server/drip-scheduler.ts
+
+b) Confirm the route exists:
+grep -n "api/admin/drip-cron" server/routes.ts
+
+c) Confirm sendReEngagement7DayEmail exists in email-service.ts:
+grep -n "sendReEngagement7DayEmail" server/email-service.ts
+
+d) Check DODO_WEBHOOK_SECRET is the same secret used for 
+   x-cron-secret auth (already checked above)
+
+
+═══════════════════════════════════════════
+4. CITATION REFRESH SCHEDULER
+═══════════════════════════════════════════
+
+a) Confirm route exists and works (we know this works manually):
+grep -n "api/admin/citation-cron" server/routes.ts
+
+b) Most important — is ANYTHING calling this automatically?
+   Check if there's any cron job, GitHub Action, or 
+   external trigger configured:
+grep -rn "cron-job.org\|node-cron\|setInterval.*citation\|setInterval.*drip" server/ 2>/dev/null
+
+c) Confirm this is purely HTTP-triggered with no internal timer:
+grep -n "setInterval\|setTimeout.*runCitation\|cron.schedule" server/citation-scheduler.ts server/drip-scheduler.ts
+
+
+═══════════════════════════════════════════
+5. AEO FILE GENERATOR UI
+═══════════════════════════════════════════
+
+a) Confirm aeo-file-generator.ts exists and what it exports:
+grep -n "^export" server/aeo-file-generator.ts
+
+b) Check if a ZIP packaging endpoint exists:
+grep -n "generate-aeo-files\|generateAeoFiles\|archiver\|jszip\|adm-zip" server/routes.ts
+
+c) Check if archiver/zip package is installed:
+cat package.json | grep -i "archiver\|jszip\|adm-zip"
+
+d) Check if there's a "Generate Files" button anywhere in the UI:
+grep -rn "Generate.*Files\|generateAeoFiles\|generate-aeo-files\|aeo-file" client/src/components/ client/src/pages/ 2>/dev/null
+
+e) Check plan gating logic exists for this feature:
+grep -n "allowedPlans\|PLAN_REQUIRED" server/routes.ts | grep -i "aeo\|generate"
+
+
+═══════════════════════════════════════════
+SUMMARY TABLE
+═══════════════════════════════════════════
+
+After running all of the above, give me a simple table:
+
+| Item | Files exist? | Routes registered? | Env vars set? | Tested/Working? |
+|------|--------------|---------------------|----------------|------------------|
+| Dodo billing | | | | |
+| Public API | | | | |
+| Drip campaign | | | | |
+| Citation scheduler | | | | |
+| AEO file generator | | | | |
+
+Show me everything. Do not fix anything yet.

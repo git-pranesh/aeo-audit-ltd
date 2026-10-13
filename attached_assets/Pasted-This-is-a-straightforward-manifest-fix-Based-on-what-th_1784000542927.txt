@@ -1,0 +1,52 @@
+This is a straightforward manifest fix. Based on what the extension actually does — it only needs to fetch `robots.txt` and `llms.txt` from the **same domain as the active tab** — you don't need broad host permissions at all.
+
+## The Fix
+
+**Remove** the broad host permission (`<all_urls>` or `*://*/*`) from your manifest and replace it with just `activeTab`. The `robots.txt` and `llms.txt` fetch can be scoped dynamically using the `activeTab`'s domain at runtime — no static host permission needed.
+
+**Your manifest `permissions` array should be:**
+
+```json
+{
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting",
+    "sidePanel"
+  ],
+  "host_permissions": []
+}
+```
+
+## Why This Works for Your Extension
+
+Your extension only does three things that touch external URLs: [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/31109401/50cacd80-45b4-4087-8949-3a10420f5f98/00-master-reference.md?AWSAccessKeyId=ASIA2F3EMEYE6KFW3KFV&Signature=dux1OY9ms0OLI4u2ZhW1JgmMVeY%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEEMaCXVzLWVhc3QtMSJIMEYCIQDDfH4tf13rs%2FtMmqJAM9USahHpYc8tzK%2B2QkY8JKnANgIhAMigcP6ZbUmuUFVmVnqD1YHm0JYH6808wNUy8TTZfsVWKvMECAwQARoMNjk5NzUzMzA5NzA1IgzsivceQ9md2l590vkq0AQVcTV76f56IlMPu2ruacaE0b2fFvSUos0kYaGTbsUF5wCY9wHmoXOAqkTArFCoH6GUBiLAWxX6yncpJt9fkMx9C%2BPZtXehQMqty07ncIH3skgdaGQ40OsqzSo8eRpv6IyLIfbQkAkgAOGvs7mEDEd%2BKVXBn5rszmOFvybHxoc519TsheI1WsZtgIg%2B29J8aKBkwmtdPyMM4o8WmjpOGzWzV9z7Mtx7dimRchxq2vdrreGhNcF5kIx3FdLYA1b9%2FnGhjCeLuKjFVk7g1Q1fv%2FM7d8uRj0ZjygZ1I7z1w21mS6wfCUW7oRGO%2B3D9rjwvgO3wC%2FVisnRZ3E6OPT8tqgnDJ60ruVkG%2Bxfecjp25xo3jFMhhqKPo4UlIJdxatq%2B4tTVYT7HWvuARhHuf8sKbNGy0bO%2F5dn5qpHBetcz4hfr1srVDVDYS05wpD099HBkq9BqZVnsfTBIkoMhdftqNOESTFgiSwuxUjjH7DFKylZwVjoZDL4oaI8r4DHG7OTr5kgPst%2BdNUpGSPkJMmiaaxju%2BBlx2tnW7k2kAHmsDs8WxTL4CEi8FX1WJNyXqFBOhd0gN5z0qhlJm4pZlc7Ysz1WsMMLy50XmTqsZMueHPl6tVPm5KRq9SGc%2FvVLie0WXYO6qpqXrd54gFPnppWfoManEtLNDA6ud%2BcU3XJTG6gvYzSejZcDZurmmbP9uuFEu4UNHFwtq8%2Bm3l6yKvgaPMckoI%2FTSZcnO1%2Bo54oNMaCZUBKWfoRgJOisByJiqPwjlDBM7hneqeNVJEOU%2Bf%2BK5IcFMLbI1tIGOpcB%2BmjznUyxyKMnW9WD%2BpQVVeZAeWxeXTS7zgpLR%2FunyyY7BVbxEuhFZww4q5FZTT15lO1hMtaBPvc20n9YFHP5PbVtqcBgWeceEcThumGhhKtVeiDxs4kcdkPgf9RVhsXQAOvuPyrUeCGUeqcIZDO6fvFvzuKxgAr3J0lzvZin7blip6MLzTWVLMMGtUgyOMYa%2FF5mLezc4w%3D%3D&Expires=1784001033)
+
+1. **Reads the active tab's DOM** → covered by `activeTab` + `scripting`
+2. **Fetches `robots.txt` from the active tab's domain** → can be done dynamically: `fetch(new URL('/robots.txt', activeTabUrl).href)` — this works without a static host permission when triggered by a user gesture via `activeTab`
+3. **Fetches `llms.txt` from the active tab's domain** → same as above
+
+The `activeTab` permission grants **temporary access to the exact origin of the active tab** the moment the user clicks your icon. Since you only ever need the domain the user is already on, `activeTab` covers 100% of your use case. [developer.chrome](https://developer.chrome.com/docs/extensions/whats-new)
+
+## Updated Host Permission Justification (for the store form)
+
+Replace your previous host permission justification with:
+
+> "No broad host permissions are requested. The extension uses activeTab, which grants temporary access to the currently active tab's origin when the user clicks the extension icon. The robots.txt and llms.txt fetch requests are made dynamically to the same origin as the active tab using the URL granted by activeTab — no static host_permissions are declared."
+
+## One Code Change Needed
+
+Wherever your background/service worker fetches `robots.txt` and `llms.txt`, make sure it retrieves the tab URL from the `activeTab` grant rather than from a stored or injected URL:
+
+```javascript
+// In your service worker / background script
+chrome.action.onClicked.addListener(async (tab) => {
+  const origin = new URL(tab.url).origin;
+  const robotsUrl = `${origin}/robots.txt`;
+  const llmsUrl = `${origin}/llms.txt`;
+  // fetch(robotsUrl), fetch(llmsUrl) — works under activeTab grant
+});
+```
+
+This change eliminates the broad host permission warning, removes the in-depth review flag, and makes your extension more approvable and more secure. [developer.chrome](https://developer.chrome.com/docs/extensions/whats-new)

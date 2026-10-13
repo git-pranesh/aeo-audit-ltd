@@ -1,0 +1,119 @@
+Two fixes needed.
+
+FIX 1 — Add externally_connectable to extension/manifest.json:
+
+Find the manifest.json and add this new top-level key 
+alongside the existing keys:
+
+  "externally_connectable": {
+    "matches": [
+      "https://app.citationrocket.com/*",
+      "https://citationrocket.com/*"
+    ]
+  }
+
+The full manifest should now have these top-level keys:
+manifest_version, name, description, version, icons, 
+background, action, side_panel, content_scripts, 
+permissions, host_permissions, externally_connectable
+
+Show me the full updated manifest.json.
+
+FIX 2 — Improve the extension-auth page in server/routes.ts:
+
+Find the app.get('/extension-auth', ...) route.
+Replace the entire res.send() content with this improved version
+that handles all states clearly:
+
+res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Citation Rocket — Extension Sign In</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #0f0f1a; 
+           color: #e2e8f0; display: flex; align-items: center; 
+           justify-content: center; min-height: 100vh; margin: 0; }
+    .card { background: #12122a; border: 1px solid rgba(255,255,255,0.1); 
+            border-radius: 16px; padding: 40px; text-align: center; 
+            max-width: 380px; width: 90%; }
+    h2 { color: #6366f1; margin-bottom: 8px; font-size: 20px; }
+    p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0; }
+    .status { margin-top: 20px; font-size: 13px; padding: 12px; 
+              border-radius: 8px; background: rgba(255,255,255,0.05); }
+    .success { background: rgba(34,197,94,0.1); color: #4ade80; }
+    .error { background: rgba(239,68,68,0.1); color: #f87171; }
+    .btn { display: inline-block; margin-top: 16px; background: #6366f1; 
+           color: #fff; padding: 10px 24px; border-radius: 8px; 
+           text-decoration: none; font-weight: 600; font-size: 14px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h2>🚀 Citation Rocket</h2>
+  <p>Connecting your account to the browser extension...</p>
+  <div class="status" id="status">Checking your session...</div>
+  <div id="action"></div>
+</div>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+  const statusEl = document.getElementById('status');
+  const actionEl = document.getElementById('action');
+
+  function setStatus(msg, type = '') {
+    statusEl.textContent = msg;
+    statusEl.className = 'status ' + type;
+  }
+
+  try {
+    const app = initializeApp({
+      apiKey: '${process.env.VITE_FIREBASE_API_KEY || ''}',
+      authDomain: '${process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_PROJECT_ID + '.firebaseapp.com'}',
+      projectId: '${process.env.VITE_FIREBASE_PROJECT_ID || ''}',
+    });
+
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setStatus('You need to sign in to Citation Rocket first.', 'error');
+        actionEl.innerHTML = '<a href="/login" class="btn">Sign In to Citation Rocket</a>';
+        return;
+      }
+
+      setStatus('Signed in as ' + user.email + '. Connecting extension...');
+
+      try {
+        const token = await user.getIdToken();
+
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+          chrome.runtime.sendMessage(
+            undefined,
+            { action: 'storeAuthToken', token, email: user.email, plan: 'free' },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                setStatus('Extension not found. Make sure Citation Rocket extension is installed and enabled.', 'error');
+              } else {
+                setStatus('✅ Connected! You can close this tab and return to the extension.', 'success');
+              }
+            }
+          );
+        } else {
+          setStatus('Chrome extension API not available. Make sure you opened this from the Citation Rocket extension.', 'error');
+        }
+      } catch (tokenErr) {
+        setStatus('Error getting auth token: ' + tokenErr.message, 'error');
+      }
+    });
+
+  } catch (err) {
+    setStatus('Configuration error: ' + err.message, 'error');
+  }
+</script>
+</body>
+</html>`);
+
+Show me the updated extension-auth route (just the res.send content)
+and the updated manifest.json. Do nothing else until I confirm.

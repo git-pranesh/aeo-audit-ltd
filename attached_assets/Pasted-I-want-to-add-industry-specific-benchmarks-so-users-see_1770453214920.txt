@@ -1,0 +1,61 @@
+I want to add industry-specific benchmarks so users see how they compare against their industry average, not just abstract numbers.
+
+1. Create file: `server/industry-benchmarks.ts`
+
+   This file should export a `getIndustryBenchmarks` function that:
+   - Takes an `industry` string (from companyIntelligence.industry)
+   - Returns benchmark data for that industry:
+```typescript
+     interface IndustryBenchmark {
+       industryName: string;
+       sampleSize: string;           // e.g., "Based on analysis of 150+ websites"
+       averageScores: {
+         overall: number;
+         chatgpt: number;
+         perplexity: number;
+         gemini: number;
+         claude: number;
+       };
+       topPerformerScores: {         // Top 10% in the industry
+         overall: number;
+         chatgpt: number;
+         perplexity: number;
+         gemini: number;
+         claude: number;
+       };
+       commonStrengths: string[];     // What top performers do well
+       commonWeaknesses: string[];    // What most sites lack
+       contentBenchmarks: {
+         avgTutorials: number;
+         avgCaseStudies: number;
+         avgFAQPages: number;
+         avgSchemaTypes: number;
+         avgDataPoints: number;
+       };
+     }
+```
+   
+   - Start with hardcoded benchmark data for these industries (I'll refine later by running actual audits):
+     * "Legal Services" / "Law" — conservative scores, low tutorial counts, moderate case studies
+     * "Marketing Agency" / "Digital Marketing" — higher scores, lots of content
+     * "SaaS" / "Software" — strong documentation, weak case studies
+     * "Healthcare" / "Medical" — moderate all around
+     * "Real Estate" — low across the board
+     * "E-commerce" / "Retail" — moderate, strong product content
+     * Default/Generic — used when industry doesn't match
+
+   - Use fuzzy matching to map the detected industry to the closest benchmark (e.g., "Personal Injury Law Firm" should match "Legal Services"). Use simple includes/startsWith matching, not a library.
+
+2. Wire into the audit flow in `server/routes.ts`:
+   - After scoring, call `getIndustryBenchmarks(companyIntelligence.industry)`
+   - Add the result to the audit response as `industryBenchmark`
+
+3. Add to `shared/schema.ts` as an optional field.
+
+4. Create `client/src/components/industry-benchmark.tsx`:
+   - Shows a comparison card: "How You Compare to [Industry Name]"
+   - Visual comparison: Your score vs. Industry Average vs. Top Performers
+   - Use a simple horizontal bar chart for each platform
+   - Use colored indicators (red below average, yellow at average, green above average)
+   - Sample size disclaimer at the bottom
+   - Place this in `audit-results.tsx` right AFTER the platform scores, BEFORE the citation snapshot

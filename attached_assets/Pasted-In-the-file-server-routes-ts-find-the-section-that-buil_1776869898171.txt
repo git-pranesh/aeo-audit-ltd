@@ -1,0 +1,65 @@
+In the file server/routes.ts, find the section that builds the technicalFindings object inside the audit response. It currently uses proxy data to populate these fields — for example, sitemap size is used as domain authority, topic count is used as schema markup status, and the overall AEO score is used as entity recognition. These are all incorrect and misleading.
+
+Replace the entire technicalFindings object construction with this corrected version that derives each field from the actual signals it is supposed to represent:
+
+ts
+const technicalFindings = {
+  domainAuthority: (() => {
+    // Based on actual site scale signals: subdomain presence, sitemap size, documentation depth
+    const sitemapSize = sitemapUrls?.length ?? 0;
+    const subdomainCount = discoveredSubdomains?.length ?? 0;
+    const docPages = contentSignals.documentationPageCount ?? 0;
+    const score =
+      (sitemapSize >= 1000 ? 3 : sitemapSize >= 200 ? 2 : sitemapSize >= 50 ? 1 : 0) +
+      (subdomainCount >= 3 ? 2 : subdomainCount >= 1 ? 1 : 0) +
+      (docPages >= 20 ? 2 : docPages >= 5 ? 1 : 0);
+    if (score >= 5) return "High";
+    if (score >= 3) return "Medium";
+    if (score >= 1) return "Low";
+    return "Unknown";
+  })(),
+  contentStructure: (() => {
+    // Based on actual heading hierarchy score and step-by-step list count
+    const headingScore = contentSignals.headingHierarchyScore ?? 0;
+    const stepLists = contentSignals.stepByStepListCount ?? 0;
+    const blogPosts = contentSignals.blogPostCount ?? 0;
+    const score =
+      (headingScore >= 70 ? 3 : headingScore >= 40 ? 2 : headingScore >= 10 ? 1 : 0) +
+      (stepLists >= 5 ? 2 : stepLists >= 1 ? 1 : 0) +
+      (blogPosts >= 20 ? 1 : 0);
+    if (score >= 5) return "Excellent";
+    if (score >= 3) return "Good";
+    if (score >= 1) return "Fair";
+    return "Poor";
+  })(),
+  schemaMarkup: (() => {
+    // Based on actual schema type count detected from JSON-LD blocks in HTML
+    const schemaTypes = contentSignals.schemaTypeCount ?? 0;
+    if (schemaTypes >= 4) return "Implemented";
+    if (schemaTypes >= 1) return "Partial";
+    return "Missing";
+  })(),
+  entityRecognition: (() => {
+    // Based on signals that help AI platforms identify what this entity is:
+    // framework mentions (named concepts), case studies (named outcomes),
+    // structured data presence, and nuanced term count
+    const frameworks = contentSignals.frameworkMentionCount ?? 0;
+    const caseStudies = contentSignals.caseStudyCount ?? 0;
+    const hasSchema = contentSignals.hasStructuredData ?? false;
+    const nuanced = contentSignals.nuancedTermCount ?? 0;
+    const score =
+      (frameworks >= 5 ? 3 : frameworks >= 2 ? 2 : frameworks >= 1 ? 1 : 0) +
+      (caseStudies >= 5 ? 2 : caseStudies >= 2 ? 1 : 0) +
+      (hasSchema ? 2 : 0) +
+      (nuanced >= 8 ? 1 : 0);
+    if (score >= 6) return "Strong";
+    if (score >= 3) return "Moderate";
+    return "Weak";
+  })(),
+};
+Note: sitemapUrls and discoveredSubdomains are already available in scope at the point where technicalFindings is built — they come from the scrapeWebsiteContent result earlier in the same function. Use them directly. If for any reason they are not in scope at that point, use sitemapUrls ?? [] and discoveredSubdomains ?? [] as safe fallbacks.
+
+Do not change the field names (domainAuthority, contentStructure, schemaMarkup, entityRecognition). Do not change how these fields are displayed in the frontend. Only replace the logic that calculates their values.
+
+Do not change anything else in the file.
+

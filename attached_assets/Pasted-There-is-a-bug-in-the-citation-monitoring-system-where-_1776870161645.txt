@@ -1,0 +1,70 @@
+There is a bug in the citation monitoring system where the mentionRate comparison between the initial audit and scheduler runs is unreliable because the number of prompts used (totalPromptsChecked) can differ between runs. If the initial audit used 8 prompts but the scheduler runs with 5 prompts, the mention rate changes purely due to the denominator shifting — not because actual citations changed. This triggers false alert emails.
+
+The fix requires two changes across two files.
+
+Change 1 — server/routes.ts
+
+Find the section in the batch audit endpoint (/api/audit/batch) where generateCitationSnapshot is called for the initial audit. After the citation snapshot is generated and before it is saved, find where saveCitationSnapshot is called. The snapshot result contains promptResults — an array of objects each with a prompt string and a mentioned boolean.
+
+Find where the audit data is saved to Firestore (the audits collection). In that save operation, add a new field called snapshotPrompts that stores the exact prompt strings used in the initial citation snapshot:
+
+ts
+snapshotPrompts: citationSnapshot?.promptResults?.map((pr: any) => pr.prompt) ?? [],
+This stores the exact prompts verbatim so the scheduler can reuse them.
+
+Change 2 — server/citation-scheduler.ts
+
+Find the section where dueAudits array is built by iterating over audit documents from Firestore. Each audit document is read and its data extracted. Currently it reads fields like websiteUrl, companyIntelligence, lastScheduledCitationAt.
+
+Add snapshotPrompts to the data being read from each audit document:
+
+ts
+snapshotPrompts: data.snapshotPrompts ?? [],
+And add it to the dueAudits push:
+
+ts
+dueAudits.push({
+  auditId: auditDoc.id,
+  userId: user.uid,
+  websiteUrl: data.websiteUrl,
+  companyIntelligence: { ...companyIntelligence, companyName: resolvedCompanyName },
+  lastCitationRefreshAt: lastScheduled,
+  usedFallback,
+  userEmail: user.email,
+  userName: user.displayName,
+  plan: user.plan,
+  snapshotPrompts: data.snapshotPrompts ?? [],  // ADD THIS LINE
+})
+Then find the section inside the batch processing loop where generateCitationSnapshot is called for each due audit. It currently calls it with keywords from companyIntelligence.suggestedKeywords. Change the call so that if snapshotPrompts has entries, those exact prompt strings are passed instead of regenerating from keywords:
+
+ts
+const newSnapshot = await generateCitationSnapshot({
+  websiteUrl: audit.websiteUrl,
+  industry: audit.companyIntelligence.industry ?? "General",
+  companyName: audit.companyIntelligence.companyName,
+  keywords: audit.companyIntelligence.suggestedKeywords ?? [],
+  apiKey,
+  // If we have the original prompts, pass them directly to ensure
+  // the denominator (totalPromptsChecked) stays consistent across runs
+  ...(audit.snapshotPrompts.length > 0 ? { fixedPrompts: audit.snapshotPrompts } : {}),
+});
+Change 3 — server/citation-snapshot-service.ts
+
+Find the generateCitationSnapshot function signature. Add fixedPrompts as an optional parameter:
+
+ts
+fixedPrompts?: string[]
+Inside the function, find where the list of prompts to run is built from keywords and industry. Add a guard at the top of that section:
+
+ts
+// If exact prompts from the initial audit are provided, use them verbatim
+// This ensures totalPromptsChecked stays consistent across scheduler runs
+const promptsToRun: string[] = fixedPrompts && fixedPrompts.length > 0
+  ? fixedPrompts
+  : buildPromptsFromKeywords(industry, companyName, keywords); // use whatever the existing prompt-building logic is called
+Then use promptsToRun wherever the prompts array is currently used to make API calls.
+
+This ensures that every scheduler run for a given audit uses the exact same prompts as the initial audit, keeping totalPromptsChecked constant and making mentionRateChange a reliable signal.
+
+Run npx tsx server/test-fixes.ts after making changes to confirm all 5 tests still pass. Do not change any other logic.
+

@@ -1,0 +1,56 @@
+Final fix before launch testing. Touch ONLY `server/content-signal-service.ts`.
+
+THE PROBLEM:
+The weakness text strings at lines 723, 727, 735, 739, 743 have hardcoded 
+SaaS benchmark numbers shown to users:
+  "industry benchmark: 15+"
+  "industry benchmark: 8+"
+  "benchmark: 25+"
+  "benchmark: 5+"
+  "benchmark: 10+"
+
+A bakery or dental clinic sees SaaS benchmarks in their report. This is wrong.
+
+THE FIX:
+
+Step 1 — Import getBenchmarks at the top of content-signal-service.ts:
+  import { getBenchmarks } from './scoring-service';
+
+  IMPORTANT: Check if this creates a circular import. 
+  content-signal-service.ts is imported by scoring-service.ts.
+  If circular, instead of importing, inline a minimal version:
+  
+  Copy ONLY the getBenchmarks function and its dependencies 
+  (BASE_BENCHMARKS, INDUSTRY_BENCHMARK_OVERRIDES) into 
+  content-signal-service.ts as local unexported constants.
+  Do NOT import from scoring-service.ts if it causes a circular dependency.
+
+Step 2 — The weakness text helper (or wherever weaknesses.push() calls live) 
+needs to receive the industry and totalPageCount to resolve benchmarks.
+
+Find the function that generates weakness strings. Add these parameters 
+if not already present:
+  industry: string = ''
+  totalPageCount: number = 0
+
+At the top of that function add:
+  const benchmarks = getBenchmarks(industry, totalPageCount);
+
+Step 3 — Replace the 5 hardcoded benchmark numbers in weakness text:
+  Line 723: "industry benchmark: 15+"  →  `industry benchmark: ${benchmarks.tutorials}+`
+  Line 727: "industry benchmark: 8+"   →  `industry benchmark: ${benchmarks.caseStudies}+`
+  Line 735: "benchmark: 25+"           →  `benchmark: ${benchmarks.dataPoints}+`
+  Line 739: "benchmark: 5+"            →  `benchmark: ${benchmarks.faqSections}+`
+  Line 743: "benchmark: 10+"           →  `benchmark: ${benchmarks.frameworkMentions}+`
+
+Step 4 — Find every place extractContentSignals is called in routes.ts.
+Pass companyIntelligence?.industry and signals.totalPageCount through 
+the call chain so the weakness text function receives them.
+If the weakness text function is called INSIDE extractContentSignals 
+(which already receives companyIntelligence as a parameter), just use 
+that existing parameter — no routes.ts change needed.
+
+---
+
+Run 12/12 tests. Restart cleanly. Report done with diff.
+Confirm whether circular import was avoided and how.

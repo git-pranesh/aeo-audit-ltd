@@ -1,0 +1,37 @@
+- Parses each response to check:
+     * Was the company name mentioned? (case-insensitive string match on company name AND domain)
+     * What competitors WERE mentioned instead?
+     * What was the overall sentiment if mentioned?
+   - Returns a `CitationSnapshotResult` object:
+```typescript
+     interface CitationSnapshotResult {
+       totalPromptsChecked: number;
+       mentionedCount: number;        // How many prompts mentioned the business
+       mentionRate: number;           // mentionedCount / totalPromptsChecked as percentage
+       promptResults: Array<{
+         prompt: string;
+         mentioned: boolean;
+         mentionContext: string | null;  // The sentence where they were mentioned
+         competitorsMentioned: string[];  // Other businesses mentioned in this response
+         fullResponse: string;           // The full AI response text (for showing in UI)
+       }>;
+       topCompetitorsCited: Array<{    // Aggregated across all prompts
+         name: string;
+         timesFound: number;
+       }>;
+       snapshotDate: string;           // ISO date
+       estimatedCost: number;          // Rough API cost for transparency
+     }
+```
+
+2. Important implementation details:
+   - Run ALL prompts in parallel using `Promise.allSettled` (not Promise.all, so one failure doesn't kill the whole batch)
+   - Add a 2-second delay between batches of 5 prompts to avoid rate limiting
+   - Use the existing `getPerplexityApiKeyForUser` from `server/perplexity-key-service.ts` pattern for API key handling
+   - For company name matching, check both the company name AND the domain (e.g., both "Citation Rocket" and "citationrocket.com")
+   - For competitor extraction, look for other company/brand names in the response (use pattern: capitalized words followed by ".com" or common business suffixes, or names that appear in lists)
+   - Log each prompt and result for debugging but don't expose API key in logs
+   - If the API call fails for a specific prompt, mark it as `{ mentioned: false, mentionContext: null, error: 'API call failed' }`
+   - Estimated cost calculation: count total input+output tokens and multiply by $1/1M tokens (Sonar pricing)
+
+3. Do NOT modify any existing files yet. Just create this new service file.

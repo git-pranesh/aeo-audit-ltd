@@ -1,0 +1,127 @@
+Two fixes. Show previews before saving.
+
+FIX 1 — Persist audit across tab changes in extension/side-panel.js:
+
+In runScan(), after currentAudit is set and renderResults() called,
+ADD this line to cache the result:
+
+  currentAudit = response.audit;
+  // Cache audit for this domain in storage
+  chrome.storage.local.set({ 
+    [`audit_${response.audit.domain}`]: response.audit 
+  });
+  renderResults(currentAudit);
+  showState('results');
+
+In getCurrentTab() — after getting the tab, check for a 
+cached audit for this domain and restore it:
+
+async function getCurrentTab() {
+  try {
+    const [tab] = await chrome.tabs.query({ 
+      active: true, currentWindow: true 
+    });
+    currentTab = tab || null;
+    
+    // Restore cached audit for this domain if it exists
+    if (currentTab?.url) {
+      try {
+        const domain = new URL(currentTab.url).hostname.replace('www.', '');
+        const cached = await chrome.storage.local.get(`audit_${domain}`);
+        if (cached[`audit_${domain}`]) {
+          currentAudit = cached[`audit_${domain}`];
+          // Will be rendered after DOM loads
+        }
+      } catch {}
+    }
+  } catch {
+    currentTab = null;
+  }
+}
+
+In the DOMContentLoaded listener, after loadAuthState() 
+and getCurrentTab(), add:
+
+  // Restore audit if we have one for current domain
+  if (currentAudit) {
+    renderResults(currentAudit);
+    showState('results');
+  }
+
+In the tabChanged message listener, update to restore 
+cached audit instead of always resetting to idle:
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.action === 'tabChanged') {
+    document.getElementById('domain-text').textContent = 
+      message.domain || 'Unknown';
+    currentAudit = null;
+    
+    // Check for cached audit for new domain
+    if (message.domain) {
+      chrome.storage.local.get(`audit_${message.domain}`, (data) => {
+        const cached = data[`audit_${message.domain}`];
+        if (cached) {
+          currentAudit = cached;
+          renderResults(cached);
+          showState('results');
+        } else {
+          showState('idle');
+        }
+      });
+    } else {
+      showState('idle');
+    }
+  }
+});
+
+FIX 2 — Pass extension ID to auth page in extension/background.js:
+
+Find the auth-btn opens extension-auth URL in background.js.
+The extension-auth tab is opened from side-panel.js, not background.js.
+
+In extension/side-panel.js, find the auth-btn click handler:
+
+FIND:
+  chrome.tabs.create({ url: `${CR_APP}/signup` });
+
+REPLACE WITH:
+  const extId = chrome.runtime.id;
+  chrome.tabs.create({ 
+    url: `${CR_APP}/extension-auth?extId=${extId}` 
+  });
+
+In client/src/pages/ExtensionAuth.tsx, find the sendMessage call:
+
+FIND:
+  w.chrome.runtime.sendMessage(
+    undefined,
+    { action: 'storeAuthToken', token, email: user.email, plan: 'free' },
+    (response: any) => {
+
+REPLACE WITH:
+  // Read extension ID from URL params
+  const params = new URLSearchParams(window.location.search);
+  const extId = params.get('extId');
+  
+  if (!extId) {
+    setStatus('error');
+    setMessage(
+      'Missing extension ID. Please click "Sign In Free" ' +
+      'from inside the Citation Rocket extension sidebar.'
+    );
+    return;
+  }
+
+  w.chrome.runtime.sendMessage(
+    extId,
+    { action: 'storeAuthToken', token, email: user.email, plan: 'free' },
+    (response: any) => {
+
+Show me:
+1. The updated DOMContentLoaded block in side-panel.js
+2. The updated tabChanged listener in side-panel.js  
+3. The updated sendMessage block in ExtensionAuth.tsx
+4. The updated auth-btn click handler showing extId being passed
+
+Do nothing else until I confirm.

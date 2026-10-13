@@ -1,0 +1,65 @@
+Run this audit. Do not change anything. Report findings only.
+
+═══════════════════════════════════════════
+1. APPSUMO PLAN DEFINITION
+═══════════════════════════════════════════
+
+a) Find all plan tiers defined in feature flags:
+cat shared/feature-flags.ts | head -100
+
+b) Search specifically for appsumo/lifetime plan logic:
+grep -n "appsumo\|lifetime\|AppSumo\|LTD\|lifetime deal" shared/feature-flags.ts server/routes.ts server/subscription-service.ts
+
+c) Check the Firestore 'appsumo' collection usage in code:
+grep -rn "'appsumo'\|\"appsumo\"" server/ shared/ | head -20
+
+
+═══════════════════════════════════════════
+2. APPSUMO PRICING / TIERS
+═══════════════════════════════════════════
+
+a) Look for AppSumo-specific pricing tiers (Tier 1/2/3 style, 
+   common in AppSumo LTDs):
+grep -n "tier1\|tier2\|tier3\|Tier 1\|Tier 2\|appsumoTier\|codeRedemption" server/routes.ts server/subscription-service.ts shared/feature-flags.ts
+
+b) Check for a redemption code / activation flow:
+grep -rn "redeem\|activation.*code\|appsumo.*code\|code.*appsumo" server/routes.ts | head -20
+
+c) Check what audit limits / features lifetime plan gets 
+   vs pro plan (already partially known: topicsPerCategory 
+   matches pro). Show full lifetime block:
+grep -A 15 "lifetime:" shared/feature-flags.ts
+
+
+═══════════════════════════════════════════
+3. BYOK (Bring Your Own Key) IMPLEMENTATION
+═══════════════════════════════════════════
+
+a) Where is BYOK key storage handled — user-provided 
+   OpenRouter/Perplexity key:
+grep -rn "byok\|BYOK\|userApiKey\|userProvidedKey\|customApiKey\|openrouterKey\|perplexityKey" server/ shared/ client/src/ 2>/dev/null | head -30
+
+b) Check if citation-snapshot-service.ts supports a 
+   user-supplied key vs platform key:
+grep -n "platform.*key\|user.*key\|byokKey\|apiKey.*param" server/citation-snapshot-service.ts | head -20
+
+c) Check if there's a settings page where users can 
+   input their own API key:
+grep -rln "API.*[Kk]ey" client/src/pages/ client/src/components/ 2>/dev/null | head -10
+
+d) Is BYOK gated to specific plans (e.g. AppSumo/lifetime 
+   users required to BYOK for citation snapshot)?
+grep -n "Using platform key\|Using.*BYOK\|requiresByok\|byokRequired" server/routes.ts | head -20
+
+
+═══════════════════════════════════════════
+SUMMARY TABLE NEEDED
+═══════════════════════════════════════════
+
+| Item | Defined? | Pricing/Tiers clear? | BYOK required? | Tested? |
+|------|----------|----------------------|-----------------|---------|
+| AppSumo plan | | | | |
+| BYOK flow | | | | |
+
+Show me everything found, including any contradictions 
+or partial implementations. Do not fix anything yet.

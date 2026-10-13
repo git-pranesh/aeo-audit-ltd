@@ -1,0 +1,49 @@
+You are making ONE surgical change to `server/topic-deduplication-service.ts` ONLY.
+Do NOT touch any other file.
+
+THE PROBLEM:
+The current similarity threshold (0.75) is not catching near-paraphrase topic 
+duplicates. For example these three were all generated for the same site:
+  - "Why choose Chennai Dental Clinic for clear aligners and dental implants?"
+  - "Why Chennai Dental Clinic excels in clear aligners for international families?"
+  - "Why choose Ramapuram clinic for clear aligners and dental implants in Chennai?"
+
+These are the same intent, different wording. The threshold must be tighter.
+
+THE FIX — Two changes:
+
+Change 1: Find the similarity threshold constant (likely named SIMILARITY_THRESHOLD 
+or a numeric value like 0.75). Change it from 0.75 to 0.65.
+
+Change 2: Add an intent fingerprint check BEFORE the similarity check.
+Add this function:
+
+  function extractIntentFingerprint(title: string): string {
+    // Extract the core intent: first 4 content words, lowercased, stopwords removed
+    const stopwords = new Set(['a','an','the','for','in','of','to','and','or',
+      'with','how','what','why','when','where','which','is','are','do','does',
+      'your','my','our','their','its','this','that','these','those','at','by',
+      'from','on','as','into','about','between','through','during','best','top']);
+    const words = title.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !stopwords.has(w));
+    return words.slice(0, 4).sort().join('|');
+  }
+
+Then in the deduplication loop, before comparing similarity scores, check:
+  const fp1 = extractIntentFingerprint(topicA.title);
+  const fp2 = extractIntentFingerprint(topicB.title);
+  if (fp1 === fp2) {
+    // Same intent fingerprint = definitely duplicate, skip similarity check
+    markAsDuplicate(topicB); // keep topicA, remove topicB
+    continue;
+  }
+
+---
+
+AFTER CHANGES:
+- Run: npx tsx server/test-all-fixes.ts  
+- Confirm 12/12 passing
+- Restart workflow cleanly
+- Report done

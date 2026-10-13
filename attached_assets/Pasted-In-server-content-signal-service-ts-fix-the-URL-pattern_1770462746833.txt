@@ -1,0 +1,137 @@
+In server/content-signal-service.ts, fix the URL pattern filters
+inside extractContentSignals(). The patterns are too narrow and
+miss content on enterprise sites.
+
+1. TUTORIAL URL FILTER (around line 702-703)
+Current regex:
+  /\/tutorial|\/how-to|\/guide|\/learn|\/getting-started|
+   \/walkthrough|\/step-by-step/i
+
+Replace with expanded regex:
+  /\/tutorial|\/how-to|\/guide|\/learn|\/getting-started|
+   \/walkthrough|\/step-by-step|\/lesson|\/training|
+   \/course|\/academy|\/workshop|\/quickstart|
+   \/quick-start|\/onboarding|\/setup-guide|
+   \/demo|\/webinar/i
+
+2. ADD SUBDOMAIN-BASED TUTORIAL BOOST (after line 705)
+After tutorialUrls is calculated, add:
+
+  // Boost: Count pages from education-focused subdomains
+  const eduSubdomains = ['learn', 'academy', 'training',
+    'education', 'university', 'courses', 'lessons'];
+  const eduSubdomainUrls = sitemapUrls.filter(url => {
+    try {
+      const hostname = new URL(url).hostname.split('.')[0];
+      return eduSubdomains.includes(hostname);
+    } catch { return false; }
+  });
+  const eduSubdomainBoost = Math.floor(
+    eduSubdomainUrls.length * 0.35
+  );
+  const tutorialUrlCount = tutorialUrls.length +
+    eduSubdomainBoost;
+
+  // Log when subdomain boost applies
+  if (eduSubdomainBoost > 0) {
+    console.log(`📚 Subdomain tutorial boost: +${
+      eduSubdomainBoost
+    } from ${eduSubdomainUrls.length} edu subdomain pages`);
+  }
+
+3. FAQ URL FILTER (around line 721-728)
+Add to the strongFaqPattern regex:
+  |\/help-center|\/helpdesk|\/answers\/|\/q-and-a
+
+Also add subdomain boost for FAQ (same pattern):
+  const helpSubdomains = ['help', 'support', 'kb',
+    'knowledge', 'helpdesk', 'faq'];
+  const helpSubdomainUrls = sitemapUrls.filter(url => {
+    try {
+      const hostname = new URL(url).hostname.split('.')[0];
+      return helpSubdomains.includes(hostname);
+    } catch { return false; }
+  });
+  const helpSubdomainBoost = Math.floor(
+    helpSubdomainUrls.length * 0.15
+  );
+  // Cap FAQ boost at 20 to avoid over-counting
+  const faqUrlCount = faqUrls.length +
+    Math.min(20, helpSubdomainBoost);
+
+4. CASE STUDY URL FILTER (around line 789-801)
+Add to strongPattern regex:
+  |\/outcomes\/|\/impact\/|\/showcase\/|\/proof\/
+Add to moderatePattern regex:
+  |\/customers$
+  (allow /customers without requiring a sub-path)
+
+5. BLOG POST FILTER (around line 844-846)
+Current: /\/blog\/|\/articles?\/|\/posts?\/|\/news\//i
+Replace with:
+  /\/blog\/|\/articles?\/|\/posts?\/|\/news\/|
+   \/insights\/|\/resources\/|\/library\/|
+   \/publications\/|\/updates\/|\/announcements\//i
+
+6. DOCUMENTATION FILTER (around line 848-850)
+Current: /\/docs?\/|\/documentation\/|\/api\/|
+          \/reference\/|\/guide\//i
+Replace with:
+  /\/docs?\/|\/documentation\/|\/api\/|\/reference\/|
+   \/guide\/|\/developer[s]?\/|\/sdk\/|
+   \/api-docs\/|\/integration[s]?\//i
+
+Also add subdomain boost for docs:
+  const docSubdomains = ['docs', 'developer', 'developers',
+    'api', 'reference'];
+  const docSubdomainUrls = sitemapUrls.filter(url => {
+    try {
+      const hostname = new URL(url).hostname.split('.')[0];
+      return docSubdomains.includes(hostname);
+    } catch { return false; }
+  });
+  const docSubdomainBoost = Math.floor(
+    docSubdomainUrls.length * 0.6
+  );
+  const documentationPageCount = Math.max(
+    docUrlCount, docSubdomainBoost
+  );
+  (where docUrlCount is the current pattern-matched count)
+
+7. TOTAL PAGE COUNT FLOOR (add after line 856)
+After all signal counts are calculated, add floor logic:
+
+  // Floor: Large sites can't score zero on content types
+  // If 1000+ pages but 0 tutorials detected, patterns missed
+  const totalPages = sitemapUrls.length;
+  if (totalPages > 500) {
+    const adjustedTutorials = Math.max(
+      tutorialCount, Math.floor(totalPages * 0.015)
+    );
+    const adjustedBlogs = Math.max(
+      blogPostCount, Math.floor(totalPages * 0.05)
+    );
+    const adjustedDocs = Math.max(
+      documentationPageCount,
+      Math.floor(totalPages * 0.03)
+    );
+    if (adjustedTutorials > tutorialCount ||
+        adjustedBlogs > blogPostCount ||
+        adjustedDocs > documentationPageCount) {
+      console.log(`📊 Large site floor applied (${
+        totalPages
+      } pages): tutorials ${tutorialCount}→${
+        adjustedTutorials
+      }, blogs ${blogPostCount}→${adjustedBlogs}`);
+    }
+    // Reassign with floor values
+    // (use let instead of const for these variables above)
+  }
+
+IMPORTANT: You'll need to change the variable declarations
+for tutorialCount, blogPostCount, and documentationPageCount
+from const to let so they can be reassigned by the floor.
+
+Do NOT change the return type, the scoring service, or any
+other file. Only modify detection patterns inside
+extractContentSignals().

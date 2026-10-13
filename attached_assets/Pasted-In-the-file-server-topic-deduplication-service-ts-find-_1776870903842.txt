@@ -1,0 +1,59 @@
+In the file server/topic-deduplication-service.ts, find the processTopics function. It accepts a similarityThreshold parameter that determines how aggressively topics are collapsed into each other. The current threshold being passed when this function is called from routes.ts is 0.5 — meaning any two topics that are 50% similar get merged into one.
+
+This is too aggressive. Legitimate topics like "How to improve ChatGPT visibility" and "How to improve Perplexity citations" share enough words to exceed 50% similarity and get collapsed, silently reducing the topic count the user sees with no indication this happened.
+
+Make the following changes:
+
+Change 1 — server/topic-deduplication-service.ts
+
+Find where the default value for similarityThreshold is set in the function signature or at the top of the function. It will look like:
+
+ts
+similarityThreshold = 0.5
+or
+
+ts
+const similarityThreshold = 0.5;
+Change it to 0.75:
+
+ts
+similarityThreshold = 0.75
+Also find the similarity calculation logic inside the function. After the similarity score is computed for two topics, add a secondary guard: even if similarity exceeds the threshold, do NOT merge two topics if they target different platforms. Find where the merge/deduplication decision is made and add this check:
+
+ts
+// Never merge topics that target different AI platforms
+// e.g. "How to improve ChatGPT visibility" vs "How to improve Perplexity citations"
+// are distinct even if textually similar
+const differentPlatforms =
+  topicA.targetPlatform &&
+  topicB.targetPlatform &&
+  topicA.targetPlatform !== topicB.targetPlatform;
+if (differentPlatforms) {
+  continue; // skip merge even if similarity score exceeds threshold
+}
+Change 2 — server/routes.ts
+
+Find every call to processTopics( in the file. Each call likely passes a similarity threshold as one of its arguments. Find the argument that is currently 0.5 and change it to 0.75:
+
+ts
+// BEFORE
+processTopics(topics, 0.5)
+// AFTER
+processTopics(topics, 0.75)
+If the threshold is passed as a named option in an options object, find the key (likely similarityThreshold) and update its value to 0.75.
+
+Change 3 — server/topic-deduplication-service.ts
+
+Find where the function logs how many topics were deduplicated. Update the log line to also show the threshold used, so you can monitor deduplication behaviour in production:
+
+ts
+console.log(
+  `Topic deduplication: ${inputCount} → ${outputCount} topics ` +
+  `(removed ${inputCount - outputCount} duplicates at threshold ${similarityThreshold})`
+);
+Replace any existing simpler deduplication log with this version.
+
+Do not change the similarity calculation algorithm itself. Do not change the function signature beyond the default value. Only change the threshold default, add the platform guard, update the call sites in routes.ts, and improve the log line.
+
+Run npx tsx server/test-fixes.ts after to confirm all 5 tests still pass.
+

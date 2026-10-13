@@ -1,0 +1,77 @@
+In the file server/routes.ts, find the section that builds the platformDrivers object inside scoreExplanation. It contains messages for chatgpt, perplexity, gemini, and claude. Each message is currently determined by AND conditions (&&) that require multiple signals to all be true simultaneously before showing a positive message.
+
+Replace the entire platformDrivers object construction with this corrected version that uses OR logic for positive detection — meaning if ANY primary signal is strong, the positive message is shown:
+
+ts
+const platformDrivers = {
+  chatgpt: (() => {
+    const hasTutorials = contentSignals.tutorialCount >= 5;
+    const hasHowTo = contentSignals.howToGuideCount >= 3;
+    const hasFaqs = contentSignals.faqSectionCount >= 3;
+    if (hasTutorials || hasHowTo || hasFaqs) {
+      const parts = [];
+      if (hasTutorials) parts.push(`${contentSignals.tutorialCount} tutorials`);
+      if (hasHowTo) parts.push(`${contentSignals.howToGuideCount} how-to guides`);
+      if (hasFaqs) parts.push(`${contentSignals.faqSectionCount} FAQ sections`);
+      return `Strong practical content detected: ${parts.join(", ")} — well positioned for ChatGPT citations.`;
+    }
+    const best = Math.max(contentSignals.tutorialCount, contentSignals.howToGuideCount, contentSignals.faqSectionCount);
+    if (best > 0) {
+      return `Some practical content found but below benchmark. Expanding tutorials and FAQs will improve ChatGPT visibility.`;
+    }
+    return `No tutorials, how-to guides, or FAQ sections detected. ChatGPT heavily favours practical step-by-step content.`;
+  })(),
+  perplexity: (() => {
+    const hasData = contentSignals.dataPointCount >= 15;
+    const hasLinks = contentSignals.externalLinkCount >= 10;
+    const hasStats = contentSignals.statisticMentionCount >= 5;
+    if (hasData || hasLinks || hasStats) {
+      const parts = [];
+      if (hasData) parts.push(`${contentSignals.dataPointCount} data points`);
+      if (hasLinks) parts.push(`${contentSignals.externalLinkCount} external citations`);
+      if (hasStats) parts.push(`${contentSignals.statisticMentionCount} statistics`);
+      return `Research-backed content detected: ${parts.join(", ")} — strong signal for Perplexity citations.`;
+    }
+    const best = Math.max(contentSignals.dataPointCount, contentSignals.externalLinkCount, contentSignals.statisticMentionCount);
+    if (best > 0) {
+      return `Some research signals found but below benchmark. Adding data points and external citations will improve Perplexity visibility.`;
+    }
+    return `No data points, statistics, or external citations detected. Perplexity prioritises research-backed, citation-heavy content.`;
+  })(),
+  gemini: (() => {
+    const hasSchema = contentSignals.schemaTypeCount >= 2;
+    const hasHeadings = contentSignals.headingHierarchyScore >= 50;
+    const hasImages = contentSignals.imageCount >= 10;
+    if (hasSchema || hasHeadings || hasImages) {
+      const parts = [];
+      if (hasSchema) parts.push(`${contentSignals.schemaTypeCount} schema types`);
+      if (hasHeadings) parts.push(`heading score ${contentSignals.headingHierarchyScore}/100`);
+      if (hasImages) parts.push(`${contentSignals.imageCount} images`);
+      return `Good technical structure detected: ${parts.join(", ")} — well positioned for Gemini citations.`;
+    }
+    const best = Math.max(contentSignals.schemaTypeCount, contentSignals.imageCount);
+    if (best > 0) {
+      return `Some structure detected but below benchmark. Adding schema markup and improving heading hierarchy will improve Gemini visibility.`;
+    }
+    return `Minimal technical structure detected. Gemini favours well-organised content with schema markup and clear heading hierarchies.`;
+  })(),
+  claude: (() => {
+    const hasCaseStudies = contentSignals.caseStudyCount >= 3;
+    const hasFrameworks = contentSignals.frameworkMentionCount >= 3;
+    const hasLongForm = contentSignals.longFormContentScore >= 40;
+    if (hasCaseStudies || hasFrameworks || hasLongForm) {
+      const parts = [];
+      if (hasCaseStudies) parts.push(`${contentSignals.caseStudyCount} case studies`);
+      if (hasFrameworks) parts.push(`${contentSignals.frameworkMentionCount} frameworks`);
+      if (hasLongForm) parts.push(`long-form content score ${contentSignals.longFormContentScore}/100`);
+      return `Strong analytical depth detected: ${parts.join(", ")} — well positioned for Claude citations.`;
+    }
+    const best = Math.max(contentSignals.caseStudyCount, contentSignals.frameworkMentionCount);
+    if (best > 0) {
+      return `Some analytical content found but below benchmark. Adding case studies and proprietary frameworks will improve Claude visibility.`;
+    }
+    return `Limited analytical depth detected. Claude favours nuanced long-form content with clear frameworks and real-world case studies.`;
+  })(),
+};
+Do not change anything else in the file. Only replace the platformDrivers object construction.
+

@@ -1,0 +1,208 @@
+Replace the entire INDUSTRY_EXAMPLES object with this expanded version that covers all major industries:
+
+ts
+const INDUSTRY_EXAMPLES: Record<string, {
+  faqQuestions: string[];
+  tutorialTopics: string[];
+  caseStudyTitle: string;
+  frameworkName: string;
+  frameworkProblem: string;
+  dataSourceSuggestions: string[];
+}> = {
+  SaaS: {
+    faqQuestions: [
+      "How does your software integrate with existing tools?",
+      "What security certifications does your platform hold?",
+      "How long does implementation typically take?",
+    ],
+    tutorialTopics: [
+      "Getting Started with [Your Product]",
+      "How to Set Up Automated Workflows",
+      "Migrating from [Competitor] to [Your Product]",
+    ],
+    caseStudyTitle: "[Customer Name]: How They Reduced [Pain Point] by X% Using [Your Product]",
+    frameworkName: "The [Your Brand] Implementation Framework",
+    frameworkProblem: "complex software adoption and change management",
+    dataSourceSuggestions: ["Gartner reports", "G2 benchmarks", "your own product usage data"],
+  },
+  "E-commerce": {
+    faqQuestions: [
+      "What is your return policy?",
+      "How long does shipping take?",
+      "Do you offer wholesale pricing?",
+    ],
+    tutorialTopics: [
+      "How to Choose the Right [Product Category]",
+      "Complete Buyer's Guide to [Product]",
+      "How to Care for Your [Product]",
+    ],
+    caseStudyTitle: "[Customer Name]: How They Achieved [Result] with [Your Products]",
+    frameworkName: "The [Your Brand] Product Selection Framework",
+    frameworkProblem: "choosing the right product for specific needs",
+    dataSourceSuggestions: ["industry market size reports", "customer satisfaction surveys", "product comparison data"],
+  },
+  Legal: {
+    faqQuestions: [
+      "What should I do immediately after [legal event]?",
+      "How long does a [case type] case typically take?",
+      "What are your fees and how is billing structured?",
+    ],
+    tutorialTopics: [
+      "Step-by-Step Guide to [Legal Process]",
+      "How to Prepare for Your First Consultation",
+      "Understanding Your Rights in [Situation]",
+    ],
+    caseStudyTitle: "[Case Type] Success: How We Helped a Client [Achieve Outcome]",
+    frameworkName: "The [Your Firm] Case Evaluation Framework",
+    frameworkProblem: "navigating complex legal decisions with confidence",
+    dataSourceSuggestions: ["court records and statistics", "bar association data", "government legal aid reports", "industry legal benchmarks"],
+  },
+  Healthcare: {
+    faqQuestions: [
+      "What should I expect during my first appointment?",
+      "Do you accept [Insurance Provider]?",
+      "How do I prepare for [Procedure or Treatment]?",
+    ],
+    tutorialTopics: [
+      "How to Manage [Condition] at Home",
+      "Step-by-Step Guide to [Treatment Process]",
+      "What to Expect After [Procedure]",
+    ],
+    caseStudyTitle: "Patient Story: How [Treatment Approach] Helped a Patient [Achieve Outcome]",
+    frameworkName: "The [Your Practice] Patient Care Framework",
+    frameworkProblem: "navigating healthcare decisions and treatment planning",
+    dataSourceSuggestions: ["peer-reviewed medical journals", "CDC and WHO data", "NHS or government health statistics", "clinical trial data"],
+  },
+  "Real Estate": {
+    faqQuestions: [
+      "What is the current market like in [Area]?",
+      "How long does it take to buy or sell a property?",
+      "What fees should I expect when buying or selling?",
+    ],
+    tutorialTopics: [
+      "How to Buy Your First Home in [City/Region]",
+      "Step-by-Step Guide to Selling Your Property",
+      "How to Evaluate a Neighbourhood Before Buying",
+    ],
+    caseStudyTitle: "[Client Type] Story: How We Helped Them [Buy/Sell] in [Market Condition]",
+    frameworkName: "The [Your Brand] Property Evaluation Framework",
+    frameworkProblem: "making confident property decisions in a complex market",
+    dataSourceSuggestions: ["local council property data", "Land Registry statistics", "Rightmove or Zillow market reports", "Office for National Statistics housing data"],
+  },
+  Marketing: {
+    faqQuestions: [
+      "How long before I see results from [Service]?",
+      "What metrics do you report on?",
+      "How do you differ from other agencies?",
+    ],
+    tutorialTopics: [
+      "How to Run Your First [Channel] Campaign",
+      "Step-by-Step Guide to [Marketing Process]",
+      "How to Measure ROI on [Service Type]",
+    ],
+    caseStudyTitle: "[Client Name]: How We Grew Their [Metric] by X% in [Timeframe]",
+    frameworkName: "The [Your Agency] Growth Framework",
+    frameworkProblem: "achieving consistent, measurable marketing results",
+    dataSourceSuggestions: ["HubSpot State of Marketing report", "Statista marketing benchmarks", "Google Ads industry benchmarks", "your own client outcome data"],
+  },
+  Restaurant: {
+    faqQuestions: [
+      "Do you take reservations and how far in advance?",
+      "Do you cater for dietary requirements such as vegan or gluten-free?",
+      "Do you offer private dining or event hire?",
+    ],
+    tutorialTopics: [
+      "How to Make [Signature Dish] at Home",
+      "Pairing Guide: [Food] and [Drink]",
+      "Behind the Scenes: How We Source Our Ingredients",
+    ],
+    caseStudyTitle: "Event Success: How We Catered [Event Type] for [Client/Occasion]",
+    frameworkName: "The [Your Restaurant] Seasonal Menu Framework",
+    frameworkProblem: "creating memorable dining experiences with seasonal, local ingredients",
+    dataSourceSuggestions: ["UK Food Standards Agency data", "Michelin Guide insights", "local tourism board statistics", "OpenTable dining trend reports"],
+  },
+  Education: {
+    faqQuestions: [
+      "What qualifications or outcomes can students expect?",
+      "How is the course or programme structured?",
+      "What support is available for students?",
+    ],
+    tutorialTopics: [
+      "How to Get Started with [Subject or Skill]",
+      "Beginner's Guide to [Topic]",
+      "How to Study Effectively for [Exam or Certification]",
+    ],
+    caseStudyTitle: "Student Success: How [Student/Cohort] Achieved [Outcome] with [Your Programme]",
+    frameworkName: "The [Your Institution] Learning Outcomes Framework",
+    frameworkProblem: "structuring effective learning pathways for real-world outcomes",
+    dataSourceSuggestions: ["UCAS or government education statistics", "Ofsted or accreditation body reports", "employer skills gap surveys", "alumni outcome data"],
+  },
+  B2B: {
+    faqQuestions: [
+      "What ROI can I expect from your solution?",
+      "How does your pricing model work?",
+      "What onboarding support do you provide?",
+    ],
+    tutorialTopics: [
+      "How to Evaluate [Your Category] Solutions",
+      "Step-by-Step Guide to [Key Process]",
+      "Best Practices for [Industry Challenge]",
+    ],
+    caseStudyTitle: "[Customer Name]: How They Achieved [X ROI] Using [Your Solution]",
+    frameworkName: "The [Your Brand] Decision Framework",
+    frameworkProblem: "evaluating and selecting the right B2B solution",
+    dataSourceSuggestions: ["Forrester research", "McKinsey reports", "your own customer outcome data"],
+  },
+  default: {
+    faqQuestions: [
+      "What makes your solution different from competitors?",
+      "How do I get started?",
+      "What support options are available?",
+    ],
+    tutorialTopics: [
+      "Getting Started Guide",
+      "How to Get the Most from [Your Product/Service]",
+      "Common Mistakes to Avoid in [Your Industry]",
+    ],
+    caseStudyTitle: "[Customer Name]: How They Achieved [Key Result] with [Your Brand]",
+    frameworkName: "The [Your Brand] Success Framework",
+    frameworkProblem: "achieving optimal results in your domain",
+    dataSourceSuggestions: ["industry reports", "government statistics", "original research surveys"],
+  },
+};
+After replacing the object, also update the getIndustryExamples function that reads from it. Find the function and replace it with this version that correctly matches the expanded industry keys:
+
+ts
+function getIndustryExamples(industry: string, businessType: string) {
+  const search = (industry + " " + businessType).toLowerCase();
+  if (search.includes("saas") || search.includes("software") || search.includes("developer") || search.includes("api") || search.includes("platform")) {
+    return INDUSTRY_EXAMPLES["SaaS"];
+  }
+  if (search.includes("ecommerce") || search.includes("e-commerce") || search.includes("retail") || search.includes("shop") || search.includes("store")) {
+    return INDUSTRY_EXAMPLES["E-commerce"];
+  }
+  if (search.includes("legal") || search.includes("law") || search.includes("attorney") || search.includes("solicitor")) {
+    return INDUSTRY_EXAMPLES["Legal"];
+  }
+  if (search.includes("health") || search.includes("medical") || search.includes("clinic") || search.includes("dental") || search.includes("pharma")) {
+    return INDUSTRY_EXAMPLES["Healthcare"];
+  }
+  if (search.includes("real estate") || search.includes("realty") || search.includes("property") || search.includes("mortgage")) {
+    return INDUSTRY_EXAMPLES["Real Estate"];
+  }
+  if (search.includes("marketing") || search.includes("agency") || search.includes("advertising") || search.includes("seo") || search.includes("digital")) {
+    return INDUSTRY_EXAMPLES["Marketing"];
+  }
+  if (search.includes("restaurant") || search.includes("food") || search.includes("cafe") || search.includes("dining") || search.includes("catering")) {
+    return INDUSTRY_EXAMPLES["Restaurant"];
+  }
+  if (search.includes("education") || search.includes("school") || search.includes("university") || search.includes("course") || search.includes("training")) {
+    return INDUSTRY_EXAMPLES["Education"];
+  }
+  if (search.includes("b2b") || search.includes("enterprise") || search.includes("wholesale") || search.includes("consulting")) {
+    return INDUSTRY_EXAMPLES["B2B"];
+  }
+  return INDUSTRY_EXAMPLES["default"];
+}
+Do not change anything else in the file — only the INDUSTRY_EXAMPLES object and the getIndustryExamples function.
+

@@ -1,0 +1,125 @@
+Three changes. Simple. Final.
+
+CHANGE 1 — Remove Wikidata and Wikipedia from 
+client-side free scan in extension/content.js:
+
+In runFullClientAudit(), remove checkWikidata() 
+from the Promise.all() call entirely.
+
+FIND:
+  const [
+    answerScore, schemaScore, freshnessScore, fanOutScore, 
+    botScore, wikidataResult, redditResult,
+  ] = await Promise.all([
+    scoreAnswerCapsule(html, text),
+    scoreSchemaCompleteness(html),
+    scoreFreshness(html),
+    scoreFanOut(html),
+    scoreBotAccess(domain),
+    checkWikidata(domain),
+    checkRedditPresence(domain),
+  ]);
+
+REPLACE WITH:
+  const [
+    answerScore, schemaScore, freshnessScore, fanOutScore,
+    botScore, redditResult,
+  ] = await Promise.all([
+    scoreAnswerCapsule(html, text),
+    scoreSchemaCompleteness(html),
+    scoreFreshness(html),
+    scoreFanOut(html),
+    scoreBotAccess(domain),
+    checkRedditPresence(domain),
+  ]);
+
+  // wikidataResult is only available in Full Analysis (server-side)
+  const wikidataResult = { found: null, qNumber: null };
+
+Also update the bonusTotal calculation to remove 
+Wikidata bonus from free score:
+
+FIND:
+  const bonusTotal = (wikidataResult.found ? 4 : 0) + 
+                     (g2Result.found ? 3 : 0) +
+                     (redditResult?.found ? 3 : 0);
+
+REPLACE WITH:
+  const bonusTotal = (redditResult?.status === 'ok' && 
+                      redditResult?.found ? 5 : 0);
+
+CHANGE 2 — Remove Wikidata/Wikipedia from bonus grid 
+in extension/side-panel.js.
+
+In renderBonusGrid(), replace the entire function with:
+
+function renderBonusGrid(audit) {
+  const grid = document.getElementById('bonus-grid');
+  const reddit = audit.bonus?.redditResult;
+  
+  const redditIcon = reddit?.status === 'ok' && reddit?.found 
+    ? '✅' : reddit?.status === 'ok' && !reddit?.found 
+    ? '❌' : '⏳';
+  
+  const redditColor = reddit?.status === 'ok' && reddit?.found 
+    ? 'green' : reddit?.status === 'ok' && !reddit?.found 
+    ? 'red' : 'muted';
+  
+  const redditText = reddit?.status === 'ok' && reddit?.found
+    ? `${reddit.mentionCount.toLocaleString()} mentions`
+    : reddit?.status === 'ok' && !reddit?.found
+    ? 'No mentions found'
+    : 'Checking...';
+
+  const subreddits = reddit?.topSubreddits?.length > 0
+    ? `<div style="font-size:10px;color:#64748b;margin-top:2px;">
+         ${reddit.topSubreddits.join(' · ')}
+       </div>`
+    : '';
+
+  grid.innerHTML = `
+    <div class="bonus-card" style="grid-column:span 2;">
+      <div style="display:flex;justify-content:space-between;
+                  align-items:center;">
+        <div>
+          <div class="bonus-name">💬 Reddit Brand Presence</div>
+          <div class="bonus-value ${redditColor}">${redditText}</div>
+          ${subreddits}
+        </div>
+        <div class="bonus-icon">${redditIcon}</div>
+      </div>
+    </div>
+  `;
+}
+
+CHANGE 3 — Always use full domain for Reddit search 
+in extension/background.js:
+
+In getRedditMentionsViaGoogle(), replace the query line:
+
+FIND:
+  const isGenericWord = brandName.length <= 4 || 
+    GENERIC_WORDS.includes(brandName.toLowerCase());
+  
+  const searchTerm = isGenericWord 
+    ? `"${domain}"`
+    : `"${brandName}"`;
+    
+  const query = `site:reddit.com ${searchTerm}`;
+
+REPLACE WITH:
+  // Always search by full domain in quotes for accuracy.
+  // "seo.ai" not "seo". "frase.io" not "frase".
+  // This prevents false positives from generic words.
+  const query = `site:reddit.com "${domain}"`;
+
+Also delete the GENERIC_WORDS array and isGenericWord 
+variable entirely — no longer needed.
+
+Show me:
+1. The updated Promise.all in runFullClientAudit
+2. The new renderBonusGrid function
+3. The updated query line in getRedditMentionsViaGoogle
+   confirming GENERIC_WORDS is removed
+
+Do nothing else until I confirm.

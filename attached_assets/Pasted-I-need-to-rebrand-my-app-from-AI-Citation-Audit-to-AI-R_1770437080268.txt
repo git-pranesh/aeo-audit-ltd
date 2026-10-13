@@ -1,0 +1,34 @@
+I need to rebrand my app from "AI Citation Audit" to "AI Readiness Optimizer" across the entire codebase. This is a copy/terminology change, NOT a structural change. Do NOT rename files, functions, variables, API endpoints, or database fields. Only change user-facing text.
+
+Here's what to change:
+
+1. In ALL frontend components in `client/src/` — find and replace user-facing strings:
+   - "AI Citation Audit" → "AI Readiness Score"
+   - "Citation Audit" → "AI Readiness Audit"  
+   - "citation audit" → "AI readiness audit"
+   - "AI Citation" → "AI Readiness" (only in UI text, NOT in variable names)
+   - "audit your AI visibility" → "optimize your AI readiness"
+   - "citation potential" → "AI readiness potential"
+   - "get cited" → "get recommended by AI"
+   - "AI citations" → "AI recommendations"
+
+2. In `client/src/pages/home.tsx` — update the hero section:
+   - Main headline: "Find Out Why AI Isn't Recommending Your Business — And Get the Exact Playbook to Fix It"
+   - Subheadline: "Citation Rocket analyzes your website against 20+ content signals, benchmarks you against your industry, and gives you a step-by-step fix-it plan so ChatGPT, Perplexity, Gemini, and Claude start recommending you."
+   - CTA button text: "Get Your Free AI Readiness Score"
+
+3. In `client/src/pages/pricing.tsx` — update plan descriptions to emphasize "optimization playbooks" and "fix-it actions" instead of just "audit results"
+
+4. In the PDF generator (`client/src/lib/audit-pdf-generator.ts`) — update the title from "AI Citation Audit" to "AI Readiness Report" and update any header/footer text
+
+5. In `server/routes.ts` — update the health check response:
+   Change `service: 'AI Citation Audit API'` to `service: 'AI Readiness Optimizer API'`
+
+6. Do NOT change:
+   - Any variable names, function names, or API endpoint paths
+   - Any internal logging strings
+   - The `citationrocket.com` domain or brand name "Citation Rocket"
+   - Any database field names
+   - Any import statements
+
+Please make these changes carefully, file by file. Show me what you're changing in each file.

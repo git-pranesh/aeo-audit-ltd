@@ -1,0 +1,76 @@
+In server/citation-snapshot-service.ts, fix the extractCompetitors() function. It's currently extracting Stripe's own product names and generic section headers as "competitors."
+
+For example, when auditing Stripe, the competitors list includes "Payments", "Connect", "Billing", "Radar", "Terminal" — those are Stripe's products, not competitors. For Athenahealth it picks up "Patient Engagement", "Additional Services", "Target Users", "Standout features" — those are section headers from the AI response.
+
+Add a filtering step at the END of the function, right before the return statement (before `return Array.from(competitors)`). After all competitors are collected in the Set, filter them:
+
+1. Create a Set of generic terms that should never be competitors:
+
+const GENERIC_BLOCKLIST = new Set([
+  // Section headers AI commonly uses
+  'features', 'services', 'tools', 'highlights', 'users',
+  'feedback', 'drawbacks', 'strengths', 'weaknesses',
+  'capabilities', 'approach', 'pricing', 'overview',
+  'conclusion', 'summary', 'benefits', 'limitations',
+  'advantages', 'disadvantages', 'alternatives',
+  'considerations', 'recommendations', 'comparison',
+  // Common single-word false positives
+  'additional services', 'standout features', 'user feedback',
+  'potential drawbacks', 'target users', 'recent highlights',
+  'key features', 'notable features', 'main features',
+  'global capabilities', 'network-enabled approach',
+  'positive overall sentiment', 'customer support',
+  'exceptional customer support', 'usability and features',
+  'revenue cycle and efficiency tools',
+  'reliability for online sales', 'costly fees',
+  'support issues', 'technical demands', 'account risks',
+]);
+
+2. Filter the competitors Set before returning:
+
+const filtered = Array.from(competitors).filter(name => {
+  const lower = name.toLowerCase().trim();
+  
+  // Remove exact blocklist matches
+  if (GENERIC_BLOCKLIST.has(lower)) return false;
+  
+  // Remove single-word entries that aren't capitalized brand names
+  // (real companies: "Square", "Adyen" — false positives: "Payments", "Online")
+  const words = name.trim().split(/\s+/);
+  if (words.length === 1) {
+    const singleWordBlocklist = new Set([
+      'payments', 'connect', 'billing', 'radar', 'terminal',
+      'issuing', 'treasury', 'atlas', 'sigma', 'identity',
+      'online', 'business', 'enterprise', 'mobile', 'analytics',
+      'integration', 'integrations', 'automation', 'security',
+      'compliance', 'reporting', 'dashboard', 'portal',
+      'engagement', 'management', 'infrastructure', 'platform',
+    ]);
+    if (singleWordBlocklist.has(lower)) return false;
+  }
+  
+  // Remove entries that look like descriptive phrases (3+ words)
+  if (words.length >= 3) {
+    // Phrases like "For Primary Care and Family Medicine" or
+    // "Reliability for online sales" are not companies
+    const startsWithGeneric = /^(for|the|a|an|how|what|why|with|about|their|your|our|key|top|best|main|other|more|also|and)\b/i;
+    if (startsWithGeneric.test(name.trim())) return false;
+  }
+  
+  // Remove entries that contain common non-company patterns
+  if (lower.includes(' and ') && words.length > 3) return false;
+  if (lower.includes('customer support')) return false;
+  if (lower.includes('user ')) return false;
+  if (lower.includes(' issues')) return false;
+  if (lower.includes(' demands')) return false;
+  if (lower.includes(' risks')) return false;
+  if (lower.includes(' sentiment')) return false;
+  
+  return true;
+});
+
+return filtered;
+
+Replace the current `return Array.from(competitors)` with this filtered version.
+
+Do NOT change any other function in the file. Only add the filtering logic at the end of extractCompetitors().

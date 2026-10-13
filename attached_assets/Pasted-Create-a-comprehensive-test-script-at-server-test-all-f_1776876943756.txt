@@ -1,0 +1,163 @@
+Create a comprehensive test script at server/test-all-fixes.ts that tests every bug fix applied in this session. I should be able to run it any time before deploying with npx tsx server/test-all-fixes.ts.
+
+The script must test the following and print PASS or FAIL with a clear reason for each:
+
+TEST 1 — Bug #10: strongestArea weighted scoring (no JS coercion)
+Inline the weighted strongestArea logic and test:
+
+All signals zero → must return "No Strong Area Detected"
+
+caseStudyCount: 5, all others zero → must return "Case Studies"
+
+tutorialCount: 8, all others zero → must return "Tutorials"
+
+schemaTypeCount: 3, all others zero → must return "Schema Markup"
+
+dataPointCount: 40, all others zero → must return "Data & Research"
+
+faqSectionCount: 4, all others zero → must return "FAQ Content"
+
+TEST 2 — Bug #2: strongestArea null when no strong area
+Test that when strongestArea is "No Strong Area Detected" or "General Content", the scoreExplanation field becomes null. When a real label is present, it must NOT be null.
+
+TEST 3 — Bug #0: Playbook industry examples are industry-specific
+Import generatePlaybook from server/playbook-generator-service.ts or inline getIndustryExamples and test:
+
+"Legal Services" → dataSourceSuggestions must NOT contain "Gartner" or "G2", must contain a legal/government source
+
+"Healthcare Medical" → must contain a medical source ("CDC", "journal", "WHO", or "clinical")
+
+"Restaurant" → faqQuestions must mention reservations, dietary, or dining
+
+"SaaS Software" → dataSourceSuggestions must contain "G2" or "Gartner"
+
+"Real Estate" → must NOT reference G2 or Gartner
+
+Unknown industry "Underwater Basket Weaving" → must return default without throwing
+
+TEST 4 — Bug #11: Schema generator is industry-aware
+Inline or import getIndustrySchemaConfig and test:
+
+"Legal Services" → primaryTypes must include "LegalService"
+
+"SaaS Software" → primaryTypes must include "SoftwareApplication"
+
+"Healthcare clinic" → primaryTypes must include "MedicalBusiness"
+
+"Restaurant dining" → primaryTypes must include "Restaurant"
+
+"E-commerce retail shop" → primaryTypes must include "Product"
+
+undefined → must return default config with "Organization" in primaryTypes, no crash
+
+TEST 5 — Bug #7: scrapingStatus field in AuditData schema
+Import auditDataSchema from shared/schema.ts and confirm:
+
+The schema has a scrapingStatus field that is optional
+
+It accepts { success: false, warning: "some text", errorDetail: "error" } without throwing
+
+It accepts { success: true, warning: null, errorDetail: null } without throwing
+
+It accepts the field being absent entirely without throwing
+
+TEST 6 — Bug #1: Platform driver OR logic (not AND)
+Inline the platformDrivers logic and test:
+
+tutorialCount: 12, howToGuideCount: 1, faqSectionCount: 0 → chatgpt message must contain "12 tutorials" and must NOT contain "No tutorials"
+
+dataPointCount: 30, externalLinkCount: 2, statisticMentionCount: 0 → perplexity message must contain "30 data points" and must NOT say "No data"
+
+schemaTypeCount: 3, headingHierarchyScore: 30, imageCount: 2 → gemini message must contain "3 schema types"
+
+caseStudyCount: 4, frameworkMentionCount: 1, longFormContentScore: 30 → claude message must contain "4 case studies"
+
+All signals zero → all four messages must contain negative/improvement language, not positive language
+
+TEST 7 — Bug #3: Technical findings use real signals
+Inline the technicalFindings logic and test:
+
+schemaTypeCount: 0 → schemaMarkup must be "Missing", not "Implemented" or "Partial"
+
+schemaTypeCount: 2 → schemaMarkup must be "Partial"
+
+schemaTypeCount: 5 → schemaMarkup must be "Implemented"
+
+frameworkMentionCount: 6, caseStudyCount: 6, hasStructuredData: true, nuancedTermCount: 10 → entityRecognition must be "Strong"
+
+frameworkMentionCount: 0, caseStudyCount: 0, hasStructuredData: false, nuancedTermCount: 0 → entityRecognition must be "Weak"
+
+sitemapSize: 0, subdomainCount: 0, docPages: 0 → domainAuthority must be "Low", never "Unknown"
+
+TEST 8 — Bug #13 + Bug #5: Citation prompt consistency
+Test the prompt mismatch guard logic:
+
+When previousEntry.totalPromptsChecked === 8 and newSnapshot.totalPromptsChecked === 5, the difference is 3 which is greater than 1 → must be flagged as a calibration run (mismatch detected = true)
+
+When previousEntry.totalPromptsChecked === 8 and newSnapshot.totalPromptsChecked === 8, difference is 0 → must NOT be flagged (mismatch detected = false)
+
+When previousEntry.totalPromptsChecked === 8 and newSnapshot.totalPromptsChecked === 9, difference is 1 → must NOT be flagged (within tolerance)
+
+TEST 9 — Bug #6: visibilityLost/Gained requires minimum mention count
+Inline or import detectCitationChanges from server/citation-history-service.ts and test:
+
+previousMentionedCount: 1, currentMentionedCount: 0 → hasSignificantChange must be false (single prompt variance, not significant)
+
+previousMentionedCount: 3, currentMentionedCount: 0 → hasSignificantChange must be true (real loss)
+
+previousMentionedCount: 0, currentMentionedCount: 1 → hasSignificantChange must be false (single prompt gain, not significant)
+
+previousMentionedCount: 0, currentMentionedCount: 2 → hasSignificantChange must be true (real gain)
+
+mentionRateChange: 25 with no visibility change → hasSignificantChange must be true (exceeds 20pp threshold)
+
+mentionRateChange: 15 with no visibility change → hasSignificantChange must be false (below threshold)
+
+TEST 10 — Bug #12: Topic deduplication threshold is 0.75
+Import processTopics from server/topic-deduplication-service.ts and test:
+
+Two topics with identical text → must be deduplicated to 1 topic
+
+Two topics that are clearly different ("How to improve ChatGPT visibility" vs "How to build backlinks for SEO") → must NOT be deduplicated, must remain 2 topics
+
+Two topics that are textually similar but target different platforms (targetPlatform: "chatgpt" vs targetPlatform: "perplexity") → must NOT be merged, must remain 2 topics
+
+TEST 11 — Bug #14: Only V2 scoring is active
+Import calculatePlatformScoresV2 from server/scoring-service.ts and confirm:
+
+With all-zero signals, V2 returns scores that CAN be below 50 (zero-based model working correctly)
+
+V2 returns exactly 4 distinct platform scores (chatgpt, perplexity, gemini, claude all different)
+
+V2 never returns a score above 100 or below 0
+
+Search the source of server/routes.ts using fs.readFileSync and confirm the string "calculatePlatformScores(" (without V2) does NOT appear anywhere in the file — only "calculatePlatformScoresV2(" is present
+
+TEST 12 — Zod schema correctness
+Import auditDataSchema from shared/schema.ts and confirm:
+
+scoreExplanation.strongestArea accepts null without throwing
+
+scoreExplanation.strongestArea accepts a string without throwing
+
+scoreExplanation.weakestArea accepts null without throwing
+
+technicalFindings.domainAuthority does NOT accept "Unknown" (enum should be High/Medium/Low only)
+
+technicalFindings.schemaMarkup accepts "Missing", "Partial", and "Implemented"
+
+Print each test result as:
+
+text
+PASS — Test 1 — Bug #10: strongestArea weighted scoring
+FAIL — Test 6 — Bug #1: Platform driver OR logic — chatgpt message was "..." expected to contain "12 tutorials"
+Print a final summary:
+
+text
+==================
+RESULTS: X/12 passed
+==================
+If any test fails, print the actual value vs expected value clearly so the failure is immediately actionable.
+
+Keep the existing server/test-fixes.ts file untouched. This is a separate, more comprehensive test file. Do not modify any production files. Only create server/test-all-fixes.ts.
+
