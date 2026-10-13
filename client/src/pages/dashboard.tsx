@@ -42,7 +42,7 @@ export default function Dashboard() {
           <Card>
             <CardContent className="p-6 space-y-6">
               <div>
-                <h2 className="text-xl font-semibold">Welcome — two quick steps, in any order</h2>
+                <h2 className="text-xl font-semibold">Welcome! Two quick steps, in any order</h2>
                 <p className="text-sm text-muted-foreground">Then you can run your first audit right here.</p>
               </div>
               <SetupStep n={1} done={licensed} title="Lifetime license"><LicenseSetup /></SetupStep>

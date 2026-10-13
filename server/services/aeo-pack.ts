@@ -4,7 +4,7 @@
  * Every file is built only from facts observed on the site (page titles,
  * descriptions, real paragraphs, declared logo, linked social profiles, FAQ
  * questions the site already shows). Where we could not observe something the
- * file contains an explicit [REPLACE: …] placeholder — never invented text.
+ * file contains an explicit [REPLACE: …] placeholder: never invented text.
  *
  * Standards followed:
  *  - llms.txt: https://llmstxt.org (H1, blockquote summary, H2 sections of links)
@@ -59,7 +59,7 @@ const json = (o: unknown) => JSON.stringify(o, null, 2);
 
 function summary(input: GeneratorInput, facts: SiteFacts): string {
   const home = facts.pages[0];
-  return (home?.description || input.valueProposition || `${input.companyName} — ${input.industry}`).replace(/\s+/g, ' ').trim();
+  return (home?.description || input.valueProposition || `${input.companyName}: ${input.industry}`).replace(/\s+/g, ' ').trim();
 }
 
 /** Short page name: <title> without the " | Brand" suffix, else a short H1, else the path. */
@@ -142,7 +142,7 @@ function llmsFullTxt(input: GeneratorInput, facts: SiteFacts): string {
 
 function robotsPatch(input: GeneratorInput): string {
   const group = (agents: string[]) => agents.map((a) => `User-agent: ${a}`).join('\n') + '\nAllow: /';
-  return `# robots.txt additions for AI search & assistants — ${input.companyName}
+  return `# robots.txt additions for AI search & assistants: ${input.companyName}
 # Generated ${today()}
 #
 # How robots.txt works (RFC 9309): each crawler follows the group that names it
@@ -158,7 +158,7 @@ function robotsPatch(input: GeneratorInput): string {
 # Microsoft: bingbot (Bing & Copilot)
 ${group(['OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'Claude-User', 'PerplexityBot', 'Perplexity-User', 'bingbot'])}
 
-# ── 2. AI TRAINING CRAWLERS (optional — your choice) ─────────────────────────
+# ── 2. AI TRAINING CRAWLERS (optional: your choice) ─────────────────────────
 # These collect content to train models. Allowing them is not required to be
 # cited in AI search. Remove the "#" to allow them.
 # User-agent: GPTBot
@@ -243,7 +243,7 @@ function homepageMarkdown(input: GeneratorInput, facts: SiteFacts): string {
 
 function instructions(input: GeneratorInput, facts: SiteFacts): string {
   const realFaqs = facts.faqs.length >= 2;
-  return `# AEO Pack — ${input.companyName}
+  return `# AEO Pack: ${input.companyName}
 Generated ${today()} by Citation Rocket from the pages we could read on ${input.websiteUrl}.
 Nothing here is invented: values we could not verify are marked [REPLACE: …].
 
@@ -264,7 +264,7 @@ Open robots-patch.txt and copy section 1 into your existing robots.txt. Section 
 (training crawlers) is optional. Check the result at ${input.websiteUrl}/robots.txt.
 
 ## 2. llms.txt${input.hasLlmsTxt ? `
-**You already have an llms.txt.** Compare it with ours and merge anything useful —
+**You already have an llms.txt.** Compare it with ours and merge anything useful , 
 don't overwrite yours blindly.` : ''}
 Upload to the root of your domain so it is served at ${input.websiteUrl}/llms.txt
 (WordPress: upload to the site root via your host's file manager or a plugin;

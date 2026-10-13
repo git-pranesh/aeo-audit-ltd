@@ -95,7 +95,7 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
             <div>
               <h3 className="text-base font-bold text-blue-700 mb-2">Sampled Analysis</h3>
               <p className="text-sm text-foreground leading-relaxed">
-                {auditData.scrapingStatus.largeSiteNote || 'Large site detected — analysis based on sampled pages.'}
+                {auditData.scrapingStatus.largeSiteNote || 'Large site detected: analysis based on sampled pages.'}
               </p>
             </div>
           </CardContent>
@@ -469,7 +469,7 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 This category returned <strong>{warning.received}</strong> of <strong>{warning.requested}</strong> requested topics.
-                The AI model reached its unique-topic limit for this area — all generated topics are shown.
+                The AI model reached its unique-topic limit for this area, so all generated topics are shown.
               </span>
             </div>
           );

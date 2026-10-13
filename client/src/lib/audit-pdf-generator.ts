@@ -105,7 +105,7 @@ export class AuditPDFGenerator {
     this.pdf.setFontSize(7);
     this.pdf.setFont('helvetica', 'normal');
     this.pdf.setTextColor(...COLORS.textMuted);
-    this.pdf.text(`${this.reportTitle} — ${this.domain}`, this.margin, 12);
+    this.pdf.text(`${this.reportTitle} | ${this.domain}`, this.margin, 12);
     this.pdf.setDrawColor(...COLORS.borderLight);
     this.pdf.setLineWidth(0.3);
     this.pdf.line(this.margin, 15, this.pageWidth - this.margin, 15);
@@ -437,7 +437,7 @@ export class AuditPDFGenerator {
     const methodLines = this.pdf.splitTextToSize(methodNote, this.contentWidth);
     this.pdf.text(methodLines, col1, this.y);
     this.y += methodLines.length * 3.5;
-    const methodNote2 = 'Unmarked metrics are directly measured from page content. All scores use deterministic formulas — no AI opinions.';
+    const methodNote2 = 'Unmarked metrics are directly measured from page content. All scores use deterministic formulas, no AI opinions.';
     const methodLines2 = this.pdf.splitTextToSize(methodNote2, this.contentWidth);
     this.pdf.text(methodLines2, col1, this.y);
     this.y += methodLines2.length * 3.5 + 2;
@@ -582,7 +582,7 @@ export class AuditPDFGenerator {
     this.pdf.setFontSize(6.5);
     this.pdf.setFont('helvetica', 'italic');
     this.pdf.setTextColor(...COLORS.textLight);
-    const benchNote = 'Industry averages and top performer scores are reference benchmarks derived from content signal analysis patterns — not sourced from a live dataset.';
+    const benchNote = 'Industry averages and top performer scores are reference benchmarks derived from content signal analysis patterns, not sourced from a live dataset.';
     const benchLines = this.pdf.splitTextToSize(benchNote, this.contentWidth);
     this.pdf.text(benchLines, this.margin, this.y);
     this.y += benchLines.length * 3.5 + 2;
@@ -1136,7 +1136,7 @@ export class AuditPDFGenerator {
 
         this.pdf.setFontSize(7.5);
         this.pdf.setTextColor(...pColor);
-        this.pdf.text(`${rec.priority} — ${rec.category}`, this.margin + 9, this.y);
+        this.pdf.text(`${rec.priority} · ${rec.category}`, this.margin + 9, this.y);
         this.y += 5;
 
         this.pdf.setTextColor(...COLORS.dark);

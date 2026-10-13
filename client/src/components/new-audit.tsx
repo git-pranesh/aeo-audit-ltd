@@ -61,7 +61,7 @@ export default function NewAudit({ maxCompetitors = 3, initialUrl = "", initialC
       });
       setKeywordsText(suggestion.suggestedKeywords.join(", "));
       setEvidence(suggestion.signalQuality === "minimal"
-        ? "We couldn't read enough of the homepage to fill this in — please complete the details below."
+        ? "We couldn't read enough of the homepage to fill this in. Please complete the details below."
         : suggestion.evidenceQuote);
       setStep("context");
     } catch (err) {

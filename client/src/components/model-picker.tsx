@@ -26,7 +26,7 @@ function ModelList({ task, value, onChange, models, defaultId }: {
   const cost = (m: CatalogEntry) => (task === "webSearch" ? m.estSnapshotUsd : m.estAuditUsd);
   const list = useMemo(() => {
     const term = q.trim().toLowerCase();
-    // Current choice, then our recommendation, then well-known providers, then everything else — cheapest first.
+    // Current choice, then our recommendation, then well-known providers, then everything else, cheapest first.
     const rank = (m: CatalogEntry) => (m.id === current ? 0 : m.id === defaultId ? 1 : POPULAR.test(m.id) ? 2 : 3);
     return models
       .filter((m) => (task === "webSearch" ? m.webSearch : (m.supportsJson || m.free) && m.contextLength >= 32_000))
@@ -77,7 +77,7 @@ function ModelList({ task, value, onChange, models, defaultId }: {
   );
 }
 
-/** Lets the customer run audits on any OpenRouter model — free to premium. */
+/** Lets the customer run audits on any OpenRouter model, free to premium. */
 export function ModelSettings() {
   const { me, setMe } = useAuth();
   const { toast } = useToast();
@@ -113,7 +113,7 @@ export function ModelSettings() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label>Analysis model — business details & topic ideas (2 calls per audit)</Label>
+        <Label>Analysis model: business details & topic ideas (2 calls per audit)</Label>
         <ModelList task="structured" value={s} onChange={setStructured} models={data.models} defaultId={me.aiModels.defaults.structured} />
         {chosen?.free && (
           <p className="text-xs text-amber-700 flex items-start gap-1">
@@ -127,7 +127,7 @@ export function ModelSettings() {
       </div>
 
       <div className="space-y-2">
-        <Label>Citation-check model — needs live web search (8 calls per check)</Label>
+        <Label>Citation-check model: needs live web search (8 calls per check)</Label>
         <ModelList task="webSearch" value={w} onChange={setWebSearch} models={data.models} defaultId={me.aiModels.defaults.webSearch} />
         <div className="flex gap-2">
           <Input placeholder='Or any model with web search, e.g. "openai/gpt-5-mini:online"' value={customSearch} onChange={(e) => setCustomSearch(e.target.value)} />

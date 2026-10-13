@@ -52,7 +52,7 @@ export async function analyzeWebsite(websiteUrl: string, apiKey: string, models:
     signalQuality: 'minimal',
   };
 
-  // Not enough real text to classify — let the customer fill it in rather than guess.
+  // Not enough real text to classify: let the customer fill it in rather than guess.
   if (block.length < 100) return unknown;
 
   const str = (v: unknown, max = 120) => (typeof v === 'string' && v.trim() && !/^unknown$/i.test(v.trim()) ? v.trim().slice(0, max) : '');
@@ -146,13 +146,13 @@ export async function runAudit(params: {
   const domain = extractDomain(websiteUrl);
   const companyName = context.companyName || deriveNameFromDomain(websiteUrl) || domain;
 
-  // 1. Scrape (never throws for unreachable pages — returns what it could read).
+  // 1. Scrape (never throws for unreachable pages: returns what it could read).
   const scrape = await scrapeWebsite(websiteUrl);
   const scrapingSucceeded = scrape.pagesFetched > 0;
   // Scoring an error page or bot wall would produce a fake "F". Stop before any AI call.
   if (!scrapingSucceeded || scrape.text.length < 300) {
     throw new OpenRouterError(
-      "We couldn't read this website — it blocks automated visitors or returned an error page. No AI credits were used. If it's your site, allow our crawler or try again later.",
+      "We couldn't read this website: it blocks automated visitors or returned an error page. No AI credits were used. If it's your site, allow our crawler or try again later.",
       'UPSTREAM',
       422,
     );
@@ -259,7 +259,7 @@ export async function runAudit(params: {
   const blockedBots = blueprintResult?.botAccess?.citationBotsBlocked ?? [];
   if (blockedBots.length > 0) {
     weaknesses.unshift(`Your robots.txt blocks AI search crawlers (${blockedBots.slice(0, 5).join(', ')}${blockedBots.length > 5 ? '…' : ''}), so these assistants cannot read or cite your pages.`);
-    recommendations.unshift(`Unblock AI search crawlers in robots.txt (${blockedBots.length} blocked) — use the robots.txt patch in your AEO Pack.`);
+    recommendations.unshift(`Unblock AI search crawlers in robots.txt (${blockedBots.length} blocked): use the robots.txt patch in your AEO Pack.`);
     playbook.actions.unshift({
       id: 'unblock-ai-crawlers',
       priority: 'critical',
@@ -305,7 +305,7 @@ export async function runAudit(params: {
         : 'We could not read your website. It may block automated visitors, require JavaScript, or have been temporarily unreachable. Scores reflect only what we could access.',
       errorDetail: null,
       largeSiteDetected: scrape.timedOut,
-      ...(scrape.timedOut ? { largeSiteNote: `Partial results — analysis based on ${scrape.pagesFetched} sampled pages.` } : {}),
+      ...(scrape.timedOut ? { largeSiteNote: `Partial results: analysis based on ${scrape.pagesFetched} sampled pages.` } : {}),
     },
     scoreExplanation: buildScoreExplanation(signals, lowestPlatform),
     auditResults: {

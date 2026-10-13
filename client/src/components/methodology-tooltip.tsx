@@ -38,7 +38,7 @@ const methodologyDescriptions: Record<MethodologyType, { label: string; descript
   },
   'deterministic': {
     label: 'Calculated score',
-    description: 'Computed using a deterministic formula based on your content signals. No AI opinions — purely mathematical, weighted scoring.',
+    description: 'Computed using a deterministic formula based on your content signals. No AI opinions: purely mathematical, weighted scoring.',
   },
   'benchmark': {
     label: 'Industry benchmark',
@@ -90,7 +90,7 @@ export function MethodologyBanner({ className = '' }: MethodologyBannerProps) {
       <span>
         Metrics use a mix of methods: sitemap URL pattern matching, direct page content analysis, and representative page sampling. 
         Hover over the <Info className="h-2.5 w-2.5 inline-block mx-0.5 -mt-0.5" /> icon next to each metric to see exactly how it was measured.
-        All scores use deterministic formulas — no AI opinions.
+        All scores use deterministic formulas, no AI opinions.
       </span>
     </div>
   );

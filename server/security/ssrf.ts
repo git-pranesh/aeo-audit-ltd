@@ -72,14 +72,14 @@ function expandIpv6(ip: string): number[] | null {
 
 function isPrivateIpv6(ip: string): boolean {
   const b = expandIpv6(ip);
-  if (!b) return true; // unparseable — treat as unsafe
+  if (!b) return true; // unparseable: treat as unsafe
   // Unspecified (::) and loopback (::1)
   if (b.every((x, i) => (i < 15 ? x === 0 : true)) && (b[15] === 0 || b[15] === 1)) return true;
   // Unique local fc00::/7
   if ((b[0] & 0xfe) === 0xfc) return true;
   // Link-local fe80::/10
   if (b[0] === 0xfe && (b[1] & 0xc0) === 0x80) return true;
-  // IPv4-mapped ::ffff:0:0/96 — validate the embedded IPv4
+  // IPv4-mapped ::ffff:0:0/96: validate the embedded IPv4
   if (b.slice(0, 10).every((x) => x === 0) && b[10] === 0xff && b[11] === 0xff) {
     return isPrivateIpv4(`${b[12]}.${b[13]}.${b[14]}.${b[15]}`);
   }
@@ -90,7 +90,7 @@ function isPrivateAddress(ip: string): boolean {
   const type = net.isIP(ip);
   if (type === 4) return isPrivateIpv4(ip);
   if (type === 6) return isPrivateIpv6(ip);
-  return true; // unknown format — treat as unsafe
+  return true; // unknown format: treat as unsafe
 }
 
 /**
@@ -137,11 +137,11 @@ export async function assertPublicUrl(input: string): Promise<string> {
   try {
     addresses = await dns.lookup(hostname, { all: true });
   } catch {
-    throw new UnsafeUrlError('Domain not found — please check the URL and try again.', 'DOMAIN_NOT_FOUND');
+    throw new UnsafeUrlError('Domain not found. Please check the URL and try again.', 'DOMAIN_NOT_FOUND');
   }
 
   if (!addresses.length) {
-    throw new UnsafeUrlError('Domain not found — please check the URL and try again.', 'DOMAIN_NOT_FOUND');
+    throw new UnsafeUrlError('Domain not found. Please check the URL and try again.', 'DOMAIN_NOT_FOUND');
   }
 
   for (const { address } of addresses) {

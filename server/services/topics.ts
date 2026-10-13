@@ -67,14 +67,14 @@ function buildPrompt(input: TopicContext): string {
 
   return `You are an Answer Engine Optimization (AEO) analyst. Produce content topic ideas for ${websiteUrl}.
 
-COMPANY CONTEXT (confirmed by the site owner — use it, never infer from the domain name):
+COMPANY CONTEXT (confirmed by the site owner: use it, never infer from the domain name):
 - Company: ${c.companyName}
 - Industry: ${c.industry}
 - Business type: ${c.businessType}
 - Target audience: ${c.targetAudience}
 - Value proposition: ${c.valueProposition}
 - Priority keywords: ${c.keywords.length ? c.keywords.join(', ') : 'none given'}
-- Competitors: ${hasCompetitors ? c.competitors.join(', ') : 'NONE PROVIDED — do not name any competitor'}
+- Competitors: ${hasCompetitors ? c.competitors.join(', ') : 'NONE PROVIDED: do not name any competitor'}
 
 MEASURED SITE SIGNALS:
 - Platform scores: ChatGPT ${p.chatgpt}, Perplexity ${p.perplexity}, Gemini ${p.gemini}, Claude ${p.claude}

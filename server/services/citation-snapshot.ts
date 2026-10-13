@@ -1,10 +1,10 @@
 /**
  * Citation Snapshot Service
  *
- * Queries the Perplexity Sonar model (via OpenRouter — not a direct Perplexity
+ * Queries the Perplexity Sonar model (via OpenRouter: not a direct Perplexity
  * API integration) with real prompts to check if a business is actually being
  * mentioned/recommended by AI. This is a manual, one-time check started by the
- * customer and paid for by the customer's OpenRouter key — never scheduled.
+ * customer and paid for by the customer's OpenRouter key: never scheduled.
  */
 
 import { extractDomain } from '../engine/domain-utils';
@@ -582,7 +582,7 @@ export async function generateCitationSnapshot(
       }
     }
 
-    // A rejected/empty key will fail every remaining prompt too — stop and tell the customer.
+    // A rejected/empty key will fail every remaining prompt too: stop and tell the customer.
     if (fatalKeyError) throw fatalKeyError;
 
     if (i + batchSize < prompts.length) {

@@ -14,7 +14,7 @@ const INCLUDED = [
   "20 content topic ideas written for your business, every audit",
   "AI Citation Check: 8 real customer questions asked to a live AI search engine",
   "PDF + CSV exports and a 10-file AEO Pack (llms.txt, schema markup, robots.txt rules)",
-  "Unlimited domains (fair use) — runs on your own OpenRouter key; choose any model",
+  "Unlimited domains (fair use), runs on your own OpenRouter key; choose any model",
 ];
 
 export default function Home() {
@@ -33,7 +33,7 @@ export default function Home() {
       <div className="max-w-2xl mx-auto text-center space-y-8 py-8">
         <div className="space-y-4">
           <h1 className="text-3xl md:text-4xl font-bold leading-tight">
-            Find out why AI isn't recommending your business — and get the playbook to fix it
+            Find out why AI isn't recommending your business, and get the playbook to fix it
           </h1>
           <p className="text-muted-foreground text-lg">
             Sign in to run audits with your Citation Rocket lifetime license.

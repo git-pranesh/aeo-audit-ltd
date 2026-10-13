@@ -3,7 +3,7 @@
  *
  * An LTD audit makes at most 2 LLM calls (topics + one retry) and a citation
  * snapshot at most 8. This is a hard safety
- * cap — independent of per-user/per-IP rate limiting at the route layer — so a
+ * cap: independent of per-user/per-IP rate limiting at the route layer: so a
  * bug (retry loop, runaway batch, re-entrant call) can't turn one audit into an
  * unbounded number of paid LLM calls.
  *
@@ -13,7 +13,7 @@
  */
 
 const MAX_CALLS_PER_AUDIT = 10;
-const ENTRY_TTL_MS = 30 * 60 * 1000; // 30 minutes — longer than any single audit should take
+const ENTRY_TTL_MS = 30 * 60 * 1000; // 30 minutes: longer than any single audit should take
 
 interface BudgetEntry {
   count: number;
@@ -48,7 +48,7 @@ export function checkAuditCallBudget(auditId: string, maxCalls: number = MAX_CAL
   if (existing.count >= maxCalls) {
     throw new Error(
       `Audit ${auditId} exceeded its per-audit LLM call budget (${maxCalls} calls). ` +
-      `This is a safety cap, not a normal audit limit — if a legitimate audit needs more calls, raise MAX_CALLS_PER_AUDIT.`
+      `This is a safety cap, not a normal audit limit: if a legitimate audit needs more calls, raise MAX_CALLS_PER_AUDIT.`
     );
   }
 

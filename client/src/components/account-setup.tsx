@@ -52,7 +52,7 @@ export function LicenseSetup() {
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
         {me.emailVerified
-          ? <>Bought with <b>{me.email}</b>? It activates automatically — <button className="text-primary underline" onClick={() => refreshMe()}>check again</button>.</>
+          ? <>Bought with <b>{me.email}</b>? It activates automatically. <button className="text-primary underline" onClick={() => refreshMe()}>Check again</button>.</>
           : <>Bought with this email? Verify it and your license activates automatically.</>}
       </p>
       {!me.emailVerified && (
@@ -76,7 +76,7 @@ export function LicenseSetup() {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        No license yet? <a className="text-primary underline" href={BUY_URL} target="_blank" rel="noreferrer">Get lifetime access</a> — use this same email at checkout.
+        No license yet? <a className="text-primary underline" href={BUY_URL} target="_blank" rel="noreferrer">Get lifetime access</a> and use this same email at checkout.
       </p>
     </div>
   );

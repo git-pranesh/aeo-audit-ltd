@@ -3,7 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { AuditData } from "@shared/schema";
 import type { Branding } from "@shared/api";
 
-/** PDFs are generated entirely in the browser — no server cost. */
+/** PDFs are generated entirely in the browser, no server cost. */
 export function usePDFExport({ auditData, websiteUrl, generatedAt, branding }: {
   auditData: AuditData | null;
   websiteUrl: string;
@@ -17,7 +17,7 @@ export function usePDFExport({ auditData, websiteUrl, generatedAt, branding }: {
     if (!auditData || !websiteUrl) return;
     setIsGenerating(true);
     try {
-      // jsPDF is large — load it only when someone actually exports.
+      // jsPDF is large, load it only when someone actually exports.
       const { AuditPDFGenerator } = await import("@/lib/audit-pdf-generator");
       new AuditPDFGenerator({
         auditData,

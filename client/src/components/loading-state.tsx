@@ -12,14 +12,14 @@ const AUDIT_STAGES = [
 ];
 
 const DEFAULT_LOADING_MESSAGES = [
-  "Good things take time—like getting recommended by AI engines..",
+  "Good things take time, like getting recommended by AI engines..",
   "Analyzing how ChatGPT, Perplexity, Gemini, and Claude view your website",
   "Scanning 1000+ AI search patterns to find your AI readiness opportunities..",
   "Comparing your domain authority against top-ranked AI recommendations...",
   "Identifying content gaps where your competitors are getting recommended...",
   "We're building your roadmap to AI search dominance. Worth the wait!",
   "Fun fact: 99% of businesses aren't on AI search radar. You're about to join the 1%.",
-  "Deep analysis in progress—your competitors wish they had this intel...",
+  "Deep analysis in progress. Your competitors wish they had this intel...",
   "Scoring your content across ChatGPT, Perplexity, Gemini and Claude...",
   "Our AI is analyzing millions of successful AI recommendations to predict your best topics...",
   "Running advanced entity recognition and content structure optimization...",
@@ -113,7 +113,7 @@ export default function LoadingState({ currentStage = 0 }: LoadingStateProps) {
                   Step {displayStage + 1} of {AUDIT_STAGES.length}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  — {AUDIT_STAGES[displayStage].name}
+                  · {AUDIT_STAGES[displayStage].name}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mb-3">

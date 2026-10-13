@@ -17,7 +17,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Why do I need my own OpenRouter key?",
-    a: "Your lifetime license covers the software. AI calls run on your own OpenRouter account, so you only pay the model provider for what you use — under $0.001 per audit with the default model (measured). One OpenRouter key covers every model, and you can choose any model in Settings, free to premium. We recommend a dedicated key with a low spending limit.",
+    a: "Your lifetime license covers the software. AI calls run on your own OpenRouter account, so you only pay the model provider for what you use, under $0.001 per audit with the default model (measured). One OpenRouter key covers every model, and you can choose any model in Settings, free to premium. We recommend a dedicated key with a low spending limit.",
   },
   {
     q: "What does an audit include?",
@@ -33,7 +33,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Does Citation Rocket monitor my site automatically?",
-    a: "No. Nothing runs in the background. Re-run an audit whenever you want a fresh score — the report shows the change versus your previous audit of the same domain.",
+    a: "No. Nothing runs in the background. Re-run an audit whenever you want a fresh score. The report shows the change versus your previous audit of the same domain.",
   },
   {
     q: "My site couldn't be read. What now?",
@@ -45,7 +45,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "How is my data handled?",
-    a: "Your OpenRouter key is encrypted at rest and never sent back to your browser. We store compact final reports only — not raw page HTML, prompts or model responses. Deleting your account deletes your audits and saved key.",
+    a: "Your OpenRouter key is encrypted at rest and never sent back to your browser. We store compact final reports only, not raw page HTML, prompts or model responses. Deleting your account deletes your audits and saved key.",
   },
 ];
 

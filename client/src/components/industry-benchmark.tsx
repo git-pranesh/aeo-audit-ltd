@@ -232,9 +232,9 @@ export default function IndustryBenchmark({ benchmark, userScores }: IndustryBen
         <div className="flex items-start gap-2 text-[11px] text-muted-foreground/70 pt-2 border-t border-border/50">
           <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
           <span>
-            <span className="font-medium text-muted-foreground/90">How we measure:</span> {benchmark.sampleSize}. Industry averages and top 10% scores are reference benchmarks derived from content signal analysis patterns across this sector — they are not sourced from a live dataset. Your scores are calculated using deterministic formulas based on your site's actual content signals.
+            <span className="font-medium text-muted-foreground/90">How we measure:</span> {benchmark.sampleSize}. Industry averages and top 10% scores are reference benchmarks derived from content signal analysis patterns across this sector. They are not sourced from a live dataset. Your scores are calculated using deterministic formulas based on your site's actual content signals.
             {aboveCount >= 3
-              ? ' Your site outperforms the industry average on most platforms — great work!'
+              ? ' Your site outperforms the industry average on most platforms. Great work!'
               : aboveCount === 0
               ? ' There is significant room for improvement compared to industry peers.'
               : ''}

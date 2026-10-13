@@ -77,7 +77,7 @@ export default function AdminPage() {
       a.download = `license-codes-${gen.channel}-${Date.now()}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast({ title: `${gen.count} codes generated`, description: "Store the CSV safely — codes cannot be shown again." });
+      toast({ title: `${gen.count} codes generated`, description: "Store the CSV safely: codes cannot be shown again." });
     } catch (err) {
       fail(err);
     }

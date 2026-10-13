@@ -1,5 +1,5 @@
 /**
- * Dodo Payments webhook — one-time purchases only.
+ * Dodo Payments webhook: one-time purchases only.
  *
  *   payment.succeeded → create a license bound to the buyer's email
  *   refund.succeeded  → revoke it
@@ -19,7 +19,7 @@ export const webhooksRouter = Router();
 webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, res) => {
   const secret = process.env.DODO_WEBHOOK_SECRET;
   if (!secret) {
-    console.error('DODO_WEBHOOK_SECRET is not configured — rejecting webhook');
+    console.error('DODO_WEBHOOK_SECRET is not configured: rejecting webhook');
     res.status(500).json({ error: 'Webhook not configured' });
     return;
   }
@@ -50,9 +50,9 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
       const email: string | undefined = data.customer?.email;
 
       if (!isLifetime) {
-        console.warn(`Webhook: payment ${paymentId} is not for a Citation Rocket license product — ignored`);
+        console.warn(`Webhook: payment ${paymentId} is not for a Citation Rocket license product: ignored`);
       } else if (!email) {
-        console.error(`Webhook: payment ${paymentId} has no customer email — create a code manually in Admin`);
+        console.error(`Webhook: payment ${paymentId} has no customer email: create a code manually in Admin`);
       } else {
         const { created } = await createPurchasedLicense({ orderReference: paymentId, email, whiteLabel: isAgency });
         console.log(`Webhook: payment ${paymentId} → license ${created ? 'created' : 'already existed'}${isAgency ? ' (agency)' : ''}`);
