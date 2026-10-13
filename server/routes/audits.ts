@@ -117,6 +117,7 @@ auditsRouter.post('/:auditId/citation-snapshot', requireLicense, citationLimiter
     return;
   }
   const apiKey = await requireOpenRouterKey(uid);
+  const models = await getModelChoice(uid);
 
   snapshotsInFlight.add(uid);
   try {
@@ -127,7 +128,8 @@ auditsRouter.post('/:auditId/citation-snapshot', requireLicense, citationLimiter
       keywords: audit.context.keywords,
       apiKey,
       auditId: `${audit.auditId}-snapshot-${Date.now()}`,
-      model: (await getModelChoice(uid)).webSearch?.id,
+      model: models.webSearch?.id,
+      questionModel: models.structured,
     });
     const stored = { ...snapshot, generatedAt: snapshot.snapshotDate };
     await saveCitationSnapshot(uid, audit.auditId, stored);

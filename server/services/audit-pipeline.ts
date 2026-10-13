@@ -184,7 +184,7 @@ export async function runAudit(params: {
       industry: context.industry,
       primaryQuery: context.keywords[0] || '',
     }).catch(() => null),
-    generateTopics({ websiteUrl, context, signals, platformScores, lowestPlatform }, apiKey, auditId, models),
+    generateTopics({ websiteUrl, context, signals, platformScores, lowestPlatform }, apiKey, auditId, models, scrape.text),
   ]);
 
   const competitors = context.competitors;
@@ -284,7 +284,7 @@ export async function runAudit(params: {
     competitorGaps: { opportunityAreas: recommendations.slice(0, 5), contentAdvantages: [] },
     disclaimers: {
       note: 'Scores indicate content alignment potential, not actual citation counts.',
-      searchVolumeNote: 'All search volumes are estimates presented as ranges.',
+      searchVolumeNote: 'Topic ideas are AI-generated suggestions based on your site and business details. No search-volume data is used.',
     },
     recommendations: recommendations.length > 0 ? recommendations : ['Keep publishing structured, question-led content.'],
     industryBenchmark,

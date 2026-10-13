@@ -130,9 +130,7 @@ export class CSVExporter {
       'Is Branded',
       'Content Type',
       'Gap Filled',
-      'Justification',
-      'Search Volume',
-      'Competition Level'
+      'Justification'
     ];
 
     const rows = [headers];
@@ -150,9 +148,7 @@ export class CSVExporter {
           topic.isBranded === true ? 'Yes' : topic.isBranded === false ? 'No' : 'N/A',
           topic.contentType || 'N/A',
           topic.gapFilled || 'N/A',
-          topic.justification,
-          topic.searchVolume || 'N/A',
-          topic.competitionLevel || 'N/A'
+          topic.justification
         ]);
       });
     });
@@ -196,7 +192,7 @@ export class CSVExporter {
       rows.push(
         [''],
         ['Note', this.auditData.disclaimers.note],
-        ['Search Volume Note', this.auditData.disclaimers.searchVolumeNote]
+        ['Topic Note', this.auditData.disclaimers.searchVolumeNote]
       );
     }
 

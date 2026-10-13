@@ -27,10 +27,10 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
   const [showAllTopics, setShowAllTopics] = useState(false);
   const [showScoreExplanation, setShowScoreExplanation] = useState(true);
   const topicCategories = [
-    { key: "authoritative" as const, label: "Authoritative", range: "85-95%" },
-    { key: "thoughtLeadership" as const, label: "Thought Leadership", range: "70-84%" },
-    { key: "competitiveAdvantage" as const, label: "Competitive Advantage", range: "50-69%" },
-    { key: "emergingOpportunity" as const, label: "Emerging Opportunity", range: "30-49%" }
+    { key: "authoritative" as const, label: "Authoritative" },
+    { key: "thoughtLeadership" as const, label: "Thought Leadership" },
+    { key: "competitiveAdvantage" as const, label: "Competitive Advantage" },
+    { key: "emergingOpportunity" as const, label: "Emerging Opportunity" }
   ];
 
   // Get current topic count dynamically

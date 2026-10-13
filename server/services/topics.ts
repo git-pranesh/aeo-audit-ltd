@@ -53,6 +53,8 @@ const CATEGORY_FOCUS: Record<TopicCategory, string> = {
 function buildPrompt(input: TopicContext): string {
   const { websiteUrl, context: c, signals: s, platformScores: p, lowestPlatform } = input;
   const hasCompetitors = c.competitors.length > 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const year = today.slice(0, 4);
   const formats = [
     isAdviceRelevant(c.industry, 'faq') && 'FAQ answers',
     isAdviceRelevant(c.industry, 'howto') && 'how-to guides',
@@ -81,7 +83,7 @@ MEASURED SITE SIGNALS:
 
 Return ONE JSON object with exactly these keys:
 {
-${TOPIC_CATEGORIES.map((k) => `  "${k}": [${TOPICS_PER_CATEGORY} topics — ${CATEGORY_FOCUS[k]}, confidence ${CONFIDENCE[k][0]}-${CONFIDENCE[k][1]}]`).join(',\n')}${hasCompetitors ? `,
+${TOPIC_CATEGORIES.map((k) => `  "${k}": [${TOPICS_PER_CATEGORY} topics — ${CATEGORY_FOCUS[k]}]`).join(',\n')}${hasCompetitors ? `,
   "competitorAnalysis": {
     "competitorStrengths": [5 short items: what ${c.competitors.join(', ')} likely do well],
     "competitorWeaknesses": [5 short items: where they likely fall short],
@@ -90,13 +92,14 @@ ${TOPIC_CATEGORIES.map((k) => `  "${k}": [${TOPICS_PER_CATEGORY} topics — ${CA
 }
 
 Each topic object:
-{"topic": "a specific question a buyer would ask an AI assistant", "confidence": number, "justification": "which content gap this fills and why it fits this company", "targetPlatform": "chatgpt|perplexity|gemini|claude", "searchVolume": "Estimated: 500-1,500/month", "competitionLevel": "Low|Medium|High", "contentType": "tutorial|case-study|faq|data-driven|framework|how-to", "isBranded": boolean, "gapFilled": "tutorials|case-studies|faqs|data-points|frameworks"}
+{"topic": "a specific question a real customer would ask an AI assistant", "justification": "which content gap this fills and why it fits this company", "targetPlatform": "chatgpt|perplexity|gemini|claude", "contentType": "tutorial|case-study|faq|data-driven|framework|how-to", "isBranded": boolean}
 
 RULES:
-- About 70% industry-level questions, 30% branded.
+- Today is ${today}. Avoid years in questions; if one is essential use ${year}, never an earlier year.
+- About 70% industry-level questions, 30% branded. Branded questions must be ones a customer would actually type (e.g. "Is X good for…", "How does X compare to…", "What does X cost…").
+- At most one question about AI, blockchain or other technology trends in total, unless the company itself sells that technology.
 - Only questions real customers of this kind of business ask. Use only the content formats listed above.
 - Never imply the company offers, uses or believes something not stated in the context (no invented technologies, policies, awards, prices or numbers).
-- Search volumes are estimates and must be ranges ("Estimated: X-Y/month"), never exact numbers.
 - Never claim citation counts or facts you cannot verify.
 - ${hasCompetitors ? 'Only mention the competitors listed above.' : 'Do not mention any competitor names.'}
 - Every list item under 25 words. Output JSON only.`;
@@ -121,19 +124,27 @@ function clampText(v: unknown, max = 300): string {
   return typeof v === 'string' ? v.replace(/\[\d+\]/g, '').trim().slice(0, max) : '';
 }
 
-function sanitizeVolume(v: unknown): string {
-  const s = clampText(v, 60);
-  if (/^estimated:/i.test(s) && /\d+\s*[-–]\s*\d/.test(s)) return s;
-  return 'Estimated: varies';
+
+/**
+ * A topic may only cite a number (price, count, percentage) that appears on the
+ * customer's own site, and never an outdated year.
+ */
+function isGrounded(text: string, siteText: string, year: number): boolean {
+  for (const y of text.match(/\b(19|20)\d{2}\b/g) ?? []) if (Number(y) < year) return false;
+  const numbers = text.replace(/\b(19|20)\d{2}\b/g, '').match(/\d[\d,.]*/g) ?? [];
+  const haystack = siteText.replace(/,/g, '');
+  return numbers.every((n) => haystack.includes(n.replace(/,/g, '').replace(/\.$/, '')));
 }
 
-function normalizeTopic(raw: any, category: TopicCategory) {
+function normalizeTopic(raw: any, category: TopicCategory, siteText: string, year: number) {
   const topic = clampText(raw?.topic, 200);
   if (!topic) return null;
+  if (!isGrounded(topic, siteText, year)) return null;
   const contentType = CONTENT_TYPES.includes(raw?.contentType) ? raw.contentType : 'how-to';
   const targetPlatform = PLATFORMS.includes(raw?.targetPlatform) ? raw.targetPlatform : 'chatgpt';
-  const [lo, hi] = CONFIDENCE[category];
-  const confidence = Math.min(hi, Math.max(lo, Math.round(Number(raw?.confidence) || lo)));
+  const [, hi] = CONFIDENCE[category];
+  // Internal ordering value only (the schema needs it); never shown as a "confidence" score.
+  const confidence = hi;
   const difficulty = DIFFICULTY[contentType];
   return {
     topic,
@@ -141,8 +152,6 @@ function normalizeTopic(raw: any, category: TopicCategory) {
     justification: clampText(raw?.justification) || 'Fills a content gap identified in the audit.',
     targetPlatform,
     platforms: [targetPlatform],
-    searchVolume: sanitizeVolume(raw?.searchVolume),
-    competitionLevel: ['Low', 'Medium', 'High'].includes(raw?.competitionLevel) ? raw.competitionLevel : 'Medium',
     contentType,
     isBranded: raw?.isBranded === true,
     gapFilled: GAP[contentType],
@@ -166,7 +175,8 @@ function stringList(v: unknown): string[] {
   return Array.isArray(v) ? v.map((x) => clampText(x, 160)).filter(Boolean).slice(0, 5) : [];
 }
 
-export async function generateTopics(input: TopicContext, apiKey: string, auditId: string, models: ModelChoice = {}): Promise<TopicResult> {
+export async function generateTopics(input: TopicContext, apiKey: string, auditId: string, models: ModelChoice = {}, siteText = ''): Promise<TopicResult> {
+  const year = new Date().getFullYear();
   const hasCompetitors = input.context.competitors.length > 0;
 
   return llmJson<TopicResult>(
@@ -190,7 +200,7 @@ export async function generateTopics(input: TopicContext, apiKey: string, auditI
       for (const cat of TOPIC_CATEGORIES) {
         const list = Array.isArray(raw[cat]) ? raw[cat] : [];
         topics[cat] = dedupe(
-          list.map((t: any) => normalizeTopic(t, cat)).filter(Boolean) as any[],
+          list.map((t: any) => normalizeTopic(t, cat, siteText, year)).filter(Boolean) as any[],
           seen,
         ).slice(0, TOPICS_PER_CATEGORY);
       }

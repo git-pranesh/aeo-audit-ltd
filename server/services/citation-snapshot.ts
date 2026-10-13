@@ -8,7 +8,8 @@
  */
 
 import { extractDomain } from '../engine/domain-utils';
-import { llmCall, OpenRouterError } from './openrouter';
+import { llmCall, llmJson, OpenRouterError } from './openrouter';
+import { detectIndustryKey } from '../engine/industry';
 
 /** Manual, one-off check. Hard cap keeps each run predictable on the customer's key. */
 export const MAX_CITATION_PROMPTS = 8;
@@ -21,6 +22,8 @@ export interface CitationSnapshotParams {
   apiKey: string;
   auditId?: string;
   model?: string;
+  /** Model used to write the questions (the customer's analysis model). */
+  questionModel?: { id: string; supportsJson: boolean };
 }
 
 export interface PromptResult {
@@ -81,60 +84,68 @@ function simplifyIndustry(industry: string): string {
   return simplified;
 }
 
-function generatePrompts(params: CitationSnapshotParams): string[] {
+/** Fallback questions when the AI question writer is unavailable. Industry-aware, no software bias. */
+function templatePrompts(params: CitationSnapshotParams): string[] {
   const { industry, companyName, keywords } = params;
-  const prompts: string[] = [];
+  const category = simplifyIndustry(industry || 'this category');
+  const kw = keywords.filter((k) => !k.toLowerCase().includes(companyName.toLowerCase())).slice(0, 3);
+  const key = detectIndustryKey(industry);
+  const noun = key === 'saas' || key === 'marketing' ? 'tools' : key === 'ecommerce' ? 'brands' : key === 'legal' ? 'law firms' : key === 'healthcare' ? 'providers' : key === 'local' ? 'places' : 'options';
 
-  // BUG-05 FIX: Only add company-specific prompts when we have a real name
-  const hasName = companyName && companyName.trim().length >= 2;
-
-  if (hasName) {
-    prompts.push(`What is ${companyName} and what do they offer?`);
-    prompts.push(`Is ${companyName} good? Reviews and reputation`);
-
-    if (keywords.length > 0) {
-      prompts.push(`${companyName} vs alternatives for ${keywords[0]}`);
-    } else {
-      prompts.push(`Tell me about ${companyName}`);
-    }
-  }
-
-  const usedKeywords = new Set<string>();
-  for (const kw of keywords.slice(0, 3)) {
-    const lower = kw.toLowerCase();
-    if (hasName && (lower.includes(companyName.toLowerCase()) ||
-        companyName.toLowerCase().includes(lower))) continue;
-    if (usedKeywords.has(lower)) continue;
-    usedKeywords.add(lower);
-    prompts.push(`Best ${kw} tools and software`);
-  }
-
-  const simplifiedIndustry = simplifyIndustry(industry);
-  prompts.push(
-    `What ${simplifiedIndustry} do you recommend for small business?`
-  );
-  prompts.push(
-    `Top rated ${simplifiedIndustry} platforms right now`
-  );
-  if (keywords.length > 1) {
-    prompts.push(
-      `What is the best ${keywords[1]} solution?`
-    );
-  }
-
-  const fillers = [
-    `Who are the leaders in ${simplifiedIndustry}?`,
-    `${simplifiedIndustry} comparison and recommendations`,
-    `Affordable ${simplifiedIndustry} for startups`,
-    `Enterprise ${simplifiedIndustry} solutions`,
-    `Best free ${simplifiedIndustry} options`,
+  const prompts = [
+    `What is ${companyName} and what do they offer?`,
+    `Is ${companyName} any good? What do customers say?`,
+    `What are the best alternatives to ${companyName}?`,
+    ...kw.map((k) => `What are the best ${k} ${noun}?`),
+    `Which ${category} ${noun} do you recommend?`,
+    `How do I choose a good ${category} provider?`,
+    `What are the most trusted names in ${category}?`,
   ];
-  for (const f of fillers) {
-    if (prompts.length >= MAX_CITATION_PROMPTS) break;
-    prompts.push(f);
-  }
+  return Array.from(new Set(prompts)).slice(0, MAX_CITATION_PROMPTS);
+}
 
-  return prompts.slice(0, MAX_CITATION_PROMPTS);
+/**
+ * Writes the questions a real customer of this business would ask an AI
+ * assistant (one cheap structured call on the customer's key), with a
+ * template fallback. 3 brand questions + 5 category questions where the
+ * company is not named (that's where being recommended matters).
+ */
+async function generatePrompts(params: CitationSnapshotParams): Promise<string[]> {
+  try {
+    const result = await llmJson<string[]>(
+      {
+        task: 'structured',
+        apiKey: params.apiKey,
+        model: params.questionModel?.id,
+        supportsJson: params.questionModel?.supportsJson,
+        maxTokens: 600,
+        temperature: 0.4,
+        messages: [{
+          role: 'user',
+          content: `Write the questions real customers would ask an AI assistant (ChatGPT, Perplexity) when looking for what this business offers.
+
+Business: ${params.companyName} (${params.websiteUrl})
+Industry: ${params.industry || 'unknown'}
+Keywords: ${params.keywords.join(', ') || 'none'}
+
+Return JSON {"brand": [3 questions that name ${params.companyName}], "category": [5 questions that do NOT name ${params.companyName} — the questions where AI decides which businesses to recommend]}.
+Natural phrasing, under 15 words each, no years, no invented facts. If location matters for this business (restaurants, clinics, law firms, trades), phrase it generally ("near me" is fine). JSON only.`,
+        }],
+      },
+      (raw) => {
+        const clean = (list: unknown) => (Array.isArray(list) ? list : [])
+          .filter((q): q is string => typeof q === 'string' && q.trim().length > 8 && q.length < 160)
+          .map((q) => q.trim());
+        const brand = clean(raw?.brand).slice(0, 3);
+        const category = clean(raw?.category).filter((q) => !q.toLowerCase().includes(params.companyName.toLowerCase())).slice(0, 5);
+        return brand.length + category.length >= 6 ? [...brand, ...category] : null;
+      },
+    );
+    return result.slice(0, MAX_CITATION_PROMPTS);
+  } catch (err) {
+    if (err instanceof OpenRouterError && err.code !== 'UPSTREAM') throw err;
+    return templatePrompts(params);
+  }
 }
 
 async function callPerplexitySonar(
@@ -467,7 +478,7 @@ export async function generateCitationSnapshot(
 ): Promise<CitationSnapshotResult> {
   const { companyName, websiteUrl, apiKey, auditId, model } = params;
   const domain = extractDomain(websiteUrl);
-  const prompts = generatePrompts(params);
+  const prompts = await generatePrompts(params);
 
   console.log(`\n🔍 Citation Snapshot: Checking ${prompts.length} prompts for "${companyName}" (${domain})`);
   console.log(`📝 Prompts generated:`, prompts.map((p, i) => `  ${i + 1}. ${p}`).join('\n'));
