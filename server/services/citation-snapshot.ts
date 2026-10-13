@@ -450,6 +450,50 @@ function extractCompetitors(
 }
 
 // BUG-08 FIX: Require minimum frequency of 2, cap list at 10
+/**
+ * The regex extractor picks up any bold text ("Choose a no-code builder",
+ * "Merino wool"). One cheap structured call keeps only real businesses,
+ * brands and organizations actually recommended in each answer.
+ */
+async function refineCompetitorNames(results: PromptResult[], params: CitationSnapshotParams): Promise<void> {
+  const answered = results.map((r, i) => ({ i, text: r.fullResponse.slice(0, 1800) })).filter((r) => r.text);
+  if (answered.length === 0) return;
+  try {
+    const parsed = await llmJson<{ i: number; names: string[] }[]>(
+      {
+        task: 'structured',
+        apiKey: params.apiKey,
+        model: params.questionModel?.id,
+        supportsJson: params.questionModel?.supportsJson,
+        maxTokens: 1200,
+        temperature: 0,
+        messages: [{
+          role: 'user',
+          content: `For each AI answer below, list the businesses, brands, products-with-brand-names or organizations it names or recommends (e.g. "Water.org", "Red Robin", "Make"). Exclude ${params.companyName} and its own products or sub-brands, generic terms ("lawyers", "chatbot", "merino wool"), instructions/steps, places, websites like Reddit/Yelp/Wikipedia, and publications.
+
+${answered.map((a) => `### ANSWER ${a.i}\n${a.text}`).join('\n\n')}
+
+Return JSON {"results": [{"i": <answer number>, "names": ["Brand", ...]}]}. Empty list if none. JSON only.`,
+        }],
+      },
+      (raw) => (Array.isArray(raw?.results) ? raw.results : null),
+    );
+    const own = params.companyName.toLowerCase();
+    for (const r of parsed) {
+      const target = results[Number(r.i)];
+      if (!target || !Array.isArray(r.names)) continue;
+      target.competitorsMentioned = Array.from(new Set(r.names
+        .filter((n): n is string => typeof n === 'string')
+        .map((n) => n.trim())
+        .filter((n) => n.length >= 2 && n.length <= 60 && !n.toLowerCase().includes(own))))
+        .slice(0, 8);
+    }
+  } catch (err) {
+    if (err instanceof OpenRouterError && err.code !== 'UPSTREAM') throw err;
+    // Keep the heuristic names if the clean-up call fails.
+  }
+}
+
 function aggregateCompetitors(allResults: PromptResult[]): CompetitorCitation[] {
   const counts = new Map<string, number>();
 
@@ -463,7 +507,7 @@ function aggregateCompetitors(allResults: PromptResult[]): CompetitorCitation[] 
   }
 
   return Array.from(counts.entries())
-    .filter(([, timesFound]) => timesFound >= 2)  // Must appear in 2+ responses
+    .filter(([, timesFound]) => timesFound >= 1)
     .map(([name, timesFound]) => ({ name, timesFound }))
     .sort((a, b) => b.timesFound - a.timesFound)
     .slice(0, 10);  // Reduced from 20 to 10
@@ -555,6 +599,7 @@ export async function generateCitationSnapshot(
   const totalTokens = totalInputTokens + totalOutputTokens;
   const estimatedCost = parseFloat(((totalTokens / 1_000_000) * 1).toFixed(6));
 
+  await refineCompetitorNames(promptResults, params);
   const topCompetitorsCited = aggregateCompetitors(promptResults);
 
   console.log(`\n📊 Citation Snapshot Complete:`);

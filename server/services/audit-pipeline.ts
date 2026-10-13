@@ -198,6 +198,53 @@ export async function runAudit(params: {
   const recommendations = generateSignalBasedRecommendations(signals, companyName, competitors, industryBenchmark).filter(fits);
   const playbook = generatePlaybook(signals, scoring, companyIntelligence, companyName);
 
+  // Universal, measured basics that apply to every kind of business.
+  const basics: { when: boolean; weakness: string; action: Parameters<typeof playbook.actions.push>[0] }[] = [
+    {
+      when: !hasOrganizationSchema(scrape.html),
+      weakness: 'No Organization schema found: AI assistants have less structured information about who you are.',
+      action: {
+        id: 'add-organization-schema', priority: 'high', title: 'Add Organization Schema to Your Homepage', targetPlatform: 'All Platforms',
+        estimatedImpact: 'Clear identity for AI assistants and search', timeToImplement: '15 minutes', difficulty: 'easy',
+        currentState: 'No Organization (or business-type) schema found on the pages we read',
+        targetState: 'Organization schema with name, URL, logo and social profiles',
+        stepByStep: ['Open schema/Organization.jsonld in your AEO Pack', 'Fill in any [REPLACE] values', 'Paste it inside <script type="application/ld+json"> in your homepage <head>', 'Validate at validator.schema.org'],
+      },
+    },
+    {
+      when: !scrape.llmsTxtFound,
+      weakness: 'No llms.txt file: AI assistants get no curated summary of your key pages.',
+      action: {
+        id: 'publish-llms-txt', priority: 'medium', title: 'Publish an llms.txt File', targetPlatform: 'All Platforms',
+        estimatedImpact: 'Gives AI assistants a clean map of your key pages', timeToImplement: '10 minutes', difficulty: 'easy',
+        currentState: 'No llms.txt found at your domain root',
+        targetState: 'llms.txt served at /llms.txt listing your key pages',
+        stepByStep: ['Take llms.txt from your AEO Pack', 'Review the page list and summary', 'Upload it to the root of your domain', `Check it loads at ${websiteUrl.replace(/\/$/, '')}/llms.txt`],
+      },
+    },
+    {
+      when: !scrape.sitemapFound,
+      weakness: 'No readable XML sitemap: crawlers (including AI search crawlers) can miss pages.',
+      action: {
+        id: 'publish-sitemap', priority: 'high', title: 'Publish an XML Sitemap', targetPlatform: 'All Platforms',
+        estimatedImpact: 'Helps every crawler find all your pages', timeToImplement: '30 minutes', difficulty: 'easy',
+        currentState: 'No sitemap found at /sitemap.xml or in robots.txt (or it was blocked)',
+        targetState: 'sitemap.xml listing all public pages, referenced in robots.txt',
+        stepByStep: ['Turn on your CMS sitemap (WordPress, Shopify, Webflow and Wix generate one) or use a sitemap generator', 'Make sure /sitemap.xml is publicly reachable', 'Add "Sitemap: https://yoursite.com/sitemap.xml" to robots.txt'],
+      },
+    },
+  ];
+  for (const b of basics.filter((x) => x.when)) {
+    weaknesses.push(b.weakness);
+    playbook.actions.push(b.action);
+    if (b.action.difficulty === 'easy') playbook.quickWins.push(b.action);
+  }
+  const rank = { critical: 0, high: 1, medium: 2, low: 3 } as const;
+  playbook.actions.sort((a, b) => rank[a.priority] - rank[b.priority]);
+  // Drop the "nothing to fix" placeholder when we did find something.
+  const placeholder = weaknesses.indexOf('No major gaps detected in the pages we analyzed.');
+  if (placeholder >= 0 && weaknesses.length > 1) weaknesses.splice(placeholder, 1);
+
   // A site that links to its blog has one, even if our sitemap sample missed the posts.
   const linksToBlog = /href=["'][^"']*\/(blogs?|news|articles|journal|insights|resources)\/?["']/i.test(scrape.html);
   if (linksToBlog && signals.blogPostCount === 0) {
@@ -313,6 +360,11 @@ export async function runAudit(params: {
 }
 
 // ─── Deterministic report helpers ─────────────────────────────────────────────
+
+function hasOrganizationSchema(html: string): boolean {
+  return /"@type"\s*:\s*\[?\s*"(Organization|Corporation|LocalBusiness|Restaurant|FoodEstablishment|Store|LegalService|Attorney|MedicalOrganization|NGO|EducationalOrganization|OnlineStore|ProfessionalService)"/i.test(html)
+    || /itemtype=["']https?:\/\/schema\.org\/(Organization|LocalBusiness|Restaurant|Corporation)/i.test(html);
+}
 
 function band(score: number, high = 'Strong', mid = 'Moderate', low = 'Weak'): string {
   return score >= 75 ? high : score >= 50 ? mid : low;

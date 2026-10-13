@@ -202,9 +202,9 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
           <CardHeader className="pb-3">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Trophy className="h-5 w-5 text-yellow-500" />
-              Top Competitors Mentioned by AI
+              Other Brands Named in AI Answers
             </h3>
-            <p className="text-sm text-muted-foreground">These businesses appeared most often across all prompts</p>
+            <p className="text-sm text-muted-foreground">Businesses and brands the AI named in its answers (competitors, alternatives or tools it recommended)</p>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-2">
