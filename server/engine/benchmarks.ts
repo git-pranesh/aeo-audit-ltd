@@ -7,6 +7,8 @@
  * are not permanently crushed against enterprise baselines.
  */
 
+import { detectIndustryKey } from './industry';
+
 export interface Benchmarks {
   // Content Depth
   tutorials: number;
@@ -50,6 +52,17 @@ export const BASE_BENCHMARKS: Benchmarks = {
   nuancedTerms: 15,
 };
 
+/** Used when the industry can't be classified. */
+const GENERAL_MULTIPLIERS: Partial<Record<keyof Benchmarks, number>> = {
+  tutorials: 0.4,
+  howToGuides: 0.5,
+  caseStudies: 0.5,
+  blogPosts: 0.5,
+  dataPoints: 0.6,
+  externalLinks: 0.6,
+  frameworkMentions: 0.4,
+};
+
 /**
  * Per-industry override multipliers (applied to BASE_BENCHMARKS).
  * Values < 1.0 = lower bar for that industry, values > 1.0 = higher bar.
@@ -87,6 +100,21 @@ const INDUSTRY_MULTIPLIERS: Record<string, Partial<Record<keyof Benchmarks, numb
     frameworkMentions: 0.2,
     externalLinks: 0.5,
   },
+  // Restaurants, trades, salons, gyms, hotels: no tutorials/case studies/research expected.
+  local: {
+    tutorials: 0.1,
+    howToGuides: 0.2,
+    caseStudies: 0.1,
+    blogPosts: 0.2,
+    schemaTypes: 0.6,
+    stepByStepLists: 0.2,
+    dataPoints: 0.3,
+    statistics: 0.3,
+    externalLinks: 0.3,
+    researchTerms: 0.3,
+    frameworkMentions: 0.1,
+    nuancedTerms: 0.5,
+  },
   ecommerce: {
     tutorials: 0.2,
     caseStudies: 0.2,
@@ -98,25 +126,6 @@ const INDUSTRY_MULTIPLIERS: Record<string, Partial<Record<keyof Benchmarks, numb
   },
 };
 
-const INDUSTRY_KEYWORDS: Array<{ key: string; keywords: string[] }> = [
-  { key: 'legal', keywords: ['legal', 'law', 'attorney', 'lawyer', 'litigation', 'injury', 'defense', 'counsel', 'paralegal', 'notary'] },
-  { key: 'marketing', keywords: ['marketing', 'digital marketing', 'advertising', 'agency', 'seo', 'content marketing', 'branding', 'pr ', 'public relations', 'media agency'] },
-  { key: 'healthcare', keywords: ['healthcare', 'health', 'medical', 'hospital', 'clinic', 'dental', 'pharma', 'biotech', 'wellness', 'telehealth', 'therapy', 'mental health', 'ambulatory', 'ehr', 'rcm'] },
-  { key: 'realestate', keywords: ['real estate', 'property', 'realtor', 'realty', 'mortgage', 'housing', 'commercial property', 'residential'] },
-  { key: 'ecommerce', keywords: ['e-commerce', 'ecommerce', 'retail', 'online store', 'shop', 'marketplace', 'consumer goods', 'fashion', 'apparel', 'beauty', 'food & beverage'] },
-];
-
-function detectIndustryKey(industry: string): string | null {
-  if (!industry) return null;
-  const lower = industry.toLowerCase().trim();
-  for (const { key, keywords } of INDUSTRY_KEYWORDS) {
-    for (const kw of keywords) {
-      if (lower.includes(kw) || kw.includes(lower)) return key;
-    }
-  }
-  return null;
-}
-
 /**
  * Returns benchmarks tuned for the given industry and site size.
  *
@@ -125,7 +134,8 @@ function detectIndustryKey(industry: string): string | null {
  */
 export function getBenchmarks(industry: string = '', totalPages: number = 0): Benchmarks {
   const key = detectIndustryKey(industry);
-  const multipliers = key ? INDUSTRY_MULTIPLIERS[key] ?? {} : {};
+  // Unknown industries get a moderate profile, not the strict SaaS one.
+  const multipliers = key ? INDUSTRY_MULTIPLIERS[key] ?? {} : GENERAL_MULTIPLIERS;
 
   // Apply multipliers to BASE_BENCHMARKS
   const adjusted: Benchmarks = { ...BASE_BENCHMARKS };

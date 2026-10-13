@@ -35,6 +35,16 @@ export interface LlmOptions {
   json?: boolean;
   auditId?: string; // enforces the per-audit call budget
   timeoutMs?: number;
+  /** Customer-chosen OpenRouter model id; defaults to MODEL_MAP[task]. */
+  model?: string;
+  /** False when the chosen model doesn't support response_format. */
+  supportsJson?: boolean;
+}
+
+/** Customer model preferences (validated when saved). */
+export interface ModelChoice {
+  structured?: { id: string; supportsJson: boolean };
+  webSearch?: { id: string };
 }
 
 export interface LlmResponse {
@@ -65,22 +75,21 @@ function mapHttpError(status: number): OpenRouterError {
 }
 
 export async function llmCall(options: LlmOptions): Promise<LlmResponse> {
-  const { task, messages, apiKey, maxTokens = 2048, temperature = 0.2, json, auditId, timeoutMs = 90_000 } = options;
+  const { task, messages, apiKey, maxTokens = 2048, temperature = 0.2, json, auditId, timeoutMs = 90_000, supportsJson = true } = options;
   if (!apiKey) {
     throw new OpenRouterError('Add your OpenRouter key in Settings before running audits.', 'KEY_MISSING', 400);
   }
   if (auditId) checkAuditCallBudget(auditId);
 
-  const model = MODEL_MAP[task];
+  const model = options.model || MODEL_MAP[task];
   const body: Record<string, unknown> = { model, messages, max_tokens: maxTokens, temperature };
-  if (json && !model.startsWith('perplexity/')) body.response_format = { type: 'json_object' };
+  if (json && supportsJson && !model.startsWith('perplexity/')) body.response_format = { type: 'json_object' };
   // Structured extraction must not "think": reasoning tokens count against
   // max_tokens (empty answers) and cost the customer money for no benefit.
   if (task === 'structured') body.reasoning = { enabled: false };
 
-  let response: Response;
-  try {
-    response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+  const send = (payload: Record<string, unknown>) =>
+    fetch(`${OPENROUTER_BASE}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -88,16 +97,38 @@ export async function llmCall(options: LlmOptions): Promise<LlmResponse> {
         'HTTP-Referer': 'https://citationrocket.com',
         'X-Title': 'Citation Rocket',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(timeoutMs),
     });
+
+  let response: Response;
+  try {
+    response = await send(body);
+    if (response.status === 400 && body.reasoning) {
+      const detail = await response.clone().text().catch(() => '');
+      // Some models (e.g. Gemini 2.5 Pro) can't switch reasoning off: allow it,
+      // with room for the hidden reasoning tokens.
+      if (/reasoning/i.test(detail)) {
+        const { reasoning: _off, ...rest } = body;
+        response = await send({ ...rest, max_tokens: Math.min(16_000, maxTokens * 3) });
+      }
+    }
   } catch {
     throw new OpenRouterError('Could not reach OpenRouter. Please try again.', 'UPSTREAM', 502);
   }
 
+  if (response.status === 429 && model.endsWith(':free')) {
+    throw new OpenRouterError('This free model is rate-limited by its provider right now. Try again in a few minutes, or choose a paid model in Settings.', 'RATE_LIMITED', 429);
+  }
   if (!response.ok) throw mapHttpError(response.status);
 
-  const data = (await response.json()) as any;
+  let data: any;
+  try {
+    data = await response.json();
+  } catch {
+    // The timeout can fire while the body is still streaming in.
+    throw new OpenRouterError('The AI model took too long to answer. Please try again or pick a faster model in Settings.', 'UPSTREAM', 504);
+  }
   return {
     content: data.choices?.[0]?.message?.content ?? '',
     model,

@@ -1,36 +1,21 @@
 /**
- * AEO File Generator
+ * AEO Pack generator.
  *
- * Thing 3 core. Generates every file AI crawlers look for:
- *   - llms.txt          (AI crawler context file)
- *   - llms-full.txt     (verbose version with full page content)
- *   - AGENTS.md         (Addy Osmani standard for AI coding agents)
- *   - schema/*.json     (Organization, FAQPage, HowTo, Article, BreadcrumbList)
- *   - robots-patch.txt  (Unblocks GPTBot, PerplexityBot, ClaudeBot, etc.)
- *   - markdown-twins/   (Clean .md versions of key pages)
+ * Every file is built only from facts observed on the site (page titles,
+ * descriptions, real paragraphs, declared logo, linked social profiles, FAQ
+ * questions the site already shows). Where we could not observe something the
+ * file contains an explicit [REPLACE: …] placeholder — never invented text.
  *
- * Generated on demand from the compact inputs saved with each audit — the site
- * is not re-scraped and nothing is deployed or pinged on the customer's behalf.
- *
- * Returns a manifest of all generated files as { filename: content } strings.
- * The API endpoint zips them and returns as download.
+ * Standards followed:
+ *  - llms.txt: https://llmstxt.org (H1, blockquote summary, H2 sections of links)
+ *  - JSON-LD: schema.org types/properties; Google structured-data policies
+ *    (FAQ markup must match content visible on the page)
+ *  - robots.txt: RFC 9309 (groups are chosen by user-agent, not by order)
+ *  - Crawler names from OpenAI, Anthropic, Perplexity, Google, Microsoft docs
  */
 
 import type { ContentSignals } from '../engine/content-signal-service';
-
-export interface GeneratedFiles {
-  'llms.txt': string;
-  'llms-full.txt': string;
-  'AGENTS.md': string;
-  'robots-patch.txt': string;
-  'schema/Organization.jsonld': string;
-  'schema/FAQPage.jsonld': string;
-  'schema/HowTo.jsonld': string;
-  'schema/Article.jsonld': string;
-  'schema/BreadcrumbList.jsonld': string;
-  'markdown-twins/homepage.md': string;
-  'INSTRUCTIONS.md': string;
-}
+import type { SiteFacts } from '../engine/site-facts';
 
 export interface GeneratorInput {
   websiteUrl: string;
@@ -39,579 +24,267 @@ export interface GeneratorInput {
   businessType: string;
   targetAudience: string;
   valueProposition: string;
-  signals: ContentSignals;
+  signals?: ContentSignals;
   sitemapUrls: string[];
-  scrapedText: string;
   keywords: string[];
-  competitors: string[];
+  competitors?: string[];
+  facts?: SiteFacts;
+  sitemapLocation?: string | null;
+  hasLlmsTxt?: boolean;
 }
 
-// ─── Entry point ──────────────────────────────────────────────────────────────
+export type GeneratedFiles = Record<string, string>;
 
-export async function generateAeoFiles(rawInput: GeneratorInput): Promise<GeneratedFiles> {
-  // Normalize the website URL once: no trailing slash, so `${websiteUrl}/path`
-  // never produces double slashes in any generated file.
-  const input: GeneratorInput = {
-    ...rawInput,
-    websiteUrl: normalizeUrl(rawInput.websiteUrl),
+const today = () => new Date().toISOString().split('T')[0];
+
+export async function generateAeoFiles(raw: GeneratorInput): Promise<GeneratedFiles> {
+  const input = { ...raw, websiteUrl: raw.websiteUrl.replace(/\/+$/, '') };
+  const facts: SiteFacts = input.facts ?? { pages: [], logoUrl: null, socialProfiles: [], faqs: [] };
+
+  return {
+    'llms.txt': llmsTxt(input, facts),
+    'llms-full.txt': llmsFullTxt(input, facts),
+    'robots-patch.txt': robotsPatch(input),
+    'schema/Organization.jsonld': json(organization(input, facts)),
+    'schema/WebSite.jsonld': json({ '@context': 'https://schema.org', '@type': 'WebSite', name: input.companyName, url: `${input.websiteUrl}/` }),
+    'schema/FAQPage.jsonld': json(faqPage(facts)),
+    'schema/Article.jsonld': json(articleTemplate(input, facts)),
+    'schema/BreadcrumbList.jsonld': json(breadcrumbTemplate(input)),
+    'markdown-twins/homepage.md': homepageMarkdown(input, facts),
+    'INSTRUCTIONS.md': instructions(input, facts),
   };
-  const domain = extractDomain(input.websiteUrl);
-
-  const files: GeneratedFiles = {
-    'llms.txt':                   generateLlmsTxt(input, domain),
-    'llms-full.txt':              generateLlmsFullTxt(input, domain),
-    'AGENTS.md':                  generateAgentsMd(input, domain),
-    'robots-patch.txt':           generateRobotsPatch(input.websiteUrl),
-    'schema/Organization.jsonld': generateOrganizationSchema(input, domain),
-    'schema/FAQPage.jsonld':      generateFaqPageSchema(input),
-    'schema/HowTo.jsonld':        generateHowToSchema(input),
-    'schema/Article.jsonld':      generateArticleSchema(input, domain),
-    'schema/BreadcrumbList.jsonld': generateBreadcrumbSchema(input.websiteUrl, domain),
-    'markdown-twins/homepage.md': generateHomepageMarkdown(input, domain),
-    'INSTRUCTIONS.md':            generateInstructions(input, domain),
-  };
-
-  return files;
 }
 
+const json = (o: unknown) => JSON.stringify(o, null, 2);
 
-// ─── File generators ──────────────────────────────────────────────────────────
-
-function generateLlmsTxt(input: GeneratorInput, domain: string): string {
-  const { companyName, websiteUrl, industry, targetAudience, valueProposition, signals, sitemapUrls, keywords } = input;
-
-  const tutorialUrls = sitemapUrls.filter(u => /\/tutorial|\/guide|\/how-to|\/learn|\/docs/i.test(u)).slice(0, 10);
-  const caseStudyUrls = sitemapUrls.filter(u => /\/case-stud|\/customer|\/success|\/portfolio/i.test(u)).slice(0, 8);
-  const faqUrls = sitemapUrls.filter(u => /\/faq|\/questions|\/help/i.test(u)).slice(0, 5);
-  const blogUrls = sitemapUrls.filter(u => /\/blog(\/|$)|\/articles?(\/|$)|\/posts?(\/|$)/i.test(u)).slice(0, 10);
-
-  return `# ${companyName}
-> ${valueProposition || `${industry} company helping ${targetAudience}`}
-> Website: ${websiteUrl}
-
-## What We Do
-${describeCompany(companyName, industry, targetAudience, valueProposition)}
-
-## Target Audience
-${targetAudience || 'Businesses and professionals'}
-
-## Key Topics
-${keywords.map(k => `- ${k}`).join('\n') || `- ${industry}`}
-${buildImportantPagesSection([
-  ['Guides & Tutorials', tutorialUrls],
-  ['Case Studies & Results', caseStudyUrls],
-  ['FAQ', faqUrls],
-  ['Blog & Resources', blogUrls],
-])}
-## Content Statistics
-- Total pages: ${signals.totalPageCount}
-- Tutorial/guide pages: ${signals.tutorialCount}
-- FAQ sections: ${signals.faqSectionCount}
-- Case studies: ${signals.caseStudyCount}
-- Blog posts: ${signals.blogPostCount}
-- Documentation pages: ${signals.documentationPageCount}
-
-## Sitemap
-${websiteUrl.replace(/\/$/, '')}/sitemap.xml
-
-## Last Updated
-${new Date().toISOString().split('T')[0]}
-`.trim();
+function summary(input: GeneratorInput, facts: SiteFacts): string {
+  const home = facts.pages[0];
+  return (home?.description || input.valueProposition || `${input.companyName} — ${input.industry}`).replace(/\s+/g, ' ').trim();
 }
 
-function generateLlmsFullTxt(input: GeneratorInput, domain: string): string {
-  const { companyName, websiteUrl, industry, targetAudience, valueProposition, signals, sitemapUrls, keywords, scrapedText } = input;
-
-  // Take first 3000 chars of scraped text, cleaned up
-  const cleanedText = scrapedText
-    .replace(/\s+/g, ' ')
-    .replace(/[^\w\s.,!?;:()\-'"]/g, '')
-    .trim()
-    .substring(0, 3000);
-
-  const allContentUrls = sitemapUrls
-    .filter(u => /\/blog(\/|$)|\/docs(\/|$)|\/guide|\/tutorial|\/faq|\/case-stud|\/customer|\/playbook|\/resource/i.test(u))
-    .slice(0, 50);
-
-  return `# ${companyName} — Full Content Reference
-> For AI assistants and LLM agents requiring comprehensive context
-> Generated: ${new Date().toISOString().split('T')[0]}
-
-## Company Overview
-**Name:** ${companyName}
-**Website:** ${websiteUrl}
-**Industry:** ${industry || 'Not specified'}
-**Business Type:** ${input.businessType || 'Not specified'}
-**Target Audience:** ${targetAudience || 'Not specified'}
-**Value Proposition:** ${valueProposition || 'Not specified'}
-
-## Core Keywords & Topics
-${keywords.map((k, i) => `${i + 1}. ${k}`).join('\n') || `1. ${industry}`}
-
-## Homepage Content Extract
-${cleanedText || 'Content not available.'}
-
-## Key Content URLs (${allContentUrls.length} highlighted of ${signals.totalPageCount} total pages)
-${allContentUrls.map(u => `- ${u}`).join('\n') || `- ${websiteUrl}`}
-
-## Content Inventory
-| Type | Count |
-|------|-------|
-| Total pages | ${signals.totalPageCount} |
-| Tutorials/Guides | ${signals.tutorialCount} |
-| How-to guides | ${signals.howToGuideCount} |
-| FAQ sections | ${signals.faqSectionCount} |
-| Case studies | ${signals.caseStudyCount} |
-| Blog posts | ${signals.blogPostCount} |
-| Documentation pages | ${signals.documentationPageCount} |
-| Schema types | ${signals.schemaTypeCount} |
-| Data points | ${signals.dataPointCount} |
-| External links | ${signals.externalLinkCount} |
-
-## Competitors
-${input.competitors.length > 0 ? input.competitors.map(c => `- ${c}`).join('\n') : '- Not specified'}
-
-## Sitemap
-${websiteUrl.replace(/\/$/, '')}/sitemap.xml
-`.trim();
+/** Short page name: <title> without the " | Brand" suffix, else a short H1, else the path. */
+function pageLabel(p: { title: string; h1: string; url: string }, companyName: string): string {
+  const title = p.title.split(/\s+[|–—]\s+|\s+-\s+/).filter((part) => part.trim().toLowerCase() !== companyName.toLowerCase())[0]?.trim() ?? '';
+  if (title && title.length <= 70) return title;
+  if (p.h1 && p.h1.length <= 70) return p.h1;
+  try {
+    return new URL(p.url).pathname.replace(/^\/|\/$/g, '') || 'Home';
+  } catch {
+    return p.url;
+  }
 }
 
-function generateAgentsMd(input: GeneratorInput, domain: string): string {
-  const { companyName, websiteUrl, industry, targetAudience, valueProposition, signals, sitemapUrls, keywords } = input;
-
-  const apiUrls = sitemapUrls.filter(u => /\/api\/|\/docs\/|\/developer/i.test(u)).slice(0, 5);
-  // Only reference section URLs that actually exist in the sitemap — never invent /docs, /blog, /faq
-  const docsUrl = sitemapUrls.find(u => /\/docs(\/|$)/i.test(u));
-  const blogUrl = sitemapUrls.find(u => /\/blog(\/|$)/i.test(u));
-  const faqUrl = sitemapUrls.find(u => /\/faq(\/|$)/i.test(u));
-  const contactUrl = sitemapUrls.find(u => /\/contact(-us)?(\/|$)/i.test(u));
-
-  return `# AGENTS.md — ${companyName}
-
-## Project Overview
-**Website:** ${websiteUrl}
-**Company:** ${companyName}
-**Industry:** ${industry || 'Not specified'}
-**Audience:** ${targetAudience || 'Not specified'}
-
-## What This Site Is
-${valueProposition || `${companyName} is a ${industry || 'business'} serving ${targetAudience || 'customers'}.`}
-
-## Key Topics
-${keywords.map(k => `- ${k}`).join('\n') || `- ${industry}`}
-
-## Site Structure
-- **Total pages:** ${signals.totalPageCount}
-- **Documentation:** ${docsUrl ? `${signals.documentationPageCount} pages at ${docsUrl}` : signals.documentationPageCount > 0 ? `${signals.documentationPageCount} pages` : 'Not available'}
-- **Blog/Resources:** ${blogUrl ? `${signals.blogPostCount} posts at ${blogUrl}` : signals.blogPostCount > 0 ? `${signals.blogPostCount} posts` : 'Not available'}
-- **FAQ:** ${faqUrl ? `${signals.faqSectionCount} sections at ${faqUrl}` : signals.faqSectionCount > 0 ? `${signals.faqSectionCount} sections` : 'Not available'}
-
-${apiUrls.length > 0 ? `## API & Developer Resources
-${apiUrls.map(u => `- ${u}`).join('\n')}
-` : ''}
-## Content References
-- llms.txt: ${websiteUrl}/llms.txt
-- llms-full.txt: ${websiteUrl}/llms-full.txt
-- Sitemap: ${websiteUrl}/sitemap.xml
-
-## AI Crawling
-This site welcomes crawling by all AI assistants. See robots.txt for details.
-GPTBot, PerplexityBot, ClaudeBot, and Google-Extended are explicitly allowed.
-
-## Contact
-For questions about this site's content: ${contactUrl || websiteUrl}
-
-## Last Updated
-${new Date().toISOString().split('T')[0]}
-`.trim();
+function keyLinks(input: GeneratorInput, facts: SiteFacts) {
+  const seen = new Set<string>();
+  const links: { title: string; url: string; note: string }[] = [];
+  for (const p of facts.pages) {
+    const url = p.url.replace(/\/+$/, '') || input.websiteUrl;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    links.push({ title: url === input.websiteUrl ? 'Home' : pageLabel(p, input.companyName), url, note: p.description });
+  }
+  const extra = input.sitemapUrls.filter((u) => !seen.has(u.replace(/\/+$/, ''))).slice(0, 15);
+  return { links, extra };
 }
 
-function generateRobotsPatch(websiteUrl: string): string {
-  return `# robots.txt PATCH — AI Crawler Allowances
-# Generated by Citation Rocket (citationrocket.com)
-# 
-# ACTION REQUIRED: Copy the section below into your existing robots.txt file.
-# If you don't have a robots.txt, create one at your domain root with this content.
+// ─── llms.txt (llmstxt.org) ───────────────────────────────────────────────────
+
+function llmsTxt(input: GeneratorInput, facts: SiteFacts): string {
+  const { links, extra } = keyLinks(input, facts);
+  const lines = [
+    `# ${input.companyName}`,
+    '',
+    `> ${summary(input, facts)}`,
+    '',
+  ];
+  const details = [
+    input.industry && `${input.companyName} operates in ${input.industry}${input.businessType ? ` (${input.businessType})` : ''}.`,
+    input.targetAudience && `Primary audience: ${input.targetAudience}.`,
+    input.keywords.length > 0 && `Key topics: ${input.keywords.join(', ')}.`,
+  ].filter(Boolean);
+  if (details.length) lines.push(details.join(' '), '');
+
+  lines.push('## Key pages', '');
+  for (const l of links) lines.push(`- [${l.title}](${l.url})${l.note ? `: ${l.note}` : ''}`);
+  if (links.length === 0) lines.push(`- [Home](${input.websiteUrl}/)`);
+  lines.push('');
+
+  if (extra.length) {
+    lines.push('## More content', '');
+    for (const u of extra) lines.push(`- [${u.replace(/^https?:\/\/[^/]+/, '') || '/'}](${u})`);
+    lines.push('');
+  }
+  if (input.sitemapLocation) {
+    lines.push('## Optional', '', `- [Sitemap](${input.sitemapLocation}): full list of pages`, '');
+  }
+  return lines.join('\n');
+}
+
+// ─── llms-full.txt (real page text, main content only) ────────────────────────
+
+function llmsFullTxt(input: GeneratorInput, facts: SiteFacts): string {
+  const out = [`# ${input.companyName}`, '', `> ${summary(input, facts)}`, ''];
+  for (const p of facts.pages) {
+    const body = [p.description, ...p.paragraphs].filter(Boolean);
+    if (body.length === 0 && p.headings.length === 0) continue;
+    out.push(`## ${pageLabel(p, input.companyName)}`, '', `Source: ${p.url}`, '');
+    if (p.headings.length) out.push(`Sections: ${p.headings.join(' · ')}`, '');
+    out.push(...body.map((b) => `${b}\n`));
+  }
+  if (facts.faqs.length) {
+    out.push('## Frequently asked questions', '');
+    for (const f of facts.faqs) out.push(`**${f.question}**`, '', f.answer, '');
+  }
+  return out.join('\n');
+}
+
+// ─── robots.txt patch (RFC 9309) ──────────────────────────────────────────────
+
+function robotsPatch(input: GeneratorInput): string {
+  const group = (agents: string[]) => agents.map((a) => `User-agent: ${a}`).join('\n') + '\nAllow: /';
+  return `# robots.txt additions for AI search & assistants — ${input.companyName}
+# Generated ${today()}
 #
-# IMPORTANT: Check your current robots.txt first.
-# If you have "User-agent: *" with "Disallow: /" anywhere, 
-# these Allow rules must come BEFORE that block.
+# How robots.txt works (RFC 9309): each crawler follows the group that names it
+# and ignores "User-agent: *". So a named group below lets that crawler in even
+# if you block other bots under "*". Order in the file does not matter.
+# Keep any Disallow lines for private areas (e.g. /admin, /cart, /account).
 
-# ─── AI CRAWLERS — ADD THESE TO YOUR robots.txt ───────────────────────────────
+# ── 1. AI SEARCH & ANSWER CRAWLERS (recommended) ─────────────────────────────
+# These fetch pages to show and cite them in AI answers.
+# OpenAI: OAI-SearchBot (ChatGPT search), ChatGPT-User (user-requested visits)
+# Anthropic: Claude-SearchBot (search), Claude-User (user-requested visits)
+# Perplexity: PerplexityBot (search), Perplexity-User (user-requested visits)
+# Microsoft: bingbot (Bing & Copilot)
+${group(['OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'Claude-User', 'PerplexityBot', 'Perplexity-User', 'bingbot'])}
 
-# OpenAI (ChatGPT training and browsing)
-User-agent: GPTBot
-Allow: /
-
-# OpenAI ChatGPT browsing plugin
-User-agent: ChatGPT-User
-Allow: /
-
-# Perplexity AI
-User-agent: PerplexityBot
-Allow: /
-
-# Anthropic Claude
-User-agent: ClaudeBot
-Allow: /
-User-agent: anthropic-ai
-Allow: /
-
-# Google AI (Gemini, AI Overviews)
-User-agent: Google-Extended
-Allow: /
-
-# Microsoft Copilot (Bingbot already allowed if you allow Bingbot)
-User-agent: bingbot
-Allow: /
-
-# Common AI-powered crawlers
-User-agent: cohere-ai
-Allow: /
-User-agent: omgili
-Allow: /
-User-agent: FacebookBot
-Allow: /
-User-agent: Diffbot
-Allow: /
-
-# ─── ALSO ADD THIS SITEMAP LINE IF NOT ALREADY PRESENT ───────────────────────
-Sitemap: ${websiteUrl.replace(/\/$/, '')}/sitemap.xml
-
-# ─── END PATCH ────────────────────────────────────────────────────────────────
-`.trim();
+# ── 2. AI TRAINING CRAWLERS (optional — your choice) ─────────────────────────
+# These collect content to train models. Allowing them is not required to be
+# cited in AI search. Remove the "#" to allow them.
+# User-agent: GPTBot
+# User-agent: ClaudeBot
+# User-agent: Google-Extended
+# User-agent: Applebot-Extended
+# User-agent: CCBot
+# Allow: /
+${input.sitemapLocation ? `\nSitemap: ${input.sitemapLocation}\n` : `\n# Add your sitemap once you have one:\n# Sitemap: ${input.websiteUrl}/sitemap.xml\n`}`;
 }
 
-function generateOrganizationSchema(input: GeneratorInput, domain: string): string {
-  const { companyName, websiteUrl, industry, targetAudience } = input;
-  const schema = {
+// ─── JSON-LD ──────────────────────────────────────────────────────────────────
+
+function organization(input: GeneratorInput, facts: SiteFacts) {
+  return {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: companyName,
-    url: websiteUrl,
-    description: input.valueProposition || describeCompany(companyName, industry, targetAudience, ''),
-    logo: { '@type': 'ImageObject', url: '[REPLACE: Full URL to your logo image, e.g. https://yoursite.com/logo.png]' },
-    sameAs: ['[REPLACE: LinkedIn URL]', '[REPLACE: Twitter/X URL]'],
-    contactPoint: {
-      '@type': 'ContactPoint',
-      contactType: 'customer service',
-      url: '[REPLACE: URL of your contact page]',
-    },
-    knowsAbout: input.keywords,
-    audience: { '@type': 'Audience', audienceType: targetAudience || 'General' },
+    name: input.companyName,
+    url: `${input.websiteUrl}/`,
+    description: summary(input, facts),
+    logo: facts.logoUrl ?? '[REPLACE: full URL of your logo, e.g. https://example.com/logo.png]',
+    sameAs: facts.socialProfiles.length ? facts.socialProfiles : ['[REPLACE: URL of your LinkedIn / X / Facebook profile]'],
+    ...(input.keywords.length ? { knowsAbout: input.keywords } : {}),
   };
-  return JSON.stringify(schema, null, 2);
 }
 
-function generateFaqPageSchema(input: GeneratorInput): string {
-  const { companyName, websiteUrl, industry } = input;
-  const industryLower = (industry || '').toLowerCase();
-
-  const faqSets: Record<string, Array<{ q: string; a: string }>> = {
-    legal: [
-      { q: 'What types of cases does your firm handle?', a: `${companyName} handles a range of legal matters. Contact us for a free consultation to discuss your situation.` },
-      { q: 'How long does a case typically take?', a: 'Case duration varies by type and complexity. We provide realistic timelines during your initial consultation.' },
-      { q: 'Do you offer a free consultation?', a: `Yes, ${companyName} offers a free initial consultation.` },
-      { q: 'What are your fees?', a: 'Our fees vary by case type. We offer transparent pricing and will discuss costs fully before any commitment.' },
-    ],
-    healthcare: [
-      { q: 'How do I schedule an appointment?', a: `Schedule online at ${websiteUrl} or call our office directly.` },
-      { q: 'Do you accept insurance?', a: 'We accept most major insurance plans. Contact us to confirm your specific coverage.' },
-      { q: 'What should I bring to my first appointment?', a: 'Please bring your insurance card, photo ID, and any relevant medical records.' },
-      { q: 'Do you offer telehealth appointments?', a: 'Yes, we offer virtual appointments for many types of consultations.' },
-    ],
-    saas: [
-      { q: `How does ${companyName} work?`, a: `${describeCompany(companyName, industry, input.targetAudience, input.valueProposition)} Visit ${websiteUrl} to learn more.` },
-      { q: 'How do I get started?', a: `Visit ${websiteUrl} to learn more or get in touch. [REPLACE: Add your actual signup/trial details — e.g. "Start a free trial" — only if you offer one.]` },
-      { q: 'How does your software integrate with existing tools?', a: `[REPLACE: List your actual integrations, or delete this question if it does not apply.]` },
-      { q: 'What security practices do you follow?', a: `[REPLACE: Describe your actual security practices/certifications, or delete this question if it does not apply.]` },
-    ],
-    default: [
-      { q: `What does ${companyName} offer?`, a: `${companyName} provides ${input.valueProposition || `services for ${input.targetAudience}`}.` },
-      { q: 'How do I get started?', a: `Getting started with ${companyName} is easy. Visit ${websiteUrl} or contact us directly.` },
-      { q: 'What makes you different from competitors?', a: `${companyName} focuses on ${input.keywords.slice(0, 2).join(' and ') || 'delivering value'} for ${input.targetAudience}.` },
-      { q: 'Do you offer support?', a: `Yes, ${companyName} offers customer support. Visit ${websiteUrl} to get in touch.` },
-    ],
-  };
-
-  const key = /legal|law/.test(industryLower) ? 'legal'
-    : /health|medical|clinic/.test(industryLower) ? 'healthcare'
-    : /saas|software|tech|platform/.test(industryLower) ? 'saas'
-    : 'default';
-
-  const faqs = faqSets[key];
-
-  const schema = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: faqs.map(f => ({
-      '@type': 'Question',
-      name: f.q,
-      acceptedAnswer: { '@type': 'Answer', text: f.a },
-    })),
-  };
-
-  return JSON.stringify(schema, null, 2);
+function faqPage(facts: SiteFacts) {
+  const mainEntity = (facts.faqs.length >= 2
+    ? facts.faqs
+    : [
+        { question: '[REPLACE: a question answered on this page]', answer: '[REPLACE: the exact answer shown on this page]' },
+        { question: '[REPLACE: another question answered on this page]', answer: '[REPLACE: the exact answer shown on this page]' },
+      ]
+  ).map((f) => ({ '@type': 'Question', name: f.question, acceptedAnswer: { '@type': 'Answer', text: f.answer } }));
+  return { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity };
 }
 
-function generateHowToSchema(input: GeneratorInput): string {
-  const { companyName, websiteUrl, industry } = input;
-  const industryLower = (industry || '').toLowerCase();
-
-  const howToSets: Record<string, { title: string; steps: Array<{ name: string; text: string }> }> = {
-    legal: {
-      title: `How to Get Legal Help from ${companyName}`,
-      steps: [
-        { name: 'Describe your situation', text: 'Call or fill out our contact form to briefly describe your legal situation.' },
-        { name: 'Schedule a consultation', text: 'Book a free initial consultation at a time that suits you.' },
-        { name: 'Review your options', text: `${companyName} will explain your legal options and recommended approach.` },
-        { name: 'Engage representation', text: 'If you decide to proceed, we handle all paperwork and next steps.' },
-        { name: 'Stay informed', text: 'We keep you updated at every stage of your case.' },
-      ],
-    },
-    healthcare: {
-      title: `How to Book an Appointment with ${companyName}`,
-      steps: [
-        { name: 'Check your insurance', text: 'Confirm we accept your insurance by calling our office or checking online.' },
-        { name: 'Schedule your visit', text: `Book online at ${websiteUrl} or call us directly.` },
-        { name: 'Complete intake forms', text: 'Fill out new patient forms online before your visit to save time.' },
-        { name: 'Attend your appointment', text: 'Arrive 10 minutes early with your insurance card and photo ID.' },
-        { name: 'Follow-up care', text: 'We provide clear next steps and follow-up scheduling before you leave.' },
-      ],
-    },
-    default: {
-      title: `How to Get Started with ${companyName}`,
-      steps: [
-        { name: 'Visit our website', text: `Go to ${websiteUrl} to learn more about ${companyName}.` },
-        { name: 'Request information', text: 'Contact us to discuss your needs and get a tailored overview.' },
-        { name: 'Review the proposal', text: `${companyName} will prepare a proposal tailored to your requirements.` },
-        { name: 'Get started', text: 'Once approved, we begin onboarding immediately.' },
-        { name: 'Review results', text: 'We track progress and share regular updates with you.' },
-      ],
-    },
-  };
-
-  const key = /legal|law/.test(industryLower) ? 'legal'
-    : /health|medical|clinic/.test(industryLower) ? 'healthcare'
-    : 'default';
-
-  const howTo = howToSets[key];
-
-  const schema = {
-    '@context': 'https://schema.org',
-    '@type': 'HowTo',
-    name: howTo.title,
-    description: `Step-by-step guide to working with ${companyName}.`,
-    step: howTo.steps.map((s, i) => ({
-      '@type': 'HowToStep',
-      position: i + 1,
-      name: s.name,
-      text: s.text,
-    })),
-  };
-
-  return JSON.stringify(schema, null, 2);
-}
-
-function generateArticleSchema(input: GeneratorInput, domain: string): string {
-  const schema = {
+function articleTemplate(input: GeneratorInput, facts: SiteFacts) {
+  return {
     '@context': 'https://schema.org',
     '@type': 'Article',
-    headline: '[REPLACE: Your Article Title Here]',
-    description: '[REPLACE: 2-3 sentence article summary]',
-    author: {
-      '@type': 'Organization',
-      name: input.companyName,
-      url: input.websiteUrl,
-    },
+    headline: '[REPLACE: article title, max 110 characters]',
+    description: '[REPLACE: one-sentence summary]',
+    author: { '@type': 'Person', name: '[REPLACE: author name]', url: '[REPLACE: author bio page URL]' },
     publisher: {
       '@type': 'Organization',
       name: input.companyName,
-      url: input.websiteUrl,
-      logo: { '@type': 'ImageObject', url: '[REPLACE: Full URL to your logo image]' },
+      ...(facts.logoUrl ? { logo: { '@type': 'ImageObject', url: facts.logoUrl } } : {}),
     },
     datePublished: '[REPLACE: YYYY-MM-DD]',
     dateModified: '[REPLACE: YYYY-MM-DD]',
-    mainEntityOfPage: { '@type': 'WebPage', '@id': '[REPLACE: Full article URL]' },
-    about: input.keywords.slice(0, 3).map(k => ({ '@type': 'Thing', name: k })),
+    mainEntityOfPage: '[REPLACE: full URL of the article]',
   };
-  return JSON.stringify(schema, null, 2);
 }
 
-function generateBreadcrumbSchema(websiteUrl: string, domain: string): string {
-  const schema = {
+function breadcrumbTemplate(input: GeneratorInput) {
+  return {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      {
-        '@type': 'ListItem',
-        position: 1,
-        name: 'Home',
-        item: websiteUrl,
-      },
-      {
-        '@type': 'ListItem',
-        position: 2,
-        name: '[REPLACE: Section Name — e.g. Blog]',
-        item: `${websiteUrl}/[REPLACE: section-url]`,
-      },
-      {
-        '@type': 'ListItem',
-        position: 3,
-        name: '[REPLACE: Page Title]',
-        item: `${websiteUrl}/[REPLACE: page-url]`,
-      },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${input.websiteUrl}/` },
+      { '@type': 'ListItem', position: 2, name: '[REPLACE: section name, e.g. Blog]', item: `${input.websiteUrl}/[REPLACE: section-path]` },
+      { '@type': 'ListItem', position: 3, name: '[REPLACE: page title]' },
     ],
   };
-  return JSON.stringify(schema, null, 2);
 }
 
-function generateHomepageMarkdown(input: GeneratorInput, domain: string): string {
-  const { companyName, websiteUrl, industry, targetAudience, valueProposition, keywords } = input;
+// ─── Markdown twin of the homepage ────────────────────────────────────────────
 
-  return `# ${companyName}
-
-**${valueProposition || `${industry} for ${targetAudience}`}**
-
-${describeCompany(companyName, industry, targetAudience, '')}
-
-## What We Do
-
-${valueProposition || `${companyName} provides services tailored to ${targetAudience}.`}
-
-## Key Areas
-
-${keywords.slice(0, 5).map(k => `- **${k}**`).join('\n') || `- ${industry}`}
-
-## Who We Serve
-
-${targetAudience || 'Businesses and professionals looking for results.'}
-
-## Get Started
-
-Visit [${domain}](${websiteUrl}) to learn more or get in touch.
-
----
-*This markdown version is provided for AI agents and crawlers.*
-*Canonical URL: ${websiteUrl}*
-*Last updated: ${new Date().toISOString().split('T')[0]}*
-`.trim();
+function homepageMarkdown(input: GeneratorInput, facts: SiteFacts): string {
+  const home = facts.pages[0];
+  const out = [`# ${home?.h1 || input.companyName}`, ''];
+  if (home?.description) out.push(`> ${home.description}`, '');
+  for (const h of home?.headings ?? []) out.push(`- ${h}`);
+  if (home?.headings?.length) out.push('');
+  for (const p of home?.paragraphs ?? []) out.push(p, '');
+  out.push('---', `Source: ${input.websiteUrl}/ · Generated ${today()}`);
+  return out.join('\n');
 }
 
-function generateInstructions(input: GeneratorInput, domain: string): string {
-  return `# AEO File Package — Installation Instructions
-# Generated by Citation Rocket for ${input.companyName}
-# Generated: ${new Date().toISOString().split('T')[0]}
+// ─── Instructions ─────────────────────────────────────────────────────────────
 
-## What's in this ZIP
+function instructions(input: GeneratorInput, facts: SiteFacts): string {
+  const realFaqs = facts.faqs.length >= 2;
+  return `# AEO Pack — ${input.companyName}
+Generated ${today()} by Citation Rocket from the pages we could read on ${input.websiteUrl}.
+Nothing here is invented: values we could not verify are marked [REPLACE: …].
 
-| File | Where to put it | Priority |
-|------|----------------|----------|
-| llms.txt | Root of your domain: ${input.websiteUrl}/llms.txt | HIGH |
-| llms-full.txt | Root of your domain: ${input.websiteUrl}/llms-full.txt | HIGH |
-| AGENTS.md | Root of your domain: ${input.websiteUrl}/AGENTS.md | HIGH |
-| robots-patch.txt | Copy contents into your existing robots.txt | HIGH |
-| schema/Organization.jsonld | Add to <head> of your homepage | HIGH |
-| schema/FAQPage.jsonld | Add to <head> of your FAQ page | HIGH |
-| schema/HowTo.jsonld | Add to <head> of any how-to/guide pages | MEDIUM |
-| schema/Article.jsonld | Add to <head> of each blog post (customise per post) | MEDIUM |
-| schema/BreadcrumbList.jsonld | Add to <head> of all pages (customise per page) | MEDIUM |
-| markdown-twins/homepage.md | Host at ${input.websiteUrl}/homepage.md | LOW |
+| File | Where it goes | Priority |
+|---|---|---|
+| robots-patch.txt | Merge into ${input.websiteUrl}/robots.txt | High |
+| llms.txt | ${input.websiteUrl}/llms.txt | High |
+| schema/Organization.jsonld | Homepage <head> | High |
+| schema/WebSite.jsonld | Homepage <head> | Medium |
+| schema/FAQPage.jsonld | ${realFaqs ? 'The page that shows these questions' : 'A page with visible Q&A (fill in placeholders)'} | Medium |
+| schema/Article.jsonld | Each blog post / article (template) | Medium |
+| schema/BreadcrumbList.jsonld | Inner pages (template) | Low |
+| llms-full.txt | ${input.websiteUrl}/llms-full.txt | Low |
+| markdown-twins/homepage.md | Optional plain-text copy of your homepage | Low |
 
-## Step 1: Upload llms.txt, llms-full.txt, AGENTS.md
+## 1. robots.txt
+Open robots-patch.txt and copy section 1 into your existing robots.txt. Section 2
+(training crawlers) is optional. Check the result at ${input.websiteUrl}/robots.txt.
 
-Upload these three files to the ROOT of your website.
-- WordPress: Upload via FTP/cPanel to public_html/
-- Webflow: Publish as static files (Settings → Assets)
-- Framer: Upload via custom domain file hosting
-- Vercel/Netlify: Place in /public folder
+## 2. llms.txt${input.hasLlmsTxt ? `
+**You already have an llms.txt.** Compare it with ours and merge anything useful —
+don't overwrite yours blindly.` : ''}
+Upload to the root of your domain so it is served at ${input.websiteUrl}/llms.txt
+(WordPress: upload to the site root via your host's file manager or a plugin;
+Webflow/Framer/Squarespace/Wix: use the platform's custom-file or redirect
+feature; Vercel/Netlify/Next.js: put it in /public).
 
-Verify at: ${input.websiteUrl}/llms.txt
+## 3. Schema markup (JSON-LD)
+Each .jsonld file must be wrapped in a script tag inside <head>:
 
-## Step 2: Update robots.txt
-
-Open your existing robots.txt file and add the contents of robots-patch.txt.
-If you don't have a robots.txt, rename robots-patch.txt to robots.txt and upload to root.
-
-Verify at: ${input.websiteUrl}/robots.txt
-
-## Step 3: Add Schema Markup
-
-For each schema file, wrap the contents in a script tag and add to the <head> of the relevant page:
-
+\`\`\`html
 <script type="application/ld+json">
-[PASTE JSON CONTENT HERE]
+  … paste the file contents here …
 </script>
+\`\`\`
 
-Replace all [REPLACE: ...] placeholders with your actual content before publishing.
+- Replace every [REPLACE: …] value before publishing, or remove that property.
+- FAQPage: ${realFaqs ? 'these questions were taken from your site. Add the markup only to the page where they are visible.' : 'Google requires FAQ markup to match questions and answers visible on the page. Fill it from a real FAQ section.'}
+- Validate with https://validator.schema.org and Google's Rich Results Test.
 
-Validate at: https://validator.schema.org/
-
-## Step 4: Verify
-
-After uploading, run a new audit at citationrocket.com to confirm your score improved.
-Schema markup typically improves Gemini scores by 6-12 points.
-llms.txt helps all AI platforms understand your site structure.
-
-## Questions?
-
-Support: https://citationrocket.com/contact
-Docs: https://citationrocket.com/docs
-`.trim();
-}
-
-// ─── Utility ──────────────────────────────────────────────────────────────────
-
-function normalizeUrl(url: string): string {
-  return url.trim().replace(/\/+$/, '');
-}
-
-/**
- * Build the "## Important Pages" block from REAL sitemap URLs only.
- * Sections with no matching URLs are omitted entirely — we never invent
- * fallback URLs like /guides or /faq that may 404 on the customer's site.
- * Returns an empty string when no section has content.
- */
-function buildImportantPagesSection(sections: Array<[string, string[]]>): string {
-  const nonEmpty = sections.filter(([, urls]) => urls.length > 0);
-  if (nonEmpty.length === 0) return '\n';
-  const body = nonEmpty
-    .map(([title, urls]) => `### ${title}\n${urls.map(u => `- ${u}`).join('\n')}`)
-    .join('\n\n');
-  return `\n## Important Pages\n\n${body}\n\n`;
-}
-
-/**
- * Join company name + industry + value proposition into one grammatical sentence
- * without jamming raw fragments together.
- */
-function describeCompany(companyName: string, industry: string, targetAudience: string, valueProposition: string): string {
-  // Descriptor: "a Custom Internal Software Development company" (append "company"
-  // unless the industry string already ends with an org noun).
-  const orgNoun = /(company|provider|firm|agency|studio|consultancy|practice|platform|business)$/i;
-  let sentence: string;
-  if (industry) {
-    const descriptor = orgNoun.test(industry.trim()) ? industry.trim() : `${industry.trim()} company`;
-    const article = /^[aeiou]/i.test(descriptor) ? 'an' : 'a';
-    sentence = `${companyName} is ${article} ${descriptor}`;
-  } else {
-    sentence = `${companyName} is a business`;
-  }
-  if (targetAudience) {
-    sentence += ` serving ${targetAudience.charAt(0).toLowerCase()}${targetAudience.slice(1)}`;
-  }
-  sentence = sentence.replace(/\.+$/, '') + '.';
-  if (valueProposition) {
-    const vp = valueProposition.trim();
-    sentence += ` ${vp.endsWith('.') ? vp : vp + '.'}`;
-  }
-  return sentence;
-}
-
-function extractDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
-  }
+## 4. Verify
+Re-run your Citation Rocket audit after publishing to see the change.
+`;
 }

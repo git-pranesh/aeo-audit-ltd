@@ -1,3 +1,5 @@
+import { detectIndustryKey } from './industry';
+
 export interface IndustryBenchmark {
   industryName: string;
   sampleSize: string;
@@ -158,27 +160,7 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
   },
 };
 
-const INDUSTRY_KEYWORDS: Array<{ key: string; keywords: string[] }> = [
-  { key: 'legal', keywords: ['legal', 'law', 'attorney', 'lawyer', 'litigation', 'injury', 'defense', 'counsel', 'paralegal', 'notary'] },
-  { key: 'marketing', keywords: ['marketing', 'digital marketing', 'advertising', 'agency', 'seo', 'content marketing', 'branding', 'pr ', 'public relations', 'media agency'] },
-  { key: 'saas', keywords: ['saas', 'software', 'technology', 'tech', 'platform', 'cloud', 'app', 'developer', 'api', 'devtools', 'it services', 'information technology'] },
-  { key: 'healthcare', keywords: ['healthcare', 'health', 'medical', 'hospital', 'clinic', 'dental', 'pharma', 'biotech', 'wellness', 'telehealth', 'therapy', 'mental health'] },
-  { key: 'realestate', keywords: ['real estate', 'property', 'realtor', 'realty', 'mortgage', 'housing', 'commercial property', 'residential'] },
-  { key: 'ecommerce', keywords: ['e-commerce', 'ecommerce', 'retail', 'online store', 'shop', 'marketplace', 'consumer goods', 'fashion', 'apparel', 'beauty', 'food & beverage'] },
-];
-
 export function getIndustryBenchmarks(industry: string): IndustryBenchmark {
-  if (!industry) return INDUSTRY_BENCHMARKS.default;
-
-  const normalizedIndustry = industry.toLowerCase().trim();
-
-  for (const { key, keywords } of INDUSTRY_KEYWORDS) {
-    for (const keyword of keywords) {
-      if (normalizedIndustry.includes(keyword) || keyword.includes(normalizedIndustry)) {
-        return INDUSTRY_BENCHMARKS[key];
-      }
-    }
-  }
-
-  return INDUSTRY_BENCHMARKS.default;
+  const key = detectIndustryKey(industry);
+  return (key && INDUSTRY_BENCHMARKS[key]) || INDUSTRY_BENCHMARKS.default;
 }

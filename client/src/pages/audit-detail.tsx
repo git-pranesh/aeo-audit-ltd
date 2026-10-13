@@ -210,7 +210,27 @@ export default function AuditDetailPage() {
         )}
 
         {audit.status === "completed" && auditData && (
-          <AuditResults auditData={auditData} websiteUrl={audit.websiteUrl} citationSlot={citationSlot} />
+          <AuditResults
+            auditData={auditData}
+            websiteUrl={audit.websiteUrl}
+            citationSlot={citationSlot}
+            aeoPackSlot={
+              <Card>
+                <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2"><FileArchive className="h-5 w-5 text-primary" />AEO Pack: schema markup, llms.txt &amp; robots.txt</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Built from your site's real pages: Organization, WebSite and FAQ schema, llms.txt, AI-crawler robots.txt rules and install steps.
+                      Anything we couldn't verify is marked for you to fill in.
+                    </p>
+                  </div>
+                  <Button onClick={downloadAeoPack} disabled={zipping} className="flex-shrink-0">
+                    <Download className="h-4 w-4 mr-2" />{zipping ? "Preparing…" : "Download AEO Pack"}
+                  </Button>
+                </CardContent>
+              </Card>
+            }
+          />
         )}
 
         {audit.status === "completed" && (

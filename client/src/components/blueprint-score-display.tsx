@@ -25,7 +25,7 @@ interface BlueprintResult {
   normalizedScore: number;
   answerCapsule: BlueprintModule & { answerCapsuleScore: number; hasDefinitionFirstPattern: boolean; questionFramedHeadingCount: number; h1IsDeclarative: boolean };
   eeat: BlueprintModule & { eeAtScore: number; hasAuthorByline: boolean; knowledgeGraphEntityFound: boolean; wikidataEntityFound: boolean; hasOrganizationSchema: boolean; eeAtBreakdown: { experience: number; expertise: number; authority: number; trust: number } };
-  botAccess: BlueprintModule & { botAccessScore: number; citationBotsBlocked: string[]; llmsTxtPresent: boolean; hasSitemapInRobotsTxt: boolean };
+  botAccess: BlueprintModule & { botAccessScore: number; citationBotsBlocked: string[]; llmsTxtPresent: boolean; hasSitemapInRobotsTxt: boolean; robotsTxtFetched?: boolean };
   offsite: BlueprintModule & { offsiteScore: number; g2ProfileExists: boolean; wikipediaArticleExists: boolean; wikidataQNumber: string | null; redditBrandMentionCount: number };
   freshness: BlueprintModule & { freshnessScore: number; daysSinceModified: number | null; hasVisibleLastUpdatedAnnotation: boolean; freshnessStatus: 'green' | 'yellow' | 'red' };
   schemaCompleteness: { schemaCompletenessScore: number; organization: { present: boolean; criticalMissing: string[] }; article: { present: boolean; hasDateModified: boolean }; faqPage: { present: boolean } };
@@ -133,10 +133,12 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       correlation: 'Blocking = invisible to AI',
       details: [
         {
-          label: blueprint.botAccess.citationBotsBlocked.length === 0
-            ? 'All citation bots allowed'
-            : `Blocked: ${blueprint.botAccess.citationBotsBlocked.join(', ')}`,
-          value: blueprint.botAccess.citationBotsBlocked.length === 0
+          label: blueprint.botAccess.robotsTxtFetched === false
+            ? "Couldn't read robots.txt (site blocked our check)"
+            : blueprint.botAccess.citationBotsBlocked.length === 0
+              ? 'All citation bots allowed'
+              : `Blocked: ${blueprint.botAccess.citationBotsBlocked.join(', ')}`,
+          value: blueprint.botAccess.robotsTxtFetched !== false && blueprint.botAccess.citationBotsBlocked.length === 0
         },
         { label: 'llms.txt present', value: blueprint.botAccess.llmsTxtPresent },
         { label: 'Sitemap in robots.txt', value: blueprint.botAccess.hasSitemapInRobotsTxt },

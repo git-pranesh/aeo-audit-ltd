@@ -12,7 +12,7 @@ The SaaS version is preserved at git tag `saas-baseline`.
 | **Lifetime** | One account, BYOK (OpenRouter), manual audits, unlimited domains (fair use), PDF + CSV, AEO Pack, manual Citation Snapshot |
 | **Lifetime Agency** | Everything above + custom branding on PDF exports (agency name, logo, accent colour, report title, footer/contact line) |
 
-**Included:** AI Readiness Score, platform scores (ChatGPT / Perplexity / Gemini / Claude), content + technical signals, AEO blueprint, industry benchmark, strengths/gaps, Fix-It Playbook, 20 topic ideas, optional comparison with up to 3 user-entered competitors, manual re-audit (shows change vs. previous audit of the same domain), manual Citation Snapshot (≤ 8 prompts, latest only), PDF, CSV, AEO Pack ZIP.
+**Included:** choice of any OpenRouter model (free → premium), AI Readiness Score, platform scores (ChatGPT / Perplexity / Gemini / Claude), content + technical signals, AEO blueprint, industry benchmark, strengths/gaps, Fix-It Playbook, 20 topic ideas, optional comparison with up to 3 user-entered competitors, manual re-audit (shows change vs. previous audit of the same domain), manual Citation Snapshot (≤ 8 prompts, latest only), PDF, CSV, AEO Pack ZIP.
 
 **Explicitly excluded:** scheduled monitoring, background re-audits, citation alerts, emails, teams/seats, client portals, public share links, public API, Chrome extension, custom domains, automatic website deployment, competitor auto-discovery, subscriptions, platform-funded AI, paid scraping, unlimited history, marketplace-specific feature variants.
 
@@ -40,6 +40,18 @@ Defined in one place: `server/services/audit-store.ts` (`FAIR_USE`). Market it a
 
 Every LLM call goes through `server/services/openrouter.ts` with the **customer's key only** — there is no platform key and no fallback.
 
+### AI models (customer's choice)
+
+Settings → AI models lists every OpenRouter text model (live prices, cached 1 h) with an estimated cost per audit / per citation check. Defaults: `deepseek/deepseek-v4-flash` for analysis (≈ $0.002/audit) and `perplexity/sonar` for the citation check (≈ $0.05/check). Any model works — free (`:free`, rate-limited by providers), budget or premium. The citation check needs live search: a Perplexity Sonar model or any model id with `:online`. **Scores never depend on the model** — they are deterministic; the model only drafts the business context and topic ideas.
+
+### Accuracy rules
+
+- Signals are counted, never inferred: JSON-LD types actually parsed on fetched pages, real outbound links, sitemap URLs matched by tight patterns (one category each). No floors, boosts or extrapolation.
+- Error pages and bot walls (soft 404s, "Access denied", challenges) are discarded; duplicate pages are counted once; unreadable sites fail with a clear message before any AI call.
+- robots.txt is parsed per RFC 9309; AI *search* crawlers (OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User, PerplexityBot, Perplexity-User, bingbot) are distinguished from *training* crawlers (GPTBot, ClaudeBot, Google-Extended, …). Blocked search crawlers become the #1 playbook action.
+- Advice is filtered by industry (a restaurant is never told to write API docs) and targets come from the industry benchmark. Industry benchmark figures are reference targets, not a live dataset (stated in the report).
+- The AEO Pack contains only facts found on the site (titles, descriptions, paragraphs, declared logo, linked social profiles, visible FAQs); everything else is a `[REPLACE: …]` placeholder.
+
 ## Architecture
 
 ```
@@ -65,7 +77,7 @@ server/
     openrouter.ts          the only LLM client (BYOK, fail closed)
     license-service.ts     one license system for every channel
     user-service.ts        encrypted key, branding, account deletion
-    aeo-pack.ts            llms.txt, AGENTS.md, JSON-LD, robots patch …
+    aeo-pack.ts            llms.txt, JSON-LD, robots patch (from real site facts)
   engine/                  deterministic scoring, signals, playbook, blueprint, benchmarks
   security/                auth · rate-limits · ssrf · encryption
 client/src/pages/          home · dashboard · audit-detail · settings · admin · help

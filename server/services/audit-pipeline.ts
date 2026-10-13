@@ -23,13 +23,15 @@ import { getIndustryBenchmarks } from '../engine/industry-benchmarks';
 import { generatePlaybook } from '../engine/playbook-generator-service';
 import { runBlueprintAudit } from '../engine/blueprint-orchestrator';
 import { deriveNameFromDomain, extractDomain } from '../engine/domain-utils';
+import { adviceTopicOf, isAdviceRelevant } from '../engine/industry';
+import { extractSiteFacts, type SiteFacts } from '../engine/site-facts';
 import { scrapeHomepageLite, scrapeWebsite } from './scraper';
 import { generateTopics, TOPIC_CATEGORIES } from './topics';
-import { llmJson, OpenRouterError } from './openrouter';
+import { llmJson, OpenRouterError, type ModelChoice } from './openrouter';
 
 // ─── Step 1: business context (one LLM call) ─────────────────────────────────
 
-export async function analyzeWebsite(websiteUrl: string, apiKey: string): Promise<ContextSuggestion> {
+export async function analyzeWebsite(websiteUrl: string, apiKey: string, models: ModelChoice = {}): Promise<ContextSuggestion> {
   const lite = await scrapeHomepageLite(websiteUrl);
   const block = [
     lite.title && `Title: ${lite.title}`,
@@ -56,7 +58,7 @@ export async function analyzeWebsite(websiteUrl: string, apiKey: string): Promis
   const str = (v: unknown, max = 120) => (typeof v === 'string' && v.trim() && !/^unknown$/i.test(v.trim()) ? v.trim().slice(0, max) : '');
 
   try {
-    return await requestContext(websiteUrl, apiKey, block, fallbackName, str);
+    return await requestContext(websiteUrl, apiKey, block, fallbackName, str, models);
   } catch (err) {
     // Key/credit problems must reach the customer; a model that keeps answering
     // badly just means they fill in the form themselves.
@@ -71,11 +73,14 @@ async function requestContext(
   block: string,
   fallbackName: string,
   str: (v: unknown, max?: number) => string,
+  models: ModelChoice,
 ): Promise<ContextSuggestion> {
   return llmJson<ContextSuggestion>(
     {
       task: 'structured',
       apiKey,
+      model: models.structured?.id,
+      supportsJson: models.structured?.supportsJson,
       maxTokens: 700,
       temperature: 0.2,
       messages: [{
@@ -115,9 +120,11 @@ Use "" for any field the content does not clearly support. JSON only.`,
 // ─── Step 2: the audit ────────────────────────────────────────────────────────
 
 export interface AeoInputs {
-  signals: Omit<ContentSignals, 'candidateUrls'>;
+  signals: ContentSignals;
   sitemapUrls: string[];
-  scrapedText: string;
+  facts: SiteFacts;
+  sitemapLocation: string | null;
+  hasLlmsTxt: boolean;
 }
 
 export interface AuditOutput {
@@ -132,8 +139,9 @@ export async function runAudit(params: {
   websiteUrl: string;
   context: ConfirmedContext;
   apiKey: string;
+  models?: ModelChoice;
 }): Promise<AuditOutput> {
-  const { auditId, websiteUrl, context, apiKey } = params;
+  const { auditId, websiteUrl, context, apiKey, models = {} } = params;
   const startedAt = Date.now();
   const domain = extractDomain(websiteUrl);
   const companyName = context.companyName || deriveNameFromDomain(websiteUrl) || domain;
@@ -141,6 +149,14 @@ export async function runAudit(params: {
   // 1. Scrape (never throws for unreachable pages — returns what it could read).
   const scrape = await scrapeWebsite(websiteUrl);
   const scrapingSucceeded = scrape.pagesFetched > 0;
+  // Scoring an error page or bot wall would produce a fake "F". Stop before any AI call.
+  if (!scrapingSucceeded || scrape.text.length < 300) {
+    throw new OpenRouterError(
+      "We couldn't read this website — it blocks automated visitors or returned an error page. No AI credits were used. If it's your site, allow our crawler or try again later.",
+      'UPSTREAM',
+      422,
+    );
+  }
 
   // 2. Deterministic analysis.
   const companyIntelligence = {
@@ -151,7 +167,7 @@ export async function runAudit(params: {
     valueProposition: context.valueProposition || 'Not specified',
     marketPosition: 'Not specified',
   };
-  const signals = extractContentSignals(scrape.html, scrape.text, scrape.sitemapUrls, companyIntelligence);
+  const signals = extractContentSignals(scrape.html, scrape.text, scrape.sitemapUrls, companyIntelligence, domain);
   const scoring = calculatePlatformScoresV2(signals, scrape.sitemapUrls.length, 0, context.industry, signals.totalPageCount || 0);
   const platformScores = scoring.platformScores;
   const lowestPlatform = (Object.entries(platformScores) as [PlatformKey, number][]).sort((a, b) => a[1] - b[1])[0][0];
@@ -168,15 +184,54 @@ export async function runAudit(params: {
       industry: context.industry,
       primaryQuery: context.keywords[0] || '',
     }).catch(() => null),
-    generateTopics({ websiteUrl, context, signals, platformScores, lowestPlatform }, apiKey, auditId),
+    generateTopics({ websiteUrl, context, signals, platformScores, lowestPlatform }, apiKey, auditId, models),
   ]);
 
   const competitors = context.competitors;
+  const fits = (sentence: string) => {
+    const topic = adviceTopicOf(sentence);
+    return !topic || isAdviceRelevant(context.industry, topic);
+  };
   const strengths = generateSignalBasedStrengths(signals, companyName, competitors);
-  const weaknesses = generateSignalBasedWeaknesses(signals, companyName, competitors, context.industry, signals.totalPageCount || 0);
+  const weaknesses = generateSignalBasedWeaknesses(signals, companyName, competitors, context.industry, signals.totalPageCount || 0).filter(fits);
   const industryBenchmark = getIndustryBenchmarks(context.industry || '');
-  const recommendations = generateSignalBasedRecommendations(signals, companyName, competitors, industryBenchmark);
+  const recommendations = generateSignalBasedRecommendations(signals, companyName, competitors, industryBenchmark).filter(fits);
   const playbook = generatePlaybook(signals, scoring, companyIntelligence, companyName);
+
+  // A site that links to its blog has one, even if our sitemap sample missed the posts.
+  const linksToBlog = /href=["'][^"']*\/(blogs?|news|articles|journal|insights|resources)\/?["']/i.test(scrape.html);
+  if (linksToBlog && signals.blogPostCount === 0) {
+    playbook.actions = playbook.actions.filter((a) => adviceTopicOf(a.title) !== 'blog');
+    playbook.quickWins = playbook.quickWins.filter((a) => adviceTopicOf(a.title) !== 'blog');
+    for (const list of [weaknesses, recommendations]) {
+      for (let i = list.length - 1; i >= 0; i--) if (adviceTopicOf(list[i]) === 'blog') list.splice(i, 1);
+    }
+  }
+
+  // Blocked AI crawlers outrank every content fix: nothing else matters if they can't read the site.
+  const blockedBots = blueprintResult?.botAccess?.citationBotsBlocked ?? [];
+  if (blockedBots.length > 0) {
+    weaknesses.unshift(`Your robots.txt blocks AI search crawlers (${blockedBots.slice(0, 5).join(', ')}${blockedBots.length > 5 ? '…' : ''}), so these assistants cannot read or cite your pages.`);
+    recommendations.unshift(`Unblock AI search crawlers in robots.txt (${blockedBots.length} blocked) — use the robots.txt patch in your AEO Pack.`);
+    playbook.actions.unshift({
+      id: 'unblock-ai-crawlers',
+      priority: 'critical',
+      title: 'Unblock AI Search Crawlers in robots.txt',
+      targetPlatform: 'All Platforms',
+      estimatedImpact: 'Prerequisite for any AI citation',
+      timeToImplement: '15 minutes',
+      difficulty: 'easy',
+      currentState: `${blockedBots.length} AI search crawlers blocked: ${blockedBots.slice(0, 4).join(', ')}${blockedBots.length > 4 ? '…' : ''}`,
+      targetState: 'OAI-SearchBot, ChatGPT-User, ClaudeBot, PerplexityBot and Bingbot allowed',
+      stepByStep: [
+        'Open your site\'s robots.txt (yoursite.com/robots.txt)',
+        'Add the allow rules from robots-patch.txt in your AEO Pack above any "User-agent: *" block',
+        'Keep "Disallow" rules only for private paths (admin, cart, account)',
+        'Re-run this audit to confirm the crawlers are allowed',
+      ],
+    });
+    playbook.quickWins.unshift(playbook.actions[0]);
+  }
 
   const totalSignals = signals.tutorialCount + signals.caseStudyCount + signals.faqSectionCount + signals.dataPointCount + signals.howToGuideCount;
   const hasMinimalSignals = totalSignals === 0;
@@ -244,13 +299,14 @@ export async function runAudit(params: {
     blueprintResult: blueprintResult ?? undefined,
   };
 
-  const { candidateUrls: _omit, ...compactSignals } = signals;
   const aeoInputs: AeoInputs = {
-    signals: compactSignals,
+    signals,
     sitemapUrls: scrape.sitemapUrls
-      .filter((u) => /\/(blog|docs|guide|tutorial|faq|help|case-stud|customer|resource|learn|api|developer|contact|about|pricing|playbook)/i.test(u))
-      .slice(0, 150),
-    scrapedText: scrape.text.slice(0, 6000),
+      .filter((u) => /\/(blogs?|docs|guides?|tutorials?|faq|help|case-stud|customers?|resources?|learn|about|pricing|services?|products?|menu|locations?|contact)(\/|$)/i.test(u))
+      .slice(0, 60),
+    facts: extractSiteFacts(scrape.pages),
+    sitemapLocation: scrape.sitemapLocation,
+    hasLlmsTxt: scrape.llmsTxtFound,
   };
 
   return { auditData, aeoInputs };

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { KeyRound, Palette, ShieldCheck, Trash2 } from "lucide-react";
+import { Cpu, KeyRound, Palette, ShieldCheck, Trash2 } from "lucide-react";
 import AppShell from "@/components/app-shell";
 import { KeySetup, LicenseSetup } from "@/components/account-setup";
+import { ModelSettings } from "@/components/model-picker";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -82,6 +83,8 @@ export default function SettingsPage() {
         <Section icon={ShieldCheck} title="License"><LicenseSetup /></Section>
 
         <Section icon={KeyRound} title="OpenRouter key"><KeySetup /></Section>
+
+        <Section icon={Cpu} title="AI models"><ModelSettings /></Section>
 
         {me.entitlement?.whiteLabel && (
           <Section icon={Palette} title="Agency branding">

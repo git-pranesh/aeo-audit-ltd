@@ -5,10 +5,11 @@ import { requireAuth, isAdminUser, type AuthenticatedRequest } from '../security
 import { keyLimiter } from '../security/rate-limits';
 import { handler } from './http';
 import {
-  deleteAccount, deleteOpenRouterKey, getOrCreateUser, getUser, saveBranding, saveOpenRouterKey,
+  deleteAccount, deleteOpenRouterKey, getOrCreateUser, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
 } from '../services/user-service';
 import { claimPurchasedLicense } from '../services/license-service';
-import { inspectOpenRouterKey } from '../services/openrouter';
+import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
+import { estimateAuditCost, estimateSnapshotCost, getCatalog, resolveModel } from '../services/model-catalog';
 import { FAIR_USE } from '../services/audit-store';
 
 export const meRouter = Router();
@@ -31,6 +32,11 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
     branding: user.entitlement?.whiteLabel ? user.branding ?? null : null,
     isAdmin: isAdminUser(req.user),
     limits: FAIR_USE,
+    aiModels: {
+      structured: user.aiModels?.structured?.id ?? null,
+      webSearch: user.aiModels?.webSearch?.id ?? null,
+      defaults: { structured: MODEL_MAP.structured, webSearch: MODEL_MAP.webSearch },
+    },
   };
 }
 
@@ -63,6 +69,34 @@ meRouter.put('/openrouter-key', keyLimiter, handler<AuthenticatedRequest>(async 
 meRouter.delete('/openrouter-key', handler<AuthenticatedRequest>(async (req, res) => {
   await deleteOpenRouterKey(req.user!.uid);
   res.json({ ok: true });
+}));
+
+// ─── AI model choice (any OpenRouter model, free to premium) ─────────────────
+
+meRouter.get('/models/catalog', handler(async (_req, res) => {
+  const catalog = await getCatalog();
+  res.json({
+    models: catalog.map((m) => ({ ...m, estAuditUsd: estimateAuditCost(m), estSnapshotUsd: estimateSnapshotCost(m) })),
+  });
+}));
+
+meRouter.put('/models', handler<AuthenticatedRequest>(async (req, res) => {
+  const body = z.object({
+    structured: z.string().trim().max(120).nullable(),
+    webSearch: z.string().trim().max(120).nullable(),
+  }).parse(req.body);
+  try {
+    const structured = body.structured ? await resolveModel(body.structured, 'structured') : null;
+    const webSearch = body.webSearch ? await resolveModel(body.webSearch, 'webSearch') : null;
+    await saveModelChoice(req.user!.uid, {
+      ...(structured ? { structured: { id: structured.id, supportsJson: structured.supportsJson } } : {}),
+      ...(webSearch ? { webSearch: { id: webSearch.id } } : {}),
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message, code: 'MODEL_INVALID' });
+    return;
+  }
+  res.json(await buildMe(req));
 }));
 
 // ─── White-label branding (Agency license only) ───────────────────────────────

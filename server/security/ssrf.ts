@@ -182,6 +182,8 @@ const httpAgent = new http.Agent({ lookup: guardedLookup as any, keepAlive: fals
 const httpsAgent = new https.Agent({ lookup: guardedLookup as any, keepAlive: false });
 
 export const BOT_USER_AGENT = 'Mozilla/5.0 (compatible; CitationRocketBot/2.0; +https://citationrocket.com/bot)';
+/** Only for public files some sites hide from unknown bots (robots.txt). */
+export const BROWSER_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
 
 export interface SafeGetOptions {
   timeoutMs?: number;
@@ -189,6 +191,7 @@ export interface SafeGetOptions {
   maxRedirects?: number;
   accept?: string;
   signal?: AbortSignal;
+  userAgent?: string;
 }
 
 /**
@@ -196,7 +199,7 @@ export interface SafeGetOptions {
  * response (any status) as text. Throws UnsafeUrlError for blocked targets.
  */
 export async function safeGet(url: string, opts: SafeGetOptions = {}): Promise<AxiosResponse<string>> {
-  const { timeoutMs = 8000, maxBytes = 2 * 1024 * 1024, maxRedirects = 3, accept, signal } = opts;
+  const { timeoutMs = 8000, maxBytes = 2 * 1024 * 1024, maxRedirects = 3, accept, signal, userAgent = BOT_USER_AGENT } = opts;
   let current = await assertPublicUrl(url);
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
@@ -211,7 +214,7 @@ export async function safeGet(url: string, opts: SafeGetOptions = {}): Promise<A
       httpsAgent,
       signal,
       headers: {
-        'User-Agent': BOT_USER_AGENT,
+        'User-Agent': userAgent,
         ...(accept ? { Accept: accept } : {}),
       },
     });

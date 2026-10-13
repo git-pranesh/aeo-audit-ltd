@@ -1,4 +1,5 @@
 import type { ContentSignals } from './content-signal-service';
+import { adviceTopicOf, isAdviceRelevant } from './industry';
 import { getBenchmarks } from './scoring-service';
 
 export interface PlaybookAction {
@@ -694,6 +695,32 @@ ${faqQuestionsJson}
   }
 
   const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  // Keep only advice that fits this kind of business; express targets with the
+  // industry benchmark; and never claim content is missing when we only sampled.
+  const targetFor: Record<string, number> = {
+    'Create Step-by-Step Tutorial Content': benchmarks.tutorials,
+    'Publish Customer Case Studies': benchmarks.caseStudies,
+    'Start Regular Blog Publishing': benchmarks.blogPosts,
+    'Add Statistics and Data to Existing Content': benchmarks.dataPoints,
+    'Create a Proprietary Framework Article': benchmarks.frameworkMentions,
+    'Add Research Citations to Key Pages': benchmarks.externalLinks,
+    'Convert Tutorials into How-To Guides': benchmarks.howToGuides,
+    'Publish Original Research or Industry Report': benchmarks.statistics,
+  };
+  const relevant = actions.filter((a) => {
+    const topic = adviceTopicOf(a.title);
+    return !topic || isAdviceRelevant(industry, topic);
+  });
+  for (const a of relevant) {
+    const target = targetFor[a.title];
+    if (target) a.targetState = a.targetState.replace(/^\d+\+/, `${target}+`);
+    if (/^0 [a-z -]+ detected$/i.test(a.currentState)) {
+      a.currentState = `None found in the pages and sitemap we checked`;
+    }
+  }
+  actions.length = 0;
+  actions.push(...relevant);
+
   actions.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
   const quickWins = actions.filter(a =>

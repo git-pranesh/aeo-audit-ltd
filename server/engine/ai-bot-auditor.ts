@@ -10,35 +10,29 @@
  */
 
 import type { BotAccessSignals } from './blueprint-signals';
-import { safeGet, safeGetText } from '../security/ssrf';
+import { BROWSER_USER_AGENT, safeGet, safeGetText } from '../security/ssrf';
 
 // ─── Bot classification ───────────────────────────────────────────────────────
 
 /** These bots RETRIEVE content for live AI answers. Blocking = no AI citations. */
 export const CITATION_BOTS = [
-  'OAI-SearchBot',
-  'ChatGPT-User',
-  'ClaudeBot',
-  'Claude-SearchBot',
-  'anthropic-ai',
-  'Claude-Web',
-  'PerplexityBot',
-  'Perplexity-User',
-  'YouBot',
-  'BingBot',          // Powers Copilot
+  'OAI-SearchBot',     // ChatGPT search index
+  'ChatGPT-User',      // ChatGPT user-requested fetches
+  'Claude-SearchBot',  // Claude search index
+  'Claude-User',       // Claude user-requested fetches
+  'PerplexityBot',     // Perplexity search index
+  'Perplexity-User',   // Perplexity user-requested fetches
+  'bingbot',           // Bing, Copilot
 ];
 
 /** These bots train AI models. Blocking is the site owner's choice. */
 export const TRAINING_BOTS = [
-  'GPTBot',
-  'Google-Extended',
-  'CCBot',
-  'Common Crawl',
-  'Diffbot',
-  'FacebookBot',
+  'GPTBot',            // OpenAI training
+  'ClaudeBot',         // Anthropic training
+  'Google-Extended',   // Gemini training/grounding opt-out token
   'Applebot-Extended',
-  'Amazonbot',
-  'DataForSeoBot',
+  'CCBot',             // Common Crawl
+  'meta-externalagent',
 ];
 
 // ─── Main auditor ─────────────────────────────────────────────────────────────
@@ -54,10 +48,14 @@ export async function auditBotAccess(
   let robotsTxtContent = '';
   let robotsTxtFetched = false;
 
-  const robots = await safeGetText(`https://${domain}/robots.txt`, { timeoutMs: 8000 });
-  if (robots !== null && !/<html/i.test(robots)) {
-    robotsTxtContent = robots;
-    robotsTxtFetched = true;
+  // Some sites serve bots an error page instead of robots.txt; retry as a browser.
+  for (const userAgent of [undefined, BROWSER_USER_AGENT]) {
+    const robots = await safeGetText(`https://${domain}/robots.txt`, { timeoutMs: 8000, userAgent });
+    if (robots !== null && !/<html/i.test(robots.slice(0, 1000))) {
+      robotsTxtContent = robots;
+      robotsTxtFetched = true;
+      break;
+    }
   }
 
   // Parse robots.txt
@@ -78,8 +76,11 @@ export async function auditBotAccess(
   // ── Score ──────────────────────────────────────────────────────────────────
   let score = 0;
 
-  // All citation bots allowed = +5 (most important)
-  if (citationBotsBlocked.length === 0) {
+  // All citation bots allowed = +5 (most important). If robots.txt couldn't be
+  // read we don't know, so award a neutral 2 instead of claiming full access.
+  if (!robotsTxtFetched) {
+    score += 2;
+  } else if (citationBotsBlocked.length === 0) {
     score += 5;
   } else {
     // Deduct 1 per blocked citation bot, min 0
@@ -125,42 +126,46 @@ export function generateRobotsTxtFix(blocked: string[]): string {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getBlockedBots(robotsTxt: string, botList: string[]): string[] {
+/**
+ * Standard robots.txt semantics (RFC 9309): user-agent names are
+ * case-insensitive, consecutive User-agent lines share one group, a crawler
+ * obeys the group naming it (product token match) and only falls back to "*"
+ * when no group names it. A bot is "blocked" when its group disallows "/"
+ * without an equally broad Allow.
+ */
+export function getBlockedBots(robotsTxt: string, botList: string[]): string[] {
   if (!robotsTxt) return [];
+  const groups: { agents: string[]; rules: { allow: boolean; path: string }[] }[] = [];
+  let current: (typeof groups)[number] | null = null;
 
-  const blocked: string[] = [];
-  const lines = robotsTxt.split('\n').map(l => l.trim());
-
-  let currentAgents: string[] = [];
-  let blockAllActive = false;
-
-  for (const line of lines) {
-    if (line.startsWith('User-agent:')) {
-      const agent = line.replace('User-agent:', '').trim();
-      if (agent === '*') {
-        blockAllActive = false;
-        currentAgents = ['*'];
-      } else {
-        currentAgents = [agent];
+  for (const raw of robotsTxt.split(/\r?\n/)) {
+    const line = raw.replace(/#.*$/, '').trim();
+    const ua = line.match(/^user-agent\s*:\s*(.+)$/i);
+    if (ua) {
+      if (!current || current.rules.length > 0) {
+        current = { agents: [], rules: [] };
+        groups.push(current);
       }
-    } else if (line.startsWith('Disallow:')) {
-      const path = line.replace('Disallow:', '').trim();
-      if (path === '/' || path === '') {
-        // Disallow / means blocked
-        if (path === '/') {
-          for (const agent of currentAgents) {
-            for (const bot of botList) {
-              if (agent === '*' || agent.toLowerCase() === bot.toLowerCase()) {
-                if (!blocked.includes(bot)) blocked.push(bot);
-              }
-            }
-          }
-        }
-      }
+      current.agents.push(ua[1].trim().toLowerCase());
+      continue;
     }
+    const rule = line.match(/^(allow|disallow)\s*:\s*(.*)$/i);
+    if (rule && current) current.rules.push({ allow: rule[1].toLowerCase() === 'allow', path: rule[2].trim() });
   }
 
-  return blocked;
+  const groupFor = (bot: string) => {
+    const name = bot.toLowerCase();
+    return groups.find((g) => g.agents.some((a) => a !== '*' && (a === name || name.startsWith(a) || a.startsWith(name))))
+      || groups.find((g) => g.agents.includes('*'));
+  };
+
+  return botList.filter((bot) => {
+    const g = groupFor(bot);
+    if (!g) return false;
+    const blocksRoot = g.rules.some((r) => !r.allow && r.path === '/');
+    const allowsRoot = g.rules.some((r) => r.allow && (r.path === '/' || r.path === '/*'));
+    return blocksRoot && !allowsRoot;
+  });
 }
 
 function detectJsRendering(html: string): boolean {

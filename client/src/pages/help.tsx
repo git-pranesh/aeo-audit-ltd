@@ -21,7 +21,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "What does an audit include?",
-    a: "AI Readiness Score and platform scores (ChatGPT, Perplexity, Gemini, Claude), content and technical signals, an industry benchmark, strengths and gaps, the Fix-It Playbook, content topic ideas, PDF and CSV exports and the AEO Pack (llms.txt, llms-full.txt, AGENTS.md, robots.txt patch, JSON-LD schema, homepage Markdown and install instructions).",
+    a: "AI Readiness Score and platform scores (ChatGPT, Perplexity, Gemini, Claude), content and technical signals, an industry benchmark, strengths and gaps, the Fix-It Playbook, content topic ideas, PDF and CSV exports and the AEO Pack (llms.txt, llms-full.txt, robots.txt rules for AI crawlers, Organization/WebSite/FAQ schema built from your real pages, Article and Breadcrumb templates, homepage Markdown and install instructions).",
   },
   {
     q: "What is the Citation Snapshot?",

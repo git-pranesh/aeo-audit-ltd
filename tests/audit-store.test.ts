@@ -27,7 +27,7 @@ describe('audit persistence and fair use', () => {
     const a = await start('u1', 'req-00000001');
     const b = await start('u1', 'req-00000002');
     if (a.kind !== 'started' || b.kind !== 'started') throw new Error('expected start');
-    await completeAudit('u1', a.auditId, fakeReport(61), { signals: {} as any, sitemapUrls: [], scrapedText: '' }, null);
+    await completeAudit('u1', a.auditId, fakeReport(61), { signals: {} as any, sitemapUrls: [], facts: { pages: [], logoUrl: null, socialProfiles: [], faqs: [] }, sitemapLocation: null, hasLlmsTxt: false }, null);
     await failAudit('u1', b.auditId, 'boom');
     const c = await start('u1', 'req-00000003');
     expect(c.kind).toBe('started');
@@ -47,7 +47,7 @@ describe('audit persistence and fair use', () => {
     }
     const s = await start('u1', 'req-00000009');
     if (s.kind !== 'started') throw new Error('expected start');
-    await completeAudit('u1', s.auditId, fakeReport(70), { signals: {} as any, sitemapUrls: [], scrapedText: '' }, null);
+    await completeAudit('u1', s.auditId, fakeReport(70), { signals: {} as any, sitemapUrls: [], facts: { pages: [], logoUrl: null, socialProfiles: [], faqs: [] }, sitemapLocation: null, hasLlmsTxt: false }, null);
     const remaining = fakeDb._all('audits').filter(([, d]) => d.userId === 'u1');
     expect(remaining).toHaveLength(FAIR_USE.savedAudits);
     expect(remaining.some(([id]) => id === s.auditId)).toBe(true);

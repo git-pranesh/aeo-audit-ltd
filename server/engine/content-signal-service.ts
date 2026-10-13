@@ -45,14 +45,6 @@ export interface ContentSignals {
   totalPageCount: number;
   contentDepthScore: number;
   
-  // Candidate URLs for verification (NEW)
-  candidateUrls?: {
-    tutorials: string[];
-    caseStudies: string[];
-    faqs: string[];
-    research: string[];
-    frameworks: string[];
-  };
 }
 
 export interface PlatformScores {
@@ -80,365 +72,143 @@ export interface ScoringResult {
 /**
  * Extract content signals from scraped HTML and text content
  */
+/**
+ * Honest signal extraction.
+ *
+ * Every number is something we actually observed:
+ *  - "*Count" values derived from the sitemap are distinct same-site URLs whose
+ *    path matches a tight pattern; each URL counts in at most one category.
+ *  - Text/HTML values come only from the pages we fetched.
+ * No floors, boosts, extrapolation or inferred schema — a report must never
+ * claim content a site does not have.
+ */
 export function extractContentSignals(
   htmlContent: string,
   textContent: string,
   sitemapUrls: string[] = [],
-  companyIntelligence: any = {}
+  _companyIntelligence: any = {},
+  siteDomain = '',
 ): ContentSignals {
+  const rawHtml = htmlContent;
   const html = htmlContent.toLowerCase();
   const text = textContent.toLowerCase();
-  
-  // ChatGPT signals - practical how-to content
-  // SITEMAP-FIRST: Count URLs in sitemap that indicate tutorials/how-to content
-  const tutorialUrls = sitemapUrls.filter(url =>
-    /\/tutorial|\/how-to|\/guide|\/learn|\/getting-started|\/walkthrough|\/step-by-step|\/lesson|\/training|\/course|\/academy|\/workshop|\/quickstart|\/quick-start|\/onboarding|\/setup-guide|\/demo|\/webinar|\/documentation\/.*getting|\/resources\/.*tutorial|\/resources\/.*guide|\/help\/.*how|\/kb\/.*guide|\/education/i.test(url)
-    || /\/docs\/|\/documentation\/|\/reference\/|\/api-reference\/|\/api\/.*reference|\/developer\/|\/developers\/|\/sdk\/|\/cli\/|\/changelog\/|\/release-notes\/|\/manual\/|\/handbook\/|\/wiki\/|\/knowledge\/|\/user-guide\/|\/admin-guide\/|\/integration\/|\/integrations\//i.test(url)
-  );
+  const domain = siteDomain.toLowerCase().replace(/^www\./, '');
+  const count = (source: string, re: RegExp) => (source.match(re) || []).length;
 
-  const eduSubdomains = ['learn', 'academy', 'training', 'education', 'university', 'courses', 'lessons'];
-  const eduSubdomainUrls = sitemapUrls.filter(url => {
+  // ── Sitemap classification (same site only, one category per URL) ─────────
+  const sameSite = (u: string) => {
+    if (!domain) return true;
     try {
-      const hostname = new URL(url).hostname.split('.')[0];
-      return eduSubdomains.includes(hostname);
-    } catch { return false; }
-  });
-  const eduSubdomainBoost = Math.floor(eduSubdomainUrls.length * 0.35);
-  const tutorialUrlCount = tutorialUrls.length + eduSubdomainBoost;
+      const host = new URL(u).hostname.toLowerCase().replace(/^www\./, '');
+      return host === domain || host.endsWith(`.${domain}`);
+    } catch {
+      return false;
+    }
+  };
+  const paths = Array.from(new Set(sitemapUrls.filter(sameSite).map((u) => {
+    try {
+      const url = new URL(u);
+      return `${url.hostname.toLowerCase()}${url.pathname.toLowerCase().replace(/\/+$/, '')}`;
+    } catch {
+      return '';
+    }
+  }).filter(Boolean)));
 
-  if (eduSubdomainBoost > 0) {
-    console.log(`📚 Subdomain tutorial boost: +${eduSubdomainBoost} from ${eduSubdomainUrls.length} edu subdomain pages`);
+  const CATEGORIES: [keyof typeof buckets, RegExp][] = [
+    ['caseStudies', /\/(case-stud(y|ies)|customer-stor(y|ies)|success-stor(y|ies)|client-stor(y|ies))\/[^/]+/],
+    ['faqs', /\/(faqs?|frequently-asked-questions?)(\/|$)/],
+    ['docs', /(^(docs|developers?|help|support|kb)\.)|\/(docs|documentation|api-reference|developers?|knowledge-base|kb|help-center)\/[^/]+|\/help\/[^/]+\/[^/]+/],
+    ['tutorials', /(^(learn|academy)\.)|\/(tutorials?|how-to|guides?|learn|academy|courses?|getting-started)\/[^/]+/],
+    ['research', /\/(research|reports?|whitepapers?|studies|surveys?|benchmarks?|state-of)\/[^/]+/],
+    ['frameworks', /\/(methodology|frameworks?|playbooks?)\/[^/]+/],
+    ['blog', /\/(blogs?|articles?|posts?|news|insights|stories|journal)\/[^/]+|\/(19|20)\d{2}\/\d{2}\/[^/]+/],
+  ];
+  const buckets = { caseStudies: 0, faqs: 0, docs: 0, tutorials: 0, research: 0, frameworks: 0, blog: 0 };
+  for (const p of paths) {
+    const hit = CATEGORIES.find(([, re]) => re.test(p));
+    if (hit) buckets[hit[0]]++;
   }
-  
-  // Also count text mentions as secondary signal
-  const tutorialPatterns = [
-    /how to /gi, /step[- ]by[- ]step/gi, /tutorial/gi, /guide to/gi,
-    /getting started/gi, /beginners? guide/gi, /walkthrough/gi
-  ];
-  const tutorialTextMentions = tutorialPatterns.reduce((count, pattern) => 
-    count + (text.match(pattern) || []).length, 0);
-  
-  // Use sitemap count if available, otherwise fall back to text mentions (divided to avoid inflation)
-  // NOTE: documentationPageCount boost is applied later (after that variable is computed)
-  let tutorialCount = tutorialUrlCount > 0 ? tutorialUrlCount : Math.floor(tutorialTextMentions / 3);
-  
-  const howToGuideCount = (text.match(/how to [a-z]/gi) || []).length;
-  
-  // SITEMAP-FIRST: Count FAQ pages from sitemap
-  const faqUrls = sitemapUrls.filter(url => {
-    const normalizedUrl = url.toLowerCase().replace(/[?#].*$/, '');
-    // Strong FAQ patterns - always count these
-    const strongFaqPattern = /\/faq|\/faqs\/|\/frequently-asked|\/questions\/|\/answers\/|\/knowledge-base|\/kb\/|\/help-center|\/helpdesk|\/answers\/|\/q-and-a/i.test(normalizedUrl);
-    // Allow FAQ pages on any subdomain if URL explicitly contains "faq"
-    const explicitFaq = /faq/i.test(normalizedUrl);
-    return strongFaqPattern || explicitFaq;
-  });
-  const helpSubdomains = ['help', 'support', 'kb', 'knowledge', 'helpdesk', 'faq'];
-  const helpSubdomainUrls = sitemapUrls.filter(url => {
+
+  // ── Practical content (ChatGPT) ────────────────────────────────────────────
+  const tutorialTextMentions = count(text, /step[- ]by[- ]step|\btutorial\b|guide to|getting started|beginner'?s guide|walkthrough/g);
+  const tutorialCount = buckets.tutorials || Math.floor(tutorialTextMentions / 3);
+  const howToGuideCount = count(text, /\bhow to [a-z]/g);
+
+  const faqSchemaBlocks = count(html, /"@type"\s*:\s*"faqpage"/g);
+  const faqHeadings = count(html, /<h[1-4][^>]*>[^<]*(frequently asked questions|faqs?\b)[^<]*<\/h[1-4]>/g);
+  const faqSectionCount = Math.max(buckets.faqs, faqSchemaBlocks + faqHeadings);
+
+  const stepByStepListCount = count(html, /<ol[\s>]/g) + count(text, /\bstep \d+[:.]/g);
+
+  // ── Research & citations (Perplexity) ──────────────────────────────────────
+  const anchorHrefs = Array.from(rawHtml.matchAll(/<a\b[^>]*\shref\s*=\s*["'](https?:\/\/[^"'#\s]+)["']/gi)).map((m) => m[1]);
+  const SOCIAL = /(^|\.)(facebook|twitter|x|instagram|linkedin|youtube|tiktok|pinterest|threads)\.com$/;
+  const externalLinks = new Set<string>();
+  for (const href of anchorHrefs) {
     try {
-      const hostname = new URL(url).hostname.split('.')[0];
-      return helpSubdomains.includes(hostname);
-    } catch { return false; }
-  });
-  const helpSubdomainBoost = Math.floor(helpSubdomainUrls.length * 0.15);
-  const faqUrlCount = faqUrls.length + Math.min(20, helpSubdomainBoost);
-  
-  const faqPatterns = [
-    /<script type="application\/ld\+json"[^>]*>[\s\S]*?faqpage[\s\S]*?<\/script>/gi,
-    /frequently asked questions/gi, /faqs?[\s:]/gi, /<details/gi
-  ];
-  const faqTextMentions = faqPatterns.reduce((count, pattern) => 
-    count + (html.match(pattern) || []).length, 0);
-  
-  // HYBRID: Use maximum of URL-based and text-based detection
-  const faqSectionCount = Math.max(faqUrlCount, faqTextMentions);
-  
-  const stepByStepListCount = (html.match(/<ol[^>]*>[\s\S]*?<\/ol>/gi) || []).length +
-    (text.match(/step \d+[:.]/gi) || []).length;
-  
-  // Perplexity signals - research depth
-  // SITEMAP-FIRST: Count research/data pages from sitemap
-  const researchUrls = sitemapUrls.filter(url => 
-    /\/research|\/report|\/data|\/insight|\/statistic|\/study|\/whitepaper|\/ebook|\/benchmark|\/survey|\/analysis|\/trends?\/|\/findings|\/publications?/i.test(url)
-  );
-  const researchUrlCount = researchUrls.length;
-  
-  // External link detection: count from all sampled HTML, then scale for site size
-  // The regex counts outbound links excluding social media
-  const rawExternalLinkCount = (html.match(/href="https?:\/\/(?!.*?(facebook|twitter|instagram|linkedin|youtube))[^"]+"/gi) || []).length;
-  
-  // Scale-aware: the HTML includes homepage + ~7 hardcoded pages + ~20 sampled pages ≈ 28 pages
-  // For large sites, extrapolate based on the ratio of sampled pages to total sitemap size
-  const estimatedPagesScraped = Math.max(1, Math.min(28, sitemapUrls.length));
-  let externalLinkCount = rawExternalLinkCount;
-  if (sitemapUrls.length > 50 && rawExternalLinkCount > 0) {
-    // Calculate links-per-page from sample, then estimate site-wide total
-    const linksPerPage = rawExternalLinkCount / estimatedPagesScraped;
-    // Use conservative multiplier: assume only content pages (blog, docs, help) have external links
-    // Estimate ~40% of sitemap URLs are content-rich pages
-    const contentPageEstimate = Math.floor(sitemapUrls.length * 0.4);
-    const estimatedTotal = Math.floor(linksPerPage * contentPageEstimate);
-    // Cap at reasonable maximum, use at least what we directly detected
-    externalLinkCount = Math.max(rawExternalLinkCount, Math.min(estimatedTotal, 5000));
-    if (externalLinkCount !== rawExternalLinkCount) {
-      console.log(`📊 External links scale adjustment: ${rawExternalLinkCount} detected in sample → ${externalLinkCount} estimated (${sitemapUrls.length} sitemap pages, ~${linksPerPage.toFixed(1)} links/page)`);
+      const host = new URL(href).hostname.toLowerCase().replace(/^www\./, '');
+      if (domain && (host === domain || host.endsWith(`.${domain}`))) continue;
+      if (SOCIAL.test(host)) continue;
+      externalLinks.add(href.split('?')[0]);
+    } catch {
+      // ignore malformed URLs
     }
   }
-  
-  const dataPointPatterns = [
-    /\d+%/g, /\$[\d,]+/g, /\d+x/gi, /\d+ (million|billion|thousand)/gi,
-    /increased by \d+/gi, /reduced by \d+/gi, /grew \d+/gi
-  ];
-  const dataPointTextCount = dataPointPatterns.reduce((count, pattern) => 
-    count + (text.match(pattern) || []).length, 0);
-  
-  // Boost data points if research URLs exist in sitemap
-  const dataPointCount = dataPointTextCount + (researchUrlCount * 5);
-  
-  const statisticMentionCount = (text.match(/according to|research shows|study found|data indicates|survey|report/gi) || []).length;
-  
-  const researchTerms = [
-    /peer[- ]reviewed/gi, /academic/gi, /published in/gi, /journal/gi,
-    /methodology/gi, /findings/gi, /analysis shows/gi, /evidence/gi
-  ];
-  const researchTermCount = researchTerms.reduce((count, pattern) => 
-    count + (text.match(pattern) || []).length, 0) + researchUrlCount;
-  
-  // Gemini signals - structure and SEO
-  // Schema detection: find unique schema @type values across all sampled HTML
-  const jsonLdBlocks = html.match(/<script type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>/gi) || [];
+  const externalLinkCount = externalLinks.size;
+
+  const dataPointCount = count(text, /\d+(\.\d+)?%|\$\d[\d,]*|\b\d+(\.\d+)?x\b|\b\d+(\.\d+)? (million|billion|thousand)\b|(increased|reduced|grew) by \d+/g);
+  const statisticMentionCount = count(text, /according to|research shows|study found|data (shows|indicates)|\bsurvey\b|\breport(ed)? that\b/g);
+  const researchTermCount = count(text, /peer[- ]reviewed|\bacademic\b|published in|\bjournal\b|\bmethodology\b|\bfindings\b|analysis shows/g) + buckets.research;
+
+  // ── Structure (Gemini) ─────────────────────────────────────────────────────
   const schemaTypes = new Set<string>();
-  for (const block of jsonLdBlocks) {
-    const typeMatches = block.match(/"@type"\s*:\s*"([^"]+)"/gi) || [];
-    for (const tm of typeMatches) {
-      const typeValue = tm.match(/"@type"\s*:\s*"([^"]+)"/i);
-      if (typeValue) schemaTypes.add(typeValue[1]);
-    }
-    const arrayTypeMatches = block.match(/"@type"\s*:\s*\[([^\]]+)\]/gi) || [];
-    for (const atm of arrayTypeMatches) {
-      const types = atm.match(/"([A-Z][a-zA-Z]+)"/g) || [];
-      for (const t of types) {
-        const clean = t.replace(/"/g, '');
-        if (clean !== '@type') schemaTypes.add(clean);
-      }
-    }
-  }
-  const rawSchemaTypeCount = schemaTypes.size || (jsonLdBlocks.length > 0 ? 1 : 0);
-  
-  // Scale-aware schema estimation: if we only sampled a fraction of the site,
-  // the sampled unique types likely represent the site's schema diversity
-  // Large sites with blog/docs content typically reuse schema across pages
-  // So unique type count from sample is a good lower-bound; add sitemap-based boost
-  let schemaTypeCount = rawSchemaTypeCount;
-  const sitemapPageCount = sitemapUrls.length || 10;
-  if (sitemapPageCount > 100 && rawSchemaTypeCount > 0) {
-    // Sites with schema on sampled pages likely have it on content pages too
-    // Boost based on content diversity: blog pages=Article, FAQ pages=FAQPage, etc.
-    const hasBlogUrls = sitemapUrls.some(u => /\/blog\//i.test(u));
-    const hasFaqUrls = sitemapUrls.some(u => /\/faq/i.test(u));
-    const hasDocUrls = sitemapUrls.some(u => /\/docs?\//i.test(u));
-    const hasProductUrls = sitemapUrls.some(u => /\/product|\/pricing|\/features/i.test(u));
-    const hasHowToUrls = sitemapUrls.some(u => /\/how-to|\/tutorial|\/guide/i.test(u));
-    const inferredTypes = [hasBlogUrls, hasFaqUrls, hasDocUrls, hasProductUrls, hasHowToUrls]
-      .filter(Boolean).length;
-    schemaTypeCount = Math.max(rawSchemaTypeCount, Math.min(rawSchemaTypeCount + inferredTypes, 10));
-    if (schemaTypeCount !== rawSchemaTypeCount) {
-      console.log(`📊 Schema scale adjustment: ${rawSchemaTypeCount} detected → ${schemaTypeCount} (inferred from ${sitemapPageCount} sitemap URLs)`);
-    }
-  }
-  
-  const h1Count = (html.match(/<h1/gi) || []).length;
-  const h2Count = (html.match(/<h2/gi) || []).length;
-  const h3Count = (html.match(/<h3/gi) || []).length;
-  const headingHierarchyScore = Math.min(100, (h1Count > 0 ? 30 : 0) + 
-    Math.min(40, h2Count * 8) + Math.min(30, h3Count * 5));
-  
-  const hasStructuredData = schemaTypeCount > 0;
-  
-  const imageCount = (html.match(/<img[^>]+>/gi) || []).length;
-  
-  // Claude signals - analytical depth
-  // SITEMAP-FIRST: Count case study pages from sitemap
-  // IMPORTANT: Exclude documentation subdomains that falsely match generic patterns
-  const caseStudyUrls = sitemapUrls.filter(url => {
-    const normalizedUrl = url.toLowerCase().replace(/[?#].*$/, '');
-    const isDocSubdomain = /^https?:\/\/(success|docs|help|support|learn|community)\./i.test(url);
-    
-    const strongPattern = /\/case-stud|\/customer-stor|\/success-stor|\/testimonial|\/client-stor|\/stories\/|\/portfolio\/|\/showcase\/|\/implementations?\/|\/deployments?\/|\/outcomes\/|\/impact\/|\/proof\//i.test(normalizedUrl);
-    
-    const moderatePattern = /\/customers?\/[a-z0-9-]+|\/customers$|\/success\/[a-z0-9-]+|\/results\/[a-z0-9-]+|\/partners?\/[a-z0-9-]+|\/reviews?\//i.test(normalizedUrl);
-    
-    return strongPattern || (moderatePattern && !isDocSubdomain);
-  });
-  const caseStudyUrlCount = caseStudyUrls.length;
-  
-  const caseStudyPatterns = [
-    /case study/gi, /customer story/gi, /success story/gi,
-    /client spotlight/gi, /use case/gi, /real[- ]world example/gi
-  ];
-  const caseStudyTextMentions = caseStudyPatterns.reduce((count, pattern) => 
-    count + (text.match(pattern) || []).length, 0);
-  
-  // HYBRID: SUM of URL-based and text-based detection per user spec
-  const textBasedCaseStudies = Math.floor(caseStudyTextMentions / 2);
-  // Expanded caseStudy URL filter (replaces narrower upstream filter)
-  const expandedCaseStudyUrls = sitemapUrls.filter(url =>
-    /\/case-study\/|\/case-studies\/|\/customer-story\/|\/customer-stories\/|\/success-story\/|\/success-stories\/|\/client-story\/|\/portfolio\/|\/work\/|\/projects\/|\/results\/|\/impact\//i.test(url)
-  );
-  const expandedCaseStudyUrlCount = expandedCaseStudyUrls.length;
-  const caseStudyCount = textBasedCaseStudies + expandedCaseStudyUrlCount;
-
-  // SITEMAP-FIRST: Count framework/methodology pages from sitemap (expanded patterns)
-  const frameworkUrls = sitemapUrls.filter(url =>
-    /\/methodology\/|\/framework\/|\/approach\/|\/process\/|\/playbook\/|\/strategy\/|\/model\/|\/research\/|\/whitepaper\/|\/report\/|\/study\/|\/analysis\/|\/case-study\/|\/case-studies\/|\/customer-story\/|\/customer-stories\/|\/success-story\/|\/success-stories\/|\/results\/|\/roi\/|\/benchmark\/|\/survey\//i.test(url)
-  );
-  // Deduplicate: any URL already counted in expandedCaseStudyUrls should NOT
-  // also be counted in frameworkUrls to prevent inflation on simple sites
-  const expandedCaseStudyUrlSet = new Set(expandedCaseStudyUrls.map(u => u.toLowerCase()));
-  const deduplicatedFrameworkUrls = frameworkUrls.filter(
-    url => !expandedCaseStudyUrlSet.has(url.toLowerCase())
-  );
-  const frameworkUrlCount = deduplicatedFrameworkUrls.length;
-
-  const frameworkPatterns = [
-    /framework/gi, /methodology/gi, /model for/gi, /approach to/gi,
-    /strategy for/gi, /best practices/gi, /principles of/gi, /playbook/gi
-  ];
-  const frameworkTextMentions = frameworkPatterns.reduce((count, pattern) =>
-    count + (text.match(pattern) || []).length, 0);
-
-  // HYBRID: SUM of URL-based and text-based detection per user spec
-  const textBasedFrameworks = Math.floor(frameworkTextMentions / 3);
-  const frameworkMentionCount = textBasedFrameworks + frameworkUrlCount;
-  
-  const wordCount = text.split(/\s+/).length;
-  const longFormContentScore = Math.min(100, Math.floor(wordCount / 100));
-  
-  const nuancedTerms = [
-    /however/gi, /on the other hand/gi, /nuanced/gi, /complex/gi,
-    /trade[- ]off/gi, /considerations/gi, /depending on/gi, /context/gi,
-    /it depends/gi, /caveat/gi, /exception/gi
-  ];
-  const nuancedTermCount = nuancedTerms.reduce((count, pattern) => 
-    count + (text.match(pattern) || []).length, 0);
-  
-  // General signals from sitemap
-  let blogPostCount = sitemapUrls.filter(url => 
-    /\/blog\/|\/articles?\/|\/posts?\/|\/news\/|\/insights\/|\/resources\/|\/library\/|\/publications\/|\/updates\/|\/announcements\//i.test(url)
-  ).length || Math.floor((text.match(/blog|article|post/gi) || []).length / 5);
-  
-  const docUrlCount = sitemapUrls.filter(url => 
-    /\/docs?\/|\/documentation\/|\/api\/|\/reference\/|\/guide\/|\/developer[s]?\/|\/sdk\/|\/api-docs\/|\/integration[s]?\/|\/help\/|\/kb\/|\/knowledge-base\/|\/support\/.*article|\/manual/i.test(url)
-  ).length || (text.match(/documentation|api reference|developer guide/gi) || []).length;
-
-  const docSubdomains = ['docs', 'developer', 'developers', 'api', 'reference'];
-  const docSubdomainUrls = sitemapUrls.filter(url => {
+  const addTypes = (node: any) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) return node.forEach(addTypes);
+    const t = node['@type'];
+    (Array.isArray(t) ? t : [t]).forEach((x) => typeof x === 'string' && schemaTypes.add(x.replace(/^.*[/#]/, '')));
+    Object.values(node).forEach(addTypes);
+  };
+  for (const m of rawHtml.matchAll(/<script[^>]+type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
-      const hostname = new URL(url).hostname.split('.')[0];
-      return docSubdomains.includes(hostname);
-    } catch { return false; }
-  });
-  const docSubdomainBoost = Math.floor(docSubdomainUrls.length * 0.6);
-  let documentationPageCount = Math.max(docUrlCount, docSubdomainBoost);
-
-  // Apply documentation boost to tutorial count (deferred from earlier — needs documentationPageCount)
-  if (tutorialUrlCount > 0) {
-    tutorialCount = tutorialUrlCount + Math.floor(documentationPageCount * 0.4);
-  }
-
-  const totalPageCount = sitemapUrls.length || 10;
-  
-  const contentDepthScore = Math.min(100, 
-    (blogPostCount * 2) + (documentationPageCount * 3) + 
-    (tutorialCount * 2) + (caseStudyCount * 5));
-  
-  // CLUSTER-BASED CONTENT INFERENCE for large sites:
-  // When URL-specific patterns miss content, look at URL path clusters
-  let finalTutorialCount = tutorialCount;
-  let finalDocPageCount = documentationPageCount;
-  let finalFaqCount = faqSectionCount;
-  let finalCaseStudyCount = caseStudyCount;
-  let finalFrameworkCount = frameworkMentionCount;
-  
-  if (sitemapUrls.length >= 100) {
-    const pathClusters: Record<string, number> = {};
-    for (const url of sitemapUrls) {
-      try {
-        const pathParts = new URL(url).pathname.split('/').filter(Boolean);
-        if (pathParts.length > 0) {
-          const topSegment = pathParts[0].toLowerCase();
-          pathClusters[topSegment] = (pathClusters[topSegment] || 0) + 1;
-        }
-      } catch { /* skip malformed URLs */ }
-    }
-    
-    const totalSitemapUrls = sitemapUrls.length;
-    const minClusterRatio = 0.02;
-    
-    const tutorialClusterKeys = ['learn', 'academy', 'training', 'courses', 'education', 'university', 'tutorials', 'lessons'];
-    const tutorialClusterCount = tutorialClusterKeys.reduce((sum, key) => sum + (pathClusters[key] || 0), 0);
-    if (tutorialClusterCount >= totalSitemapUrls * minClusterRatio || tutorialClusterCount >= 10) {
-      finalTutorialCount = Math.max(tutorialCount, tutorialClusterCount);
-    }
-    
-    const docClusterKeys = ['docs', 'documentation', 'help', 'kb', 'reference', 'api'];
-    const docClusterCount = docClusterKeys.reduce((sum, key) => sum + (pathClusters[key] || 0), 0);
-    if (docClusterCount >= totalSitemapUrls * minClusterRatio || docClusterCount >= 10) {
-      finalDocPageCount = Math.max(documentationPageCount, docClusterCount);
-    }
-    
-    const faqClusterKeys = ['faq', 'faqs', 'questions', 'answers'];
-    const faqClusterCount = faqClusterKeys.reduce((sum, key) => sum + (pathClusters[key] || 0), 0);
-    if (faqClusterCount >= totalSitemapUrls * minClusterRatio || faqClusterCount >= 5) {
-      finalFaqCount = Math.max(faqSectionCount, faqClusterCount);
-    }
-    
-    const caseStudyClusterKeys = ['customers', 'stories', 'case-studies', 'testimonials', 'showcase', 'portfolio'];
-    const caseStudyClusterCount = caseStudyClusterKeys.reduce((sum, key) => sum + (pathClusters[key] || 0), 0);
-    if (caseStudyClusterCount >= totalSitemapUrls * minClusterRatio || caseStudyClusterCount >= 5) {
-      finalCaseStudyCount = Math.max(caseStudyCount, caseStudyClusterCount);
-    }
-    
-    const frameworkClusterKeys = ['methodology', 'frameworks', 'playbooks', 'best-practices', 'guidelines', 'standards'];
-    const frameworkClusterCount = frameworkClusterKeys.reduce((sum, key) => sum + (pathClusters[key] || 0), 0);
-    if (frameworkClusterCount >= totalSitemapUrls * minClusterRatio || frameworkClusterCount >= 5) {
-      finalFrameworkCount = Math.max(frameworkMentionCount, frameworkClusterCount);
+      addTypes(JSON.parse(m[1].trim()));
+    } catch {
+      // Invalid JSON-LD is invisible to AI crawlers too; don't count it.
     }
   }
+  for (const m of rawHtml.matchAll(/itemtype\s*=\s*["']https?:\/\/schema\.org\/([A-Za-z]+)/gi)) schemaTypes.add(m[1]);
+  // Helper nodes are not meaningful "schema types" on their own.
+  ['ListItem', 'EntryPoint', 'PropertyValueSpecification', 'ImageObject', 'ReadAction', 'SearchAction', 'ContactPoint', 'PostalAddress'].forEach((t) => schemaTypes.delete(t));
+  const schemaTypeCount = schemaTypes.size;
+  const hasStructuredData = schemaTypeCount > 0;
 
-  // Floor: Large sites can't score zero on content types
-  // If 500+ pages but 0 detected for key signals, patterns missed
-  const totalPages = sitemapUrls.length;
-  if (totalPages > 500) {
-    const adjustedTutorials = Math.max(finalTutorialCount, Math.floor(totalPages * 0.015));
-    const adjustedBlogs = Math.max(blogPostCount, Math.floor(totalPages * 0.05));
-    const adjustedDocs = Math.max(finalDocPageCount, Math.floor(totalPages * 0.03));
-    // Schema floor: large professional sites almost always have schema markup
-    const adjustedSchema = Math.max(schemaTypeCount, 3);
-    // External links floor: large sites with blog/docs content always have outbound links
-    const adjustedExtLinks = Math.max(externalLinkCount, Math.floor(totalPages * 0.1));
-    
-    if (adjustedTutorials > finalTutorialCount || adjustedBlogs > blogPostCount || adjustedDocs > finalDocPageCount ||
-        adjustedSchema > schemaTypeCount || adjustedExtLinks > externalLinkCount) {
-      console.log(`📊 Large site floor applied (${totalPages} pages): tutorials ${finalTutorialCount}→${adjustedTutorials}, blogs ${blogPostCount}→${adjustedBlogs}, docs ${finalDocPageCount}→${adjustedDocs}, schema ${schemaTypeCount}→${adjustedSchema}, extLinks ${externalLinkCount}→${adjustedExtLinks}`);
-    }
-    finalTutorialCount = adjustedTutorials;
-    blogPostCount = adjustedBlogs;
-    finalDocPageCount = adjustedDocs;
-    schemaTypeCount = adjustedSchema;
-    externalLinkCount = adjustedExtLinks;
-  }
-  
-  const finalContentDepthScore = Math.min(100, 
-    (finalDocPageCount * 3) + (blogPostCount * 2) + 
-    (finalTutorialCount * 2) + (finalCaseStudyCount * 5));
+  const h1Count = count(html, /<h1[\s>]/g);
+  const h2Count = count(html, /<h2[\s>]/g);
+  const h3Count = count(html, /<h3[\s>]/g);
+  const headingHierarchyScore = Math.min(100, (h1Count > 0 ? 30 : 0) + Math.min(40, h2Count * 8) + Math.min(30, h3Count * 5));
+  const imageCount = count(html, /<img[\s>]/g);
 
-  console.log(`📊 Signal counts — tutorials:${finalTutorialCount} faqs:${finalFaqCount} frameworks:${finalFrameworkCount} caseStudies:${finalCaseStudyCount} blogs:${blogPostCount} docs:${finalDocPageCount}`);
+  // ── Depth (Claude) ─────────────────────────────────────────────────────────
+  const caseStudyTextMentions = count(text, /case stud(y|ies)|customer stor(y|ies)|success stor(y|ies)|client spotlight/g);
+  const caseStudyCount = Math.max(buckets.caseStudies, Math.floor(caseStudyTextMentions / 2));
+  const frameworkTextMentions = count(text, /\bframeworks?\b|\bmethodology\b|\bplaybooks?\b|best practices|principles of/g);
+  const frameworkMentionCount = buckets.frameworks + Math.floor(frameworkTextMentions / 3);
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const longFormContentScore = Math.min(100, Math.floor(wordCount / 100));
+  const nuancedTermCount = count(text, /\bhowever\b|on the other hand|\bnuanced?\b|trade[- ]offs?|considerations|depending on|it depends|\bcaveats?\b/g);
+
+  // ── Site-level ─────────────────────────────────────────────────────────────
+  const blogPostCount = buckets.blog;
+  const documentationPageCount = buckets.docs;
+  const totalPageCount = paths.length || 10;
+  const contentDepthScore = Math.min(100, documentationPageCount * 3 + blogPostCount * 2 + tutorialCount * 2 + caseStudyCount * 5);
+
+  console.log(`📊 Signals — tutorials:${tutorialCount} faqs:${faqSectionCount} caseStudies:${caseStudyCount} blogs:${blogPostCount} docs:${documentationPageCount} schema:${schemaTypeCount} extLinks:${externalLinkCount}`);
 
   return {
-    tutorialCount: finalTutorialCount,
+    tutorialCount,
     howToGuideCount,
-    faqSectionCount: finalFaqCount,
+    faqSectionCount,
     stepByStepListCount,
     externalLinkCount,
     dataPointCount,
@@ -448,21 +218,14 @@ export function extractContentSignals(
     headingHierarchyScore,
     hasStructuredData,
     imageCount,
-    caseStudyCount: finalCaseStudyCount,
-    frameworkMentionCount: finalFrameworkCount,
+    caseStudyCount,
+    frameworkMentionCount,
     longFormContentScore,
     nuancedTermCount,
     blogPostCount,
-    documentationPageCount: finalDocPageCount,
+    documentationPageCount,
     totalPageCount,
-    contentDepthScore: finalContentDepthScore,
-    candidateUrls: {
-      tutorials: tutorialUrls,
-      caseStudies: caseStudyUrls,
-      faqs: faqUrls,
-      research: researchUrls,
-      frameworks: frameworkUrls,
-    }
+    contentDepthScore,
   };
 }
 

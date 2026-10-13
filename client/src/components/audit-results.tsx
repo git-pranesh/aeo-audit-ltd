@@ -10,7 +10,6 @@ import EnhancedTopicCard from "./enhanced-topic-card";
 import EnhancedRecommendationsComponent from "./enhanced-recommendations";
 import FixItPlaybook from "./fix-it-playbook";
 import IndustryBenchmark from "./industry-benchmark";
-import SchemaGenerator from "./schema-generator";
 import MethodologyTooltip, { MethodologyBanner } from "./methodology-tooltip";
 import BlueprintScoreDisplay from "@/components/blueprint-score-display";
 
@@ -19,9 +18,11 @@ interface AuditResultsProps {
   websiteUrl: string;
   /** Rendered where the citation snapshot belongs (the parent owns the manual-run button). */
   citationSlot?: ReactNode;
+  /** The AEO Pack download card (schema, llms.txt, robots patch built from the site's real content). */
+  aeoPackSlot?: ReactNode;
 }
 
-export default function AuditResults({ auditData, websiteUrl, citationSlot }: AuditResultsProps) {
+export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoPackSlot }: AuditResultsProps) {
   const [activeTopicCategory, setActiveTopicCategory] = useState<keyof typeof auditData.contentTopics>("authoritative");
   const [showAllTopics, setShowAllTopics] = useState(false);
   const [showScoreExplanation, setShowScoreExplanation] = useState(true);
@@ -99,14 +100,6 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot }: Au
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Company Intelligence - New */}
-      {auditData.companyIntelligence && (
-        <CompanyIntelligenceComponent 
-          companyIntelligence={auditData.companyIntelligence} 
-          websiteUrl={websiteUrl} 
-        />
       )}
 
       {/* Overall Score Card */}
@@ -297,6 +290,14 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot }: Au
       </Card>
 
 
+      {/* Company Intelligence - New */}
+      {auditData.companyIntelligence && (
+        <CompanyIntelligenceComponent 
+          companyIntelligence={auditData.companyIntelligence} 
+          websiteUrl={websiteUrl} 
+        />
+      )}
+
       {/* AEO Blueprint Score */}
       {auditData.blueprintResult && (
         <BlueprintScoreDisplay blueprint={auditData.blueprintResult} />
@@ -419,19 +420,7 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot }: Au
         <FixItPlaybook playbook={auditData.playbook} />
       )}
 
-      {auditData.scoreExplanation && (
-          <SchemaGenerator
-          companyIntelligence={auditData.companyIntelligence}
-          contentSignals={{
-            tutorials: auditData.scoreExplanation.contentSignals.tutorials,
-            faqs: auditData.scoreExplanation.contentSignals.faqs,
-            schemaMarkup: auditData.scoreExplanation.contentSignals.schemaMarkup,
-            caseStudies: auditData.scoreExplanation.contentSignals.caseStudies,
-          }}
-          companyName={(() => { try { return new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname.replace('www.', ''); } catch { return websiteUrl; } })()}
-          websiteUrl={websiteUrl}
-        />
-      )}
+      {aeoPackSlot}
 
       {/* Content Topics Section */}
       <div className="space-y-6">

@@ -20,6 +20,7 @@ export interface CitationSnapshotParams {
   keywords: string[];
   apiKey: string;
   auditId?: string;
+  model?: string;
 }
 
 export interface PromptResult {
@@ -139,7 +140,8 @@ function generatePrompts(params: CitationSnapshotParams): string[] {
 async function callPerplexitySonar(
   prompt: string,
   apiKey: string,
-  auditId?: string
+  auditId?: string,
+  model?: string,
 ): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
   const response = await llmCall({
     task: 'webSearch',
@@ -148,6 +150,7 @@ async function callPerplexitySonar(
     temperature: 0.1,
     apiKey,
     auditId,
+    model,
   });
   return { content: response.content, inputTokens: response.inputTokens, outputTokens: response.outputTokens };
 }
@@ -462,7 +465,7 @@ function delay(ms: number): Promise<void> {
 export async function generateCitationSnapshot(
   params: CitationSnapshotParams
 ): Promise<CitationSnapshotResult> {
-  const { companyName, websiteUrl, apiKey, auditId } = params;
+  const { companyName, websiteUrl, apiKey, auditId, model } = params;
   const domain = extractDomain(websiteUrl);
   const prompts = generatePrompts(params);
 
@@ -484,7 +487,7 @@ export async function generateCitationSnapshot(
 
     const batchResults = await Promise.allSettled(
       batch.map(async (prompt) => {
-        const { content, inputTokens, outputTokens } = await callPerplexitySonar(prompt, apiKey, auditId);
+        const { content, inputTokens, outputTokens } = await callPerplexitySonar(prompt, apiKey, auditId, model);
         totalInputTokens += inputTokens;
         totalOutputTokens += outputTokens;
 

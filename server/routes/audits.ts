@@ -5,7 +5,7 @@ import { requireAuth, requireLicense, type AuthenticatedRequest } from '../secur
 import { analyzeLimiter, auditStartLimiter, citationLimiter } from '../security/rate-limits';
 import { assertPublicUrl } from '../security/ssrf';
 import { handler } from './http';
-import { requireOpenRouterKey } from '../services/user-service';
+import { getModelChoice, requireOpenRouterKey } from '../services/user-service';
 import { analyzeWebsite, runAudit } from '../services/audit-pipeline';
 import {
   FAIR_USE, completeAudit, deleteAudit, failAudit, getAudit, getAuditForFiles, listAudits,
@@ -60,7 +60,7 @@ auditsRouter.delete('/:auditId', handler<AuthenticatedRequest>(async (req, res) 
 auditsRouter.post('/analyze', requireLicense, analyzeLimiter, handler<AuthenticatedRequest>(async (req, res) => {
   const websiteUrl = await assertPublicUrl(urlSchema.parse(req.body?.websiteUrl));
   const apiKey = await requireOpenRouterKey(req.user!.uid);
-  const suggestion = await analyzeWebsite(websiteUrl, apiKey);
+  const suggestion = await analyzeWebsite(websiteUrl, apiKey, await getModelChoice(req.user!.uid));
   res.json({ websiteUrl, suggestion });
 }));
 
@@ -88,7 +88,7 @@ auditsRouter.post('/', requireLicense, auditStartLimiter, handler<AuthenticatedR
 
   const { auditId } = start;
   try {
-    const { auditData, aeoInputs } = await runAudit({ auditId, websiteUrl, context, apiKey });
+    const { auditData, aeoInputs } = await runAudit({ auditId, websiteUrl, context, apiKey, models: await getModelChoice(uid) });
     const previousScore = await previousScoreFor(uid, domain, auditId);
     await completeAudit(uid, auditId, auditData, aeoInputs, previousScore);
     res.json(await getAudit(uid, auditId));
@@ -127,6 +127,7 @@ auditsRouter.post('/:auditId/citation-snapshot', requireLicense, citationLimiter
       keywords: audit.context.keywords,
       apiKey,
       auditId: `${audit.auditId}-snapshot-${Date.now()}`,
+      model: (await getModelChoice(uid)).webSearch?.id,
     });
     const stored = { ...snapshot, generatedAt: snapshot.snapshotDate };
     await saveCitationSnapshot(uid, audit.auditId, stored);
@@ -152,11 +153,12 @@ auditsRouter.get('/:auditId/aeo-pack', requireLicense, handler<AuthenticatedRequ
     businessType: ctx.businessType,
     targetAudience: ctx.targetAudience,
     valueProposition: ctx.valueProposition,
-    signals: audit.aeoInputs.signals as any,
+    signals: audit.aeoInputs.signals,
     sitemapUrls: audit.aeoInputs.sitemapUrls,
-    scrapedText: audit.aeoInputs.scrapedText,
     keywords: ctx.keywords,
-    competitors: ctx.competitors,
+    facts: audit.aeoInputs.facts,
+    sitemapLocation: audit.aeoInputs.sitemapLocation,
+    hasLlmsTxt: audit.aeoInputs.hasLlmsTxt,
   });
 
   const safeName = (ctx.companyName || audit.domain).replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 60) || 'site';

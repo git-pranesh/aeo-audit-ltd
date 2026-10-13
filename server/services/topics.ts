@@ -8,7 +8,8 @@
 
 import type { ContentSignals, PlatformScores } from '../engine/content-signal-service';
 import type { ConfirmedContext } from '@shared/api';
-import { llmJson } from './openrouter';
+import { llmJson, type ModelChoice } from './openrouter';
+import { isAdviceRelevant } from '../engine/industry';
 
 export const TOPICS_PER_CATEGORY = 5;
 
@@ -48,16 +49,19 @@ const CATEGORY_FOCUS: Record<TopicCategory, string> = {
   emergingOpportunity: 'emerging questions buyers are starting to ask',
 };
 
-const PLATFORM_FOCUS: Record<keyof PlatformScores, string> = {
-  chatgpt: 'tutorials, FAQs and step-by-step how-to guides',
-  perplexity: 'data-driven research content with sources and statistics',
-  gemini: 'well-structured content with schema markup and clear headings',
-  claude: 'case studies, frameworks and nuanced analytical content',
-};
 
 function buildPrompt(input: TopicContext): string {
   const { websiteUrl, context: c, signals: s, platformScores: p, lowestPlatform } = input;
   const hasCompetitors = c.competitors.length > 0;
+  const formats = [
+    isAdviceRelevant(c.industry, 'faq') && 'FAQ answers',
+    isAdviceRelevant(c.industry, 'howto') && 'how-to guides',
+    isAdviceRelevant(c.industry, 'tutorials') && 'tutorials',
+    isAdviceRelevant(c.industry, 'caseStudies') && 'case studies',
+    isAdviceRelevant(c.industry, 'data') && 'data-backed articles',
+    isAdviceRelevant(c.industry, 'frameworks') && 'frameworks',
+    'buyer questions and comparisons',
+  ].filter(Boolean) as string[];
 
   return `You are an Answer Engine Optimization (AEO) analyst. Produce content topic ideas for ${websiteUrl}.
 
@@ -72,8 +76,8 @@ COMPANY CONTEXT (confirmed by the site owner — use it, never infer from the do
 
 MEASURED SITE SIGNALS:
 - Platform scores: ChatGPT ${p.chatgpt}, Perplexity ${p.perplexity}, Gemini ${p.gemini}, Claude ${p.claude}
-- Weakest platform: ${lowestPlatform} — favour ${PLATFORM_FOCUS[lowestPlatform]}
-- Found: ${s.tutorialCount} tutorials, ${s.howToGuideCount} how-to guides, ${s.faqSectionCount} FAQ sections, ${s.caseStudyCount} case studies, ${s.dataPointCount} data points
+- Weakest platform: ${lowestPlatform}
+- Content formats that suit this business: ${formats.join(', ')}
 
 Return ONE JSON object with exactly these keys:
 {
@@ -90,6 +94,8 @@ Each topic object:
 
 RULES:
 - About 70% industry-level questions, 30% branded.
+- Only questions real customers of this kind of business ask. Use only the content formats listed above.
+- Never imply the company offers, uses or believes something not stated in the context (no invented technologies, policies, awards, prices or numbers).
 - Search volumes are estimates and must be ranges ("Estimated: X-Y/month"), never exact numbers.
 - Never claim citation counts or facts you cannot verify.
 - ${hasCompetitors ? 'Only mention the competitors listed above.' : 'Do not mention any competitor names.'}
@@ -160,7 +166,7 @@ function stringList(v: unknown): string[] {
   return Array.isArray(v) ? v.map((x) => clampText(x, 160)).filter(Boolean).slice(0, 5) : [];
 }
 
-export async function generateTopics(input: TopicContext, apiKey: string, auditId: string): Promise<TopicResult> {
+export async function generateTopics(input: TopicContext, apiKey: string, auditId: string, models: ModelChoice = {}): Promise<TopicResult> {
   const hasCompetitors = input.context.competitors.length > 0;
 
   return llmJson<TopicResult>(
@@ -168,6 +174,8 @@ export async function generateTopics(input: TopicContext, apiKey: string, auditI
       task: 'structured',
       apiKey,
       auditId,
+      model: models.structured?.id,
+      supportsJson: models.structured?.supportsJson,
       maxTokens: 6000,
       temperature: 0.3,
       messages: [

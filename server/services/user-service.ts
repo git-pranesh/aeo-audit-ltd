@@ -6,7 +6,7 @@
 
 import { adminAuth, adminDb } from '../firebase-admin';
 import { decryptSecret, encryptSecret, type EncryptedSecret } from '../security/encryption';
-import { OpenRouterError } from './openrouter';
+import { OpenRouterError, type ModelChoice } from './openrouter';
 import { releaseLicense, type Entitlement } from './license-service';
 
 export interface Branding {
@@ -23,6 +23,7 @@ export interface StoredKey extends EncryptedSecret {
 }
 
 export interface UserRecord {
+  aiModels?: ModelChoice;
   email: string;
   displayName?: string;
   createdAt: string;
@@ -77,6 +78,15 @@ export async function requireOpenRouterKey(uid: string): Promise<string> {
   } catch {
     throw new OpenRouterError('Your saved OpenRouter key could not be read. Please add it again in Settings.', 'KEY_INVALID', 400);
   }
+}
+
+export async function saveModelChoice(uid: string, choice: ModelChoice): Promise<void> {
+  // Replace the whole map so clearing a choice (back to default) works.
+  await users().doc(uid).update({ aiModels: JSON.parse(JSON.stringify(choice)) });
+}
+
+export async function getModelChoice(uid: string): Promise<ModelChoice> {
+  return (await getUser(uid))?.aiModels ?? {};
 }
 
 export async function saveBranding(uid: string, branding: Branding | null): Promise<void> {

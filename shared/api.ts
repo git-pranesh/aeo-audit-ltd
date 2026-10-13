@@ -29,6 +29,27 @@ export interface MeResponse {
   branding: Branding | null;
   isAdmin: boolean;
   limits: FairUseLimits;
+  aiModels: AiModels;
+}
+
+/** Chosen OpenRouter models; null = our recommended default. */
+export interface AiModels {
+  structured: string | null;
+  webSearch: string | null;
+  defaults: { structured: string; webSearch: string };
+}
+
+export interface CatalogEntry {
+  id: string;
+  name: string;
+  promptPerM: number;
+  completionPerM: number;
+  contextLength: number;
+  supportsJson: boolean;
+  free: boolean;
+  webSearch: boolean;
+  estAuditUsd: number;
+  estSnapshotUsd: number;
 }
 
 export interface FairUseLimits {

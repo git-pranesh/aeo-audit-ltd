@@ -14,9 +14,19 @@
 import axios from 'axios';
 import { assertPublicUrl, safeGetText, BOT_USER_AGENT } from '../security/ssrf';
 
+export interface ScrapedPage {
+  url: string;
+  html: string;
+  text: string;
+}
+
 export interface ScrapeResult {
   html: string;
   text: string;
+  pages: ScrapedPage[];
+  sitemapFound: boolean;
+  sitemapLocation: string | null;
+  llmsTxtFound: boolean;
   sitemapUrls: string[];
   discoveredSubdomains: string[];
   pagesFetched: number;
@@ -55,7 +65,7 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
   const startedAt = Date.now();
   const timeLeft = () => TOTAL_BUDGET_MS - (Date.now() - startedAt);
   const result: ScrapeResult = {
-    html: '', text: '', sitemapUrls: [], discoveredSubdomains: [],
+    html: '', text: '', pages: [], sitemapFound: false, sitemapLocation: null, llmsTxtFound: false, sitemapUrls: [], discoveredSubdomains: [],
     pagesFetched: 0, usedJina: false, timedOut: false,
   };
 
@@ -64,7 +74,10 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
   const domain = new URL(baseUrl).hostname.replace(/^www\./, '');
 
   // 1. Sitemap (count only) — capped at 10s.
-  result.sitemapUrls = await withTimeout(fetchSitemapUrls(origin), Math.min(10_000, timeLeft()), []);
+  const sitemap = await withTimeout(fetchSitemapUrls(origin), Math.min(10_000, timeLeft()), { urls: [], location: null });
+  result.sitemapUrls = sitemap.urls;
+  result.sitemapLocation = sitemap.location;
+  result.sitemapFound = sitemap.urls.length > 0;
 
   // 2. Direct fetch: homepage + prioritized pages, in parallel.
   const urls = [baseUrl, ...selectPriorityUrls(origin, domain, result.sitemapUrls, MAX_PAGES - 1)];
@@ -84,10 +97,14 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
   // 4. llms.txt (AEO readiness signal).
   if (timeLeft() > 2000) {
     const llmsTxt = await safeGetText(`${origin}/llms.txt`, { timeoutMs: Math.min(5000, timeLeft()) });
-    if (llmsTxt && !/<html/i.test(llmsTxt)) result.text += '\n\n[llms.txt]\n' + llmsTxt.slice(0, 20_000);
+    if (llmsTxt && !/<html/i.test(llmsTxt)) {
+      result.llmsTxtFound = true;
+      result.text += '\n\n[llms.txt]\n' + llmsTxt.slice(0, 20_000);
+    }
   }
 
   result.pagesFetched = pages.length;
+  result.pages = pages;
   result.html = pages.map((p) => p.html).join('\n\n');
   result.text = pages.map((p) => p.text).join('\n\n') + result.text;
   result.timedOut = timeLeft() <= 0;
@@ -98,38 +115,55 @@ export async function scrapeWebsite(websiteUrl: string): Promise<ScrapeResult> {
 
 // ─── Strategies ───────────────────────────────────────────────────────────────
 
-type Page = { url: string; html: string; text: string };
+type Page = ScrapedPage;
+
+// Error and bot-wall pages that some sites serve with a 200 status.
+const SOFT_404 = /<title[^>]*>[^<]*(\b40[34]\b|not found|page (does not|doesn't) exist|couldn.t find|could not find|access denied|forbidden|just a moment|attention required|are you a (robot|human)|captcha|request unsuccessful|pardon our interruption|security check)[^<]*<\/title>/i;
 
 async function fetchDirect(urls: string[]): Promise<Page[]> {
   const results = await Promise.allSettled(
     urls.map(async (url) => {
       const html = await safeGetText(url, { timeoutMs: PAGE_TIMEOUT_MS, accept: 'text/html,application/xhtml+xml' });
-      if (!html || html.length < 200) return null;
+      // Error pages served with 200 would otherwise be scored as real content.
+      if (!html || html.length < 200 || SOFT_404.test(html.slice(0, 20_000))) return null;
       return { url, html, text: cleanHtml(html) };
     }),
   );
-  return results.flatMap((r) => (r.status === 'fulfilled' && r.value ? [r.value] : []));
+  return dedupePages(results.flatMap((r) => (r.status === 'fulfilled' && r.value ? [r.value] : [])));
+}
+
+/** Several guessed paths often redirect to the same page (e.g. /docs → /). Count each page once. */
+function dedupePages(pages: Page[]): Page[] {
+  const seen = new Set<string>();
+  return pages.filter((p) => {
+    const fingerprint = p.text.slice(0, 4000);
+    if (seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  });
 }
 
 async function fetchWithJina(urls: string[], timeLeft: () => number): Promise<Page[]> {
   const pages: Page[] = [];
   for (const url of urls) {
     if (timeLeft() < 3000) break;
-    const text = await jinaFetch(url);
-    if (text) pages.push({ url, html: text, text });
+    // Rendered HTML keeps headings, images and JSON-LD visible to the signal extractor.
+    const html = await jinaFetch(url, 'html');
+    if (html && !SOFT_404.test(html.slice(0, 20_000))) pages.push({ url, html, text: cleanHtml(html) });
   }
-  return pages;
+  return dedupePages(pages);
 }
 
 /** Jina Reader fetches the page from its own servers; the target was already SSRF-validated. */
-async function jinaFetch(url: string): Promise<string | null> {
+async function jinaFetch(url: string, format: 'markdown' | 'html' = 'markdown'): Promise<string | null> {
   try {
     const res = await axios.get<string>(`https://r.jina.ai/${url}`, {
-      timeout: 12_000,
+      timeout: 15_000,
       responseType: 'text',
-      maxContentLength: 2 * 1024 * 1024,
+      maxContentLength: 3 * 1024 * 1024,
       headers: {
         Accept: 'text/plain',
+        ...(format === 'html' ? { 'X-Return-Format': 'html' } : {}),
         'User-Agent': BOT_USER_AGENT,
         ...(process.env.JINA_API_KEY ? { Authorization: `Bearer ${process.env.JINA_API_KEY}` } : {}),
       },
@@ -141,20 +175,25 @@ async function jinaFetch(url: string): Promise<string | null> {
   }
 }
 
-async function fetchSitemapUrls(origin: string): Promise<string[]> {
+async function fetchSitemapUrls(origin: string): Promise<{ urls: string[]; location: string | null }> {
   const locs = (xml: string) => Array.from(xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)).map((m) => m[1]);
   const urls: string[] = [];
+  const isXml = (x: string | null): x is string => !!x && /<(urlset|sitemapindex)\b/i.test(x);
 
-  let xml = await safeGetText(`${origin}/sitemap.xml`, { timeoutMs: 6000, maxBytes: 5 * 1024 * 1024 });
-  if (!xml) {
+  let location: string | null = `${origin}/sitemap.xml`;
+  let xml = await safeGetText(location, { timeoutMs: 6000, maxBytes: 5 * 1024 * 1024 });
+  if (!isXml(xml)) {
     const robots = await safeGetText(`${origin}/robots.txt`, { timeoutMs: 4000 });
-    const ref = robots?.match(/^\s*sitemap:\s*(\S+)/im)?.[1];
-    if (ref) xml = await safeGetText(ref, { timeoutMs: 6000, maxBytes: 5 * 1024 * 1024 });
+    location = robots?.match(/^\s*sitemap:\s*(\S+)/im)?.[1] ?? null;
+    xml = location ? await safeGetText(location, { timeoutMs: 6000, maxBytes: 5 * 1024 * 1024 }) : null;
   }
-  if (!xml) return [];
+  if (!isXml(xml)) return { urls: [], location: null };
 
   if (/<sitemapindex/i.test(xml)) {
-    const children = locs(xml).slice(0, 5);
+    // Prefer content sitemaps (posts, pages, guides) over product/image/tag ones.
+    const all = locs(xml);
+    const score = (u: string) => (/post|blog|article|page|guide|case|faq|help|doc|learn|resource|news|stor/i.test(u) ? 0 : /product|image|video|tag|author|categor|collection/i.test(u) ? 2 : 1);
+    const children = [...all].sort((a, b) => score(a) - score(b)).slice(0, 8);
     const results = await Promise.allSettled(
       children.map((u) => safeGetText(u, { timeoutMs: 5000, maxBytes: 5 * 1024 * 1024 })),
     );
@@ -162,7 +201,7 @@ async function fetchSitemapUrls(origin: string): Promise<string[]> {
   } else {
     urls.push(...locs(xml));
   }
-  return Array.from(new Set(urls)).slice(0, SITEMAP_URL_CAP);
+  return { urls: Array.from(new Set(urls)).slice(0, SITEMAP_URL_CAP), location };
 }
 
 // ─── Page selection ───────────────────────────────────────────────────────────
