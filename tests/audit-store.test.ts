@@ -53,3 +53,15 @@ describe('audit persistence and fair use', () => {
     expect(remaining.some(([id]) => id === s.auditId)).toBe(true);
   });
 });
+
+describe('agency limits', () => {
+  it('agency accounts get a higher hourly ceiling', async () => {
+    const { AGENCY_FAIR_USE } = await import('../server/services/audit-store');
+    const run = async (n: number) => {
+      const r = await startAudit({ uid: 'agency', idempotencyKey: `agency-req-${n}`, websiteUrl: 'https://a.com/', domain: 'a.com', context: ctx, limits: AGENCY_FAIR_USE });
+      if (r.kind === 'started') await failAudit('agency', r.auditId, 'x');
+    };
+    for (let i = 0; i < 5; i++) await run(i); // > 3/hour lifetime cap, < 10/hour agency cap
+    expect(fakeDb._all('audits').filter(([, d]) => d.userId === 'agency')).toHaveLength(5);
+  });
+});

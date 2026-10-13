@@ -10,7 +10,7 @@ import {
 import { claimPurchasedLicense } from '../services/license-service';
 import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
 import { estimateAuditCost, estimateSnapshotCost, getCatalog, resolveModel } from '../services/model-catalog';
-import { FAIR_USE } from '../services/audit-store';
+import { limitsFor } from '../services/audit-store';
 
 export const meRouter = Router();
 meRouter.use(requireAuth);
@@ -31,7 +31,7 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
     openRouterKey: user.openRouterKey ? { last4: user.openRouterKey.last4, updatedAt: user.openRouterKey.updatedAt } : null,
     branding: user.entitlement?.whiteLabel ? user.branding ?? null : null,
     isAdmin: isAdminUser(req.user),
-    limits: FAIR_USE,
+    limits: limitsFor(user.entitlement?.whiteLabel),
     aiModels: {
       structured: user.aiModels?.structured?.id ?? null,
       webSearch: user.aiModels?.webSearch?.id ?? null,

@@ -686,7 +686,7 @@ export class AuditPDFGenerator {
     if (!this.auditData.citationSnapshot) return;
     const cs = this.auditData.citationSnapshot;
 
-    this.addSectionTitle('AI Citation Snapshot');
+    this.addSectionTitle('AI Citation Check');
 
     this.checkPageBreak(25);
     const statsCardW = (this.contentWidth - 8) / 3;

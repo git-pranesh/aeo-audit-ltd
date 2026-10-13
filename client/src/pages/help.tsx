@@ -17,19 +17,19 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Why do I need my own OpenRouter key?",
-    a: "Your lifetime license covers the software. AI calls run on your own OpenRouter account, so you only pay the model provider for what you use — usually a few cents per audit. One OpenRouter key covers every model we use. We recommend a dedicated key with a low spending limit.",
+    a: "Your lifetime license covers the software. AI calls run on your own OpenRouter account, so you only pay the model provider for what you use — about $0.002 per audit with the default model. One OpenRouter key covers every model, and you can choose any model in Settings, free to premium. We recommend a dedicated key with a low spending limit.",
   },
   {
     q: "What does an audit include?",
     a: "AI Readiness Score and platform scores (ChatGPT, Perplexity, Gemini, Claude), content and technical signals, an industry benchmark, strengths and gaps, the Fix-It Playbook, content topic ideas, PDF and CSV exports and the AEO Pack (llms.txt, llms-full.txt, robots.txt rules for AI crawlers, Organization/WebSite/FAQ schema built from your real pages, Article and Breadcrumb templates, homepage Markdown and install instructions).",
   },
   {
-    q: "What is the Citation Snapshot?",
-    a: "An optional, manual check: we ask AI search up to 8 real buyer questions and show whether you were mentioned and which brands were cited instead. It uses web-search calls on your OpenRouter key and only the latest result is kept.",
+    q: "What is the AI Citation Check?",
+    a: "An optional, manual check: AI writes 8 questions a real customer would ask about your business (3 naming you, 5 category questions), asks them to a live web-search AI on your OpenRouter key, and shows whether you were mentioned and which brands were named instead. Only the latest result is kept. About $0.05 per check with the default model.",
   },
   {
     q: "Are there limits?",
-    a: "Unlimited domains under fair use: up to 3 audits per hour, 10 per day, 2 running at once, 10 pages read per audit, up to 3 competitors per audit. Your latest 25 audits are kept — download PDFs, CSVs or the AEO Pack for anything you want to keep longer.",
+    a: "Unlimited domains under fair use. Lifetime: 3 audits per hour, 10 per 24 hours, latest 25 audits saved. Agency: 10 per hour, 30 per 24 hours, latest 100 saved. Both: 2 audits running at once, up to 10 pages read per audit, up to 3 competitors per audit. Download PDFs, CSVs or the AEO Pack for anything you want to keep longer.",
   },
   {
     q: "Does Citation Rocket monitor my site automatically?",

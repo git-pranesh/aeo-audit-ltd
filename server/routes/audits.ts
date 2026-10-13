@@ -5,10 +5,10 @@ import { requireAuth, requireLicense, type AuthenticatedRequest } from '../secur
 import { analyzeLimiter, auditStartLimiter, citationLimiter } from '../security/rate-limits';
 import { assertPublicUrl } from '../security/ssrf';
 import { handler } from './http';
-import { getModelChoice, requireOpenRouterKey } from '../services/user-service';
+import { getModelChoice, getUser, requireOpenRouterKey } from '../services/user-service';
 import { analyzeWebsite, runAudit } from '../services/audit-pipeline';
 import {
-  FAIR_USE, completeAudit, deleteAudit, failAudit, getAudit, getAuditForFiles, listAudits,
+  FAIR_USE, completeAudit, limitsFor, deleteAudit, failAudit, getAudit, getAuditForFiles, listAudits,
   previousScoreFor, saveCitationSnapshot, startAudit,
 } from '../services/audit-store';
 import { generateCitationSnapshot } from '../services/citation-snapshot';
@@ -79,7 +79,8 @@ auditsRouter.post('/', requireLicense, auditStartLimiter, handler<AuthenticatedR
   const apiKey = await requireOpenRouterKey(uid); // fail before reserving a slot
   const domain = extractDomain(websiteUrl);
 
-  const start = await startAudit({ uid, idempotencyKey: body.idempotencyKey, websiteUrl, domain, context });
+  const limits = limitsFor((await getUser(uid))?.entitlement?.whiteLabel);
+  const start = await startAudit({ uid, idempotencyKey: body.idempotencyKey, websiteUrl, domain, context, limits });
   if (start.kind === 'existing') {
     // Retried request: report the existing audit rather than starting another.
     res.status(start.audit.status === 'running' ? 202 : 200).json(start.audit);
@@ -90,7 +91,7 @@ auditsRouter.post('/', requireLicense, auditStartLimiter, handler<AuthenticatedR
   try {
     const { auditData, aeoInputs } = await runAudit({ auditId, websiteUrl, context, apiKey, models: await getModelChoice(uid) });
     const previousScore = await previousScoreFor(uid, domain, auditId);
-    await completeAudit(uid, auditId, auditData, aeoInputs, previousScore);
+    await completeAudit(uid, auditId, auditData, aeoInputs, previousScore, limits.savedAudits);
     res.json(await getAudit(uid, auditId));
   } catch (err) {
     const message = err instanceof OpenRouterError ? err.message : 'The audit could not be completed. Please try again.';

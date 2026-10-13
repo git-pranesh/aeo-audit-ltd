@@ -9,12 +9,12 @@ import SignupModal from "@/components/auth/signup-modal";
 import { useAuth } from "@/contexts/AuthContext";
 
 const INCLUDED = [
-  "AI Readiness Score across ChatGPT, Perplexity, Gemini and Claude",
-  "Fix-It Playbook with step-by-step actions",
-  "Content topic ideas and industry benchmark",
-  "Manual AI Citation Snapshot",
-  "PDF + CSV exports and the AEO Pack (llms.txt, schema, robots.txt)",
-  "Unlimited domains (fair use) — runs on your own OpenRouter key",
+  "AI Readiness Score with estimated readiness for ChatGPT, Perplexity, Gemini and Claude",
+  "AI-crawler access check and a Fix-It Playbook tailored to your industry",
+  "20 content topic ideas written for your business, every audit",
+  "AI Citation Check: 8 real customer questions asked to a live AI search engine",
+  "PDF + CSV exports and a 10-file AEO Pack (llms.txt, schema markup, robots.txt rules)",
+  "Unlimited domains (fair use) — runs on your own OpenRouter key; choose any model",
 ];
 
 export default function Home() {

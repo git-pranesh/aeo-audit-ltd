@@ -99,7 +99,7 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-3xl font-bold mb-2">AI Citation Snapshot</h2>
+        <h2 className="text-3xl font-bold mb-2">AI Citation Check</h2>
         <p className="text-muted-foreground">We asked AI platforms real questions about your industry. Here's whether they mentioned you.</p>
         {lastCheckedAt && (
           <div className="flex flex-col sm:flex-row items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-2">

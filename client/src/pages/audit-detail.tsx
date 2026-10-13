@@ -128,8 +128,8 @@ export default function AuditDetailPage() {
         <CitationSnapshot citationSnapshot={snapshot} lastCheckedAt={snapshot.generatedAt ?? snapshot.snapshotDate} />
       ) : (
         <div className="text-center">
-          <h2 className="text-3xl font-bold mb-2">AI Citation Snapshot</h2>
-          <p className="text-muted-foreground">Ask AI search {me?.limits.citationPrompts ?? 8} real buyer questions and see whether it mentions you.</p>
+          <h2 className="text-3xl font-bold mb-2">AI Citation Check</h2>
+          <p className="text-muted-foreground">AI writes {me?.limits.citationPrompts ?? 8} questions real customers ask about businesses like yours, asks them to a live AI search engine, and shows whether you are mentioned.</p>
         </div>
       )}
       <div className="flex justify-center">
@@ -137,7 +137,7 @@ export default function AuditDetailPage() {
           {citationRunning ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Checking AI answers (≈1 min)…</> : <><Search className="h-4 w-4 mr-2" />{snapshot ? "Run citation check again" : "Run citation check"}</>}
         </Button>
       </div>
-      <p className="text-center text-xs text-muted-foreground">Uses web-search calls on your OpenRouter key. Only the latest result is kept.</p>
+      <p className="text-center text-xs text-muted-foreground">About $0.05 on your OpenRouter key with the default model. Only the latest result is kept.</p>
     </section>
   );
 

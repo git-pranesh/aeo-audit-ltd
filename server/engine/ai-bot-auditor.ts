@@ -68,7 +68,7 @@ export async function auditBotAccess(
   // Check for llms.txt presence in page source or as a known URL
   const llmsTxtPresent = await checkUrlExists(`https://${domain}/llms.txt`);
   const llmsFullTxtPresent = await checkUrlExists(`https://${domain}/llms-full.txt`);
-  const agentsMdPresent = await checkUrlExists(`https://${domain}/AGENTS.md`);
+  const agentsMdPresent = false; // AGENTS.md is a code-repository convention, not a website signal
 
   // JS rendering detection (already done in scraper-v2, re-use)
   const jsRenderingDetected = detectJsRendering(pageHtml);

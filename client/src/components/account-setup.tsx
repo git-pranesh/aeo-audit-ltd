@@ -120,7 +120,7 @@ export function KeySetup() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Audits run on your own OpenRouter account (usually a few cents per audit). One key covers every model.
+        Audits run on your own OpenRouter account (about $0.002 per audit with the default model). One key covers every model.
         Create a dedicated key with a low spending limit, e.g. $5.{" "}
         <a className="text-primary inline-flex items-center gap-1 underline" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">
           Create a key <ExternalLink className="h-3 w-3" />

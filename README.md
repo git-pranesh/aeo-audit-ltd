@@ -7,27 +7,34 @@ The SaaS version is preserved at git tag `saas-baseline`.
 
 ## Product
 
-| License | Includes |
-|---|---|
-| **Lifetime** | One account, BYOK (OpenRouter), manual audits, unlimited domains (fair use), PDF + CSV, AEO Pack, manual Citation Snapshot |
-| **Lifetime Agency** | Everything above + custom branding on PDF exports (agency name, logo, accent colour, report title, footer/contact line) |
+> **Marketing source of truth:** [`docs/PRODUCT.md`](docs/PRODUCT.md) (features, limits, costs, allowed/forbidden claims, FAQ answers).
+> **Website corrections:** [`docs/WEBSITE-FACT-CHECK.md`](docs/WEBSITE-FACT-CHECK.md) (every claim on citationrocket.com checked against this code).
 
-**Included:** choice of any OpenRouter model (free → premium), AI Readiness Score, platform scores (ChatGPT / Perplexity / Gemini / Claude), content + technical signals, AEO blueprint, industry benchmark, strengths/gaps, Fix-It Playbook, 20 topic ideas, optional comparison with up to 3 user-entered competitors, manual re-audit (shows change vs. previous audit of the same domain), manual Citation Snapshot (≤ 8 prompts, latest only), PDF, CSV, AEO Pack ZIP.
+There is **no free plan**. Accounts are free to create; audits need an activated license.
 
-**Explicitly excluded:** scheduled monitoring, background re-audits, citation alerts, emails, teams/seats, client portals, public share links, public API, Chrome extension, custom domains, automatic website deployment, competitor auto-discovery, subscriptions, platform-funded AI, paid scraping, unlimited history, marketplace-specific feature variants.
+| | Lifetime | Lifetime Agency |
+|---|---|---|
+| Price | one-time | one-time |
+| Audits | 10 / 24 h · 3 / hour | 30 / 24 h · 10 / hour |
+| Saved audits | latest 25 | latest 100 |
+| PDF branding | Citation Rocket | agency name, logo, accent colour, report title, footer |
+
+Both include: any OpenRouter model (free → premium), AI Readiness Score, estimated platform scores (ChatGPT / Perplexity / Gemini / Claude), measured content + technical signals, AI-crawler access check, AEO blueprint, industry reference benchmark, strengths/gaps, Fix-It Playbook, 20 topic ideas, optional comparison with ≤ 3 user-entered competitors, manual re-audit (change vs. previous audit of the same domain), manual AI Citation Check (8 AI-written questions, latest only), PDF, CSV, 10-file AEO Pack.
+
+**Not included:** free tier/trial, scheduled monitoring, background re-audits, alerts, emails, teams/seats, client portals, share links, public API, Chrome extension, custom domains, automatic website changes, competitor auto-discovery, search-volume data, subscriptions, platform-funded AI, paid scraping.
 
 ### Fair use (enforced server-side)
 
-| Limit | Value |
-|---|---|
-| Audits per hour / per 24 h | 3 / 10 |
-| Concurrent audits per account | 2 |
-| Pages read per audit | 10 (50 s budget) |
-| Competitors per audit | 3 |
-| Citation prompts per snapshot | 8 (one at a time) |
-| Saved audits | latest 25 |
+| Limit | Lifetime | Agency |
+|---|---|---|
+| Audits per hour / per 24 h | 3 / 10 | 10 / 30 |
+| Concurrent audits | 2 | 2 |
+| Saved audits | 25 | 100 |
+| Pages read per audit | 10 (50 s budget) | 10 |
+| Competitors per audit | 3 | 3 |
+| Citation check | 8 questions, one at a time, 5 / hour | same |
 
-Defined in one place: `server/services/audit-store.ts` (`FAIR_USE`). Market it as "unlimited domains", not "unlimited automated audits".
+Defined in `server/services/audit-store.ts` (`FAIR_USE`, `AGENCY_FAIR_USE`). Market it as "unlimited domains (fair use)", never "unlimited audits".
 
 ## How an audit works
 
@@ -36,13 +43,13 @@ Defined in one place: `server/services/audit-store.ts` (`FAIR_USE`). Market it a
 3. `POST /api/audits` — synchronous, idempotent per request id:
    scrape ≤ 10 pages → deterministic signals, scores, blueprint, benchmark, findings, playbook → **1 LLM call** for topics (+ competitor comparison if competitors were given; strict JSON validation, max 1 retry).
 4. Compact report saved; customer downloads PDF/CSV (generated in the browser) and the AEO Pack (generated from saved inputs — no re-scrape).
-5. Optional: `POST /api/audits/:id/citation-snapshot` — ≤ 8 web-search prompts on the customer's key.
+5. Optional: `POST /api/audits/:id/citation-snapshot` — 1 cheap call writes 8 customer questions for this business (3 brand, 5 category), then 8 live web-search calls on the customer's key.
 
 Every LLM call goes through `server/services/openrouter.ts` with the **customer's key only** — there is no platform key and no fallback.
 
 ### AI models (customer's choice)
 
-Settings → AI models lists every OpenRouter text model (live prices, cached 1 h) with an estimated cost per audit / per citation check. Defaults: `deepseek/deepseek-v4-flash` for analysis (≈ $0.002/audit) and `perplexity/sonar` for the citation check (≈ $0.05/check). Any model works — free (`:free`, rate-limited by providers), budget or premium. The citation check needs live search: a Perplexity Sonar model or any model id with `:online`. **Scores never depend on the model** — they are deterministic; the model only drafts the business context and topic ideas.
+Settings → AI models lists every OpenRouter text model (live prices, cached 1 h) with an estimated cost per audit / per citation check. Defaults: `deepseek/deepseek-v4-flash` for analysis (≈ $0.002/audit) and `perplexity/sonar` for the citation check (≈ $0.05/check). Any model works — free (`:free`, rate-limited by providers), budget or premium. The citation check needs live search: a Perplexity Sonar model or any model id with `:online`. **Scores never depend on the model** — they are deterministic; the model only drafts the business context, topic ideas, competitor comparison and citation questions.
 
 ### Accuracy rules
 
@@ -50,6 +57,7 @@ Settings → AI models lists every OpenRouter text model (live prices, cached 1 
 - Error pages and bot walls (soft 404s, "Access denied", challenges) are discarded; duplicate pages are counted once; unreadable sites fail with a clear message before any AI call.
 - robots.txt is parsed per RFC 9309; AI *search* crawlers (OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User, PerplexityBot, Perplexity-User, bingbot) are distinguished from *training* crawlers (GPTBot, ClaudeBot, Google-Extended, …). Blocked search crawlers become the #1 playbook action.
 - Advice is filtered by industry (a restaurant is never told to write API docs) and targets come from the industry benchmark. Industry benchmark figures are reference targets, not a live dataset (stated in the report).
+- Topic ideas: no search volumes or confidence scores (no data source exists); any number in a topic must appear on the customer's site; outdated years rejected.
 - The AEO Pack contains only facts found on the site (titles, descriptions, paragraphs, declared logo, linked social profiles, visible FAQs); everything else is a `[REPLACE: …]` placeholder.
 
 ## Architecture

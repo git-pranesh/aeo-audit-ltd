@@ -25,6 +25,18 @@ export const FAIR_USE: FairUseLimits = {
   citationPrompts: MAX_CITATION_PROMPTS,
 };
 
+/** Agency buyers audit client sites, so their fair-use ceiling is higher. */
+export const AGENCY_FAIR_USE: FairUseLimits = {
+  ...FAIR_USE,
+  auditsPerDay: 30,
+  auditsPerHour: 10,
+  savedAudits: 100,
+};
+
+export function limitsFor(whiteLabel: boolean | undefined): FairUseLimits {
+  return whiteLabel ? AGENCY_FAIR_USE : FAIR_USE;
+}
+
 /** A running audit older than this is treated as dead (server restarted mid-run). */
 const STALE_RUN_MS = 10 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -79,8 +91,9 @@ export async function startAudit(params: {
   websiteUrl: string;
   domain: string;
   context: ConfirmedContext;
+  limits?: FairUseLimits;
 }): Promise<StartResult> {
-  const { uid, idempotencyKey, websiteUrl, domain, context } = params;
+  const { uid, idempotencyKey, websiteUrl, domain, context, limits = FAIR_USE } = params;
   const auditId = auditIdFor(uid, idempotencyKey);
   const auditRef = audits().doc(auditId);
   const userRef = users().doc(uid);
@@ -98,14 +111,14 @@ export async function startAudit(params: {
     const active = usage.active.filter((a) => now - a.startedAt < STALE_RUN_MS);
     const recent = usage.recent.filter((t) => now - t < DAY_MS);
 
-    if (active.length >= FAIR_USE.concurrentAudits) {
-      throw new FairUseError(`You can run ${FAIR_USE.concurrentAudits} audits at the same time. Please wait for one to finish.`, 'TOO_MANY_RUNNING');
+    if (active.length >= limits.concurrentAudits) {
+      throw new FairUseError(`You can run ${limits.concurrentAudits} audits at the same time. Please wait for one to finish.`, 'TOO_MANY_RUNNING');
     }
-    if (recent.filter((t) => now - t < HOUR_MS).length >= FAIR_USE.auditsPerHour) {
-      throw new FairUseError(`Fair-use limit reached: ${FAIR_USE.auditsPerHour} audits per hour. Please try again a little later.`, 'HOURLY_LIMIT');
+    if (recent.filter((t) => now - t < HOUR_MS).length >= limits.auditsPerHour) {
+      throw new FairUseError(`Fair-use limit reached: ${limits.auditsPerHour} audits per hour. Please try again a little later.`, 'HOURLY_LIMIT');
     }
-    if (recent.length >= FAIR_USE.auditsPerDay) {
-      throw new FairUseError(`Fair-use limit reached: ${FAIR_USE.auditsPerDay} audits per 24 hours. Please try again later.`, 'DAILY_LIMIT');
+    if (recent.length >= limits.auditsPerDay) {
+      throw new FairUseError(`Fair-use limit reached: ${limits.auditsPerDay} audits per 24 hours. Please try again later.`, 'DAILY_LIMIT');
     }
 
     const createdAt = new Date(now).toISOString();
@@ -130,7 +143,7 @@ async function releaseSlot(uid: string, auditId: string): Promise<void> {
   });
 }
 
-export async function completeAudit(uid: string, auditId: string, auditData: AuditData, aeoInputs: AeoInputs, previousScore: number | null): Promise<void> {
+export async function completeAudit(uid: string, auditId: string, auditData: AuditData, aeoInputs: AeoInputs, previousScore: number | null, savedAudits = FAIR_USE.savedAudits): Promise<void> {
   await audits().doc(auditId).update({
     status: 'completed',
     completedAt: new Date().toISOString(),
@@ -142,7 +155,7 @@ export async function completeAudit(uid: string, auditId: string, auditData: Aud
     aeoInputs,
   });
   await releaseSlot(uid, auditId);
-  await enforceRetention(uid).catch((err) => console.warn('Retention cleanup failed:', err?.message));
+  await enforceRetention(uid, savedAudits).catch((err) => console.warn('Retention cleanup failed:', err?.message));
 }
 
 export async function failAudit(uid: string, auditId: string, message: string): Promise<void> {
@@ -155,12 +168,12 @@ export async function failAudit(uid: string, auditId: string, message: string): 
 }
 
 /** Keep the newest SAVED_AUDITS audits per account; never touches running audits. */
-async function enforceRetention(uid: string): Promise<void> {
+async function enforceRetention(uid: string, keep: number): Promise<void> {
   const snap = await audits().where('userId', '==', uid).select('createdAt', 'status').get();
   const finished = snap.docs
     .filter((d) => d.get('status') !== 'running')
     .sort((a, b) => String(b.get('createdAt')).localeCompare(String(a.get('createdAt'))));
-  const excess = finished.slice(FAIR_USE.savedAudits);
+  const excess = finished.slice(keep);
   if (excess.length === 0) return;
   const batch = adminDb.batch();
   excess.forEach((d) => batch.delete(d.ref));
