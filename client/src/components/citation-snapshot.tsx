@@ -3,7 +3,6 @@ import { Search, CheckCircle, XCircle, Trophy, TrendingUp, ChevronDown, Eye, Loc
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import UpgradePromptCard from "./upgrade-prompt-card";
 import {
   Accordion,
   AccordionContent,
@@ -18,7 +17,6 @@ interface CitationSnapshotProps {
   citationSnapshot: AuditData["citationSnapshot"];
   competitorLimit?: number;
   lastCheckedAt?: string | null;
-  monitoringFrequency?: string;
 }
 
 function getMentionColor(rate: number): string {
@@ -82,7 +80,7 @@ function FullResponseToggle({ text }: { text: string }) {
   );
 }
 
-export default function CitationSnapshot({ citationSnapshot, competitorLimit, lastCheckedAt, monitoringFrequency }: CitationSnapshotProps) {
+export default function CitationSnapshot({ citationSnapshot, competitorLimit, lastCheckedAt }: CitationSnapshotProps) {
   if (!citationSnapshot) {
     return (
       <Card className="border-border/50 bg-muted/30">
@@ -109,19 +107,6 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
               <Clock className="h-3 w-3" />
               Last checked: {new Date(lastCheckedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at {new Date(lastCheckedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             </span>
-            {monitoringFrequency && monitoringFrequency !== 'none' && (() => {
-              const days = monitoringFrequency === 'daily' ? 1 : monitoringFrequency === 'weekly' ? 7 : 30;
-              const nextCheck = new Date(new Date(lastCheckedAt).getTime() + days * 24 * 60 * 60 * 1000);
-              const daysUntil = Math.max(0, Math.ceil((nextCheck.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-              return (
-                <span>
-                  · Next check: {daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`}
-                </span>
-              );
-            })()}
-            {(!monitoringFrequency || monitoringFrequency === 'none') && (
-              <span>· <a href="/pricing" className="text-primary hover:underline">Upgrade for automatic monitoring</a></span>
-            )}
           </div>
         )}
       </div>
@@ -212,67 +197,7 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
         </CardContent>
       </Card>
 
-      {competitorLimit === 0 ? (
-        topCompetitorsCited.length > 0 ? (
-          <Card>
-            <CardHeader className="pb-3">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-                Top Competitors Mentioned by AI
-              </h3>
-              <p className="text-sm text-muted-foreground">These businesses appeared most often across all prompts</p>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-muted-foreground w-6 text-right">1.</span>
-                    <span className="text-sm font-medium">{topCompetitorsCited[0].name}</span>
-                  </div>
-                  <Badge variant="outline" className="text-xs">
-                    {topCompetitorsCited[0].timesFound}/{totalPromptsChecked} prompts
-                  </Badge>
-                </div>
-                {topCompetitorsCited.length > 1 && (
-                  <div className="space-y-2 opacity-40 pointer-events-none select-none blur-[2px]">
-                    {topCompetitorsCited.slice(1, 3).map((competitor, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-bold text-muted-foreground w-6 text-right">{index + 2}.</span>
-                          <span className="text-sm font-medium">{competitor.name}</span>
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          {competitor.timesFound}/{totalPromptsChecked} prompts
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-3">
-                  <UpgradePromptCard
-                    targetPlan="starter"
-                    headline={`See all ${topCompetitorsCited.length} competitors AI platforms cite`}
-                    benefits={[
-                      "Track which brands AI recommends over yours",
-                      "Monitor competitor mention frequency"
-                    ]}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <UpgradePromptCard
-            targetPlan="starter"
-            headline="See competitors AI platforms cite in your industry"
-            benefits={[
-              "Track which brands AI recommends over yours",
-              "Monitor competitor mention frequency",
-              "Identify content gaps to fill"
-            ]}
-          />
-        )
-      ) : topCompetitorsCited.length > 0 && (
+      {topCompetitorsCited.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -299,15 +224,6 @@ export default function CitationSnapshot({ citationSnapshot, competitorLimit, la
                   </Badge>
                 </div>
               ))}
-              {competitorLimit !== undefined && competitorLimit < 999 && topCompetitorsCited.length > competitorLimit && (
-                <div className="mt-3">
-                  <UpgradePromptCard
-                    targetPlan="pro"
-                    headline={`See all ${topCompetitorsCited.length} competitors detected`}
-                    compact
-                  />
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>

@@ -1,105 +1,62 @@
-import dotenv from "dotenv";
-dotenv.config();
+import 'dotenv/config';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import { createServer } from 'http';
+import helmet from 'helmet';
+import { registerRoutes, registerWebhooks } from './routes';
+import { generalLimiter } from './security/rate-limits';
+import { assertEncryptionConfigured } from './security/encryption';
+import { log, serveStatic } from './static';
 
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import cron from "node-cron";
-import { runCitationRefreshCycle } from "./citation-scheduler";
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Refuse to boot without the key-encryption secret: customer keys must never be stored in plaintext.
+assertEncryptionConfigured();
 
 const app = express();
-app.set('trust proxy', 1); // Trust first proxy for rate limiting
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
 
-// IMPORTANT: Register webhook text body parser BEFORE global JSON parser
-// This ensures webhook endpoints receive raw body for cryptographic signature verification
-// The text parser is applied specifically to webhook paths first
-app.use('/api/webhooks/dodo', express.text({ type: '*/*' }));
+app.use(helmet({
+  // The SPA loads Firebase Auth popups and Google fonts; a strict CSP is set at the CDN if needed.
+  contentSecurityPolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+}));
 
-// Global JSON parser for all other endpoints
-app.use(express.json({ limit: '300kb' }));
-app.use(express.urlencoded({ extended: false, limit: '300kb' }));
+// Raw-body routes (signature verification) before the JSON parser.
+registerWebhooks(app);
 
-// COOP header required for Firebase Auth popup to communicate back
+app.use('/api', generalLimiter);
+app.use(express.json({ limit: '400kb' }));
+
+// Minimal request log — never logs bodies (they can contain API keys).
 app.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  const path = req.originalUrl.split('?')[0];
+  if (!path.startsWith('/api')) return next();
+  const start = Date.now();
+  res.on('finish', () => log(`${req.method} ${path} ${res.statusCode} ${Date.now() - start}ms`));
   next();
 });
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+registerRoutes(app);
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  const status = err?.status || err?.statusCode || 500;
+  if (status >= 500) console.error('Unhandled error:', err?.message || err);
+  if (!res.headersSent) res.status(status).json({ error: status >= 500 ? 'Internal error' : err?.message || 'Bad request' });
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  const server = createServer(app);
+  // Long enough for a full synchronous audit; Cloud Run's request timeout should match (300s).
+  server.requestTimeout = 300_000;
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
+  if (isProduction) {
     serveStatic(app);
+  } else {
+    const { setupVite } = await import('./vite');
+    await setupVite(app, server);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5001 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5001', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-
-    const enableScheduler = process.env.NODE_ENV === 'production' || process.env.ENABLE_CITATION_SCHEDULER === 'true';
-    if (enableScheduler) {
-      cron.schedule('0 * * * *', async () => {
-        log('🕐 Citation scheduler: hourly tick');
-        try {
-          await runCitationRefreshCycle();
-        } catch (err: any) {
-          console.error('❌ Citation scheduler error:', err.message);
-        }
-      });
-      log('🗓️ Citation scheduler started (hourly)');
-    } else {
-      log('⏸️ Citation scheduler disabled (set ENABLE_CITATION_SCHEDULER=true or NODE_ENV=production to enable)');
-    }
-  });
+  server.listen({ port, host: '0.0.0.0' }, () => log(`serving on port ${port}`));
 })();

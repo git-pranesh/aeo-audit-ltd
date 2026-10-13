@@ -52,8 +52,6 @@ interface PlaybookResult {
 
 interface FixItPlaybookProps {
   playbook: PlaybookResult;
-  playbookMode?: 'basic' | 'full' | 'full_priority' | 'full_whitelabel';
-  quickWinsLimit?: number;
 }
 
 const priorityConfig: Record<string, { bg: string; text: string; border: string; label: string; dot: string }> = {
@@ -228,10 +226,10 @@ function ActionCard({ action }: { action: PlaybookAction }) {
   );
 }
 
-export default function FixItPlaybook({ playbook, playbookMode = 'full', quickWinsLimit }: FixItPlaybookProps) {
+export default function FixItPlaybook({ playbook }: FixItPlaybookProps) {
   const [showAll, setShowAll] = useState(false);
   const hasQuickWins = playbook.quickWins.length > 0;
-  const maxVisible = playbookMode === 'basic' ? (quickWinsLimit || 3) : (showAll ? playbook.actions.length : 4);
+  const maxVisible = showAll ? playbook.actions.length : 4;
   const displayActions = playbook.actions.slice(0, maxVisible);
   const imp = playbook.estimatedScoreImprovement;
   const maxPlatformImpact = Math.max(imp.chatgpt, imp.perplexity, imp.gemini, imp.claude, 1);
@@ -285,24 +283,11 @@ export default function FixItPlaybook({ playbook, playbookMode = 'full', quickWi
         <Accordion type="multiple" className="space-y-3">
           {displayActions.map((action, index) => (
             <div key={action.id} className="relative">
-              {index === 0 && (playbookMode === 'full_priority' || playbookMode === 'full_whitelabel') && (
-                <Badge className="absolute -top-2 right-2 z-10 bg-primary text-primary-foreground text-xs">Priority</Badge>
-              )}
               <ActionCard action={action} />
             </div>
           ))}
         </Accordion>
-        {playbookMode === 'basic' && playbook.actions.length > (quickWinsLimit || 3) && (
-          <div className="text-center py-4 border border-border/50 rounded-lg bg-muted/20 mt-3">
-            <p className="text-sm text-muted-foreground mb-2">
-              {playbook.actions.length - (quickWinsLimit || 3)} more actions available
-            </p>
-            <Button size="sm" onClick={() => window.location.href = '/pricing'}>
-              Upgrade to Unlock All Actions
-            </Button>
-          </div>
-        )}
-        {playbookMode !== 'basic' && playbook.actions.length > 4 && (
+        {playbook.actions.length > 4 && (
           <div className="text-center pt-2">
             <Button variant="secondary" onClick={() => setShowAll(!showAll)} className="gap-2">
               {showAll ? 'Show Less' : `Show All ${playbook.actions.length} Actions`}

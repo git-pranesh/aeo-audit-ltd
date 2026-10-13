@@ -200,19 +200,6 @@ export class CSVExporter {
       );
     }
 
-    if (!this.auditData.visibilityPotential && this.auditData.citationIntelligence) {
-      const { citationIntelligence } = this.auditData;
-      rows.push(
-        ['Note', 'Scores indicate content alignment potential, not actual citation counts.'],
-        ['Overall Potential', citationIntelligence.currentCitationPresence?.totalCitations?.toString() || 'N/A'],
-        [''],
-        ['Top Content', ''],
-        ...(citationIntelligence.currentCitationPresence?.topCitedContent || []).map((content: string) => ['', content]),
-        [''],
-        ['Opportunities', ''],
-        ...(citationIntelligence.citationOpportunities || []).map((opportunity: string) => ['', opportunity])
-      );
-    }
 
     return rows.map(row => row.map(cell => this.escapeCSV(cell)).join(',')).join('\n');
   }
@@ -260,7 +247,7 @@ export class CSVExporter {
       ''
     );
 
-    if (this.auditData.citationIntelligence) {
+    if (this.auditData.visibilityPotential) {
       sections.push(
         'CITATION INTELLIGENCE',
         this.generateCitationIntelligenceCSV(),

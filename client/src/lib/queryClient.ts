@@ -1,94 +1,54 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import { auth } from "./firebase";
 
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public code?: string) {
+    super(message);
   }
 }
 
-/**
- * Get Firebase auth token for API requests
- */
-async function getAuthToken(): Promise<string | null> {
-  try {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      return await currentUser.getIdToken();
-    }
-    return null;
-  } catch (error) {
-    console.error('Failed to get auth token:', error);
-    return null;
-  }
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await auth.currentUser?.getIdToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function apiRequest(
-  method: string,
-  url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
-  // Get auth token for protected endpoints
-  const token = await getAuthToken();
-  
-  const headers: Record<string, string> = {};
-  if (data) {
-    headers["Content-Type"] = "application/json";
-  }
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-  
+/** Raw fetch with the Firebase ID token attached. Throws ApiError on non-2xx. */
+export async function apiFetch(method: string, url: string, body?: unknown): Promise<Response> {
+  const headers: Record<string, string> = await authHeaders();
+  if (body !== undefined) headers["Content-Type"] = "application/json";
   const res = await fetch(url, {
     method,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-
-  await throwIfResNotOk(res);
+  if (!res.ok) {
+    let message = res.statusText || "Request failed";
+    let code: string | undefined;
+    try {
+      const data = await res.json();
+      message = data.error || message;
+      code = data.code;
+    } catch {
+      // non-JSON error body
+    }
+    throw new ApiError(message, res.status, code);
+  }
   return res;
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    // Get auth token for protected endpoints
-    const token = await getAuthToken();
-    
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-    
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
-      headers,
-    });
-
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
-
-    await throwIfResNotOk(res);
-    return await res.json();
-  };
+export async function api<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const res = await apiFetch(method, url, body);
+  return res.json() as Promise<T>;
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
+      queryFn: async ({ queryKey }) => api("GET", queryKey.join("/")),
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 30_000,
       retry: false,
     },
-    mutations: {
-      retry: false,
-    },
+    mutations: { retry: false },
   },
 });

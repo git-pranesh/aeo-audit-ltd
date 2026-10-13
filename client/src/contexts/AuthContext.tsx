@@ -1,92 +1,57 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { auth } from '@/lib/firebase';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { userDb, type UserDocument } from '@/lib/firestore-utils';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { api } from "@/lib/queryClient";
+import type { MeResponse } from "@shared/api";
 
 interface AuthContextType {
   user: User | null;
-  userDoc: UserDocument | null;
+  me: MeResponse | null;
   loading: boolean;
   isAuthenticated: boolean;
+  refreshMe: () => Promise<MeResponse | null>;
+  setMe: (me: MeResponse) => void;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  userDoc: null,
-  loading: true,
-  isAuthenticated: false
-});
+const AuthContext = createContext<AuthContextType | null>(null);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
-
-interface AuthProviderProps {
-  children: ReactNode;
+export function useAuth(): AuthContextType {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 }
 
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userDoc, setUserDoc] = useState<UserDocument | null>(null);
+  const [me, setMe] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Function to refresh user doc - can be called after sign-in
-  const refreshUserDoc = async (userId: string) => {
-    try {
-      const userDocument = await userDb.getUser(userId);
-      setUserDoc(userDocument);
-      return userDocument;
-    } catch (error) {
-      console.error('Error fetching user document:', error);
+  const refreshMe = useCallback(async () => {
+    if (!auth.currentUser) {
+      setMe(null);
       return null;
     }
-  };
-
-  useEffect(() => {
-    // Simple auth state listener - popup handles everything directly
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('🔄 Auth state:', firebaseUser?.email || 'No user');
-      setUser(firebaseUser);
-      
-      if (firebaseUser) {
-        // Try to get user doc, with retry for newly created users
-        let userDocument = await refreshUserDoc(firebaseUser.uid);
-        
-        // If doc not found, wait a bit and retry (for newly signed up users)
-        if (!userDocument) {
-          console.log('⏳ User doc not found, retrying in 500ms...');
-          await new Promise(resolve => setTimeout(resolve, 500));
-          userDocument = await refreshUserDoc(firebaseUser.uid);
-        }
-        
-        if (!userDocument) {
-          console.log('⏳ Still not found, retrying in 1s...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          await refreshUserDoc(firebaseUser.uid);
-        }
-      } else {
-        setUserDoc(null);
-      }
-      
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    try {
+      const data = await api<MeResponse>("GET", "/api/me");
+      setMe(data);
+      return data;
+    } catch (err) {
+      console.error("Failed to load account:", err);
+      return null;
+    }
   }, []);
 
-  const value: AuthContextType = {
-    user,
-    userDoc,
-    loading,
-    isAuthenticated: !!user
-  };
+  useEffect(() => {
+    return onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) await refreshMe();
+      else setMe(null);
+      setLoading(false);
+    });
+  }, [refreshMe]);
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, me, loading, isAuthenticated: !!user, refreshMe, setMe }}>
       {children}
     </AuthContext.Provider>
   );

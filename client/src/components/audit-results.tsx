@@ -1,129 +1,36 @@
-import { useState } from "react";
-import { CheckCircle, AlertTriangle, Settings, Lightbulb, Share2, Clock, Database, ChevronDown, ChevronUp, HelpCircle, BarChart3, Download } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { CheckCircle, AlertTriangle, Settings, Lightbulb, Clock, Database, ChevronDown, ChevronUp, HelpCircle, BarChart3 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import type { AuditData, ContentTopic } from "@shared/schema";
-import { useAuth } from "@/contexts/AuthContext";
-import { auth } from "@/lib/firebase";
-import { getFeatureFlags } from "@/lib/feature-flags";
-import { useEffectivePlan } from "@/contexts/ViewAsPlanContext";
 import CompanyIntelligenceComponent from "./company-intelligence";
 import CompetitorAnalysisComponent from "./competitor-analysis";
 import CitationIntelligenceComponent from "./citation-intelligence";
-import CitationSnapshot from "./citation-snapshot";
-import MarketContextComponent from "./market-context";
 import EnhancedTopicCard from "./enhanced-topic-card";
 import EnhancedRecommendationsComponent from "./enhanced-recommendations";
 import FixItPlaybook from "./fix-it-playbook";
 import IndustryBenchmark from "./industry-benchmark";
-import ScoreHistoryChart from "@/components/score-history-chart";
 import SchemaGenerator from "./schema-generator";
 import MethodologyTooltip, { MethodologyBanner } from "./methodology-tooltip";
-import QuickWinsChecklist from "./quick-wins-checklist";
-import { AdminGatingBadge } from "./admin-gating-badge";
 import BlueprintScoreDisplay from "@/components/blueprint-score-display";
 
 interface AuditResultsProps {
   auditData: AuditData;
   websiteUrl: string;
-  auditId?: string;
-  lastCitationRefreshAt?: string | null;
-  // When true, renders a read-only view for the public share page: hides
-  // actions that require an authenticated user (e.g. AEO file generation).
-  publicView?: boolean;
+  /** Rendered where the citation snapshot belongs (the parent owns the manual-run button). */
+  citationSlot?: ReactNode;
 }
 
-export default function AuditResults({ auditData, websiteUrl, auditId, lastCitationRefreshAt, publicView }: AuditResultsProps) {
-  const { toast } = useToast();
-  const { userDoc } = useAuth();
-  const effectivePlan = useEffectivePlan();
-  const flags = getFeatureFlags(effectivePlan);
+export default function AuditResults({ auditData, websiteUrl, citationSlot }: AuditResultsProps) {
   const [activeTopicCategory, setActiveTopicCategory] = useState<keyof typeof auditData.contentTopics>("authoritative");
   const [showAllTopics, setShowAllTopics] = useState(false);
   const [showScoreExplanation, setShowScoreExplanation] = useState(true);
-  const [generatingFiles, setGeneratingFiles] = useState(false);
-
-  const handleGenerateFiles = async () => {
-    setGeneratingFiles(true);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const ci = auditData.companyIntelligence;
-      const response = await fetch('/api/generate-aeo-files', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          websiteUrl,
-          companyName: ci?.companyName,
-          industry: ci?.industry,
-          businessType: ci?.businessType,
-          targetAudience: ci?.targetAudience,
-          valueProposition: ci?.valueProposition,
-          keywords: [],
-          competitors: [],
-          userPlan: effectivePlan,
-        }),
-      });
-
-      if (response.status === 403) {
-        toast({ title: 'Upgrade required', description: 'AEO file generation requires Pro plan or above.' });
-        return;
-      }
-      if (!response.ok) throw new Error('Generation failed');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${ci?.companyName || 'site'}-aeo-files.zip`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      toast({ title: 'Error', description: 'Could not generate files. Try again.' });
-    } finally {
-      setGeneratingFiles(false);
-    }
-  };
-
   const topicCategories = [
     { key: "authoritative" as const, label: "Authoritative", range: "85-95%" },
     { key: "thoughtLeadership" as const, label: "Thought Leadership", range: "70-84%" },
     { key: "competitiveAdvantage" as const, label: "Competitive Advantage", range: "50-69%" },
     { key: "emergingOpportunity" as const, label: "Emerging Opportunity", range: "30-49%" }
   ];
-
-  // Share functionality
-  const handleShare = async () => {
-    const shareData = {
-      title: `AI Readiness Results for ${(() => { try { return new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname; } catch { return websiteUrl; } })()}`,
-      text: `AI Readiness Score: ${auditData.auditResults.overallScore}/100 (Grade: ${auditData.auditResults.letterGrade}). Get your website analyzed for AI search visibility.`,
-      url: window.location.href
-    };
-
-    try {
-      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-        await navigator.share(shareData);
-        toast({
-          title: "Shared successfully",
-          description: "Audit results have been shared.",
-        });
-      } else {
-        // Fallback to clipboard
-        await navigator.clipboard.writeText(`${shareData.title}\n${shareData.text}\n${shareData.url}`);
-        toast({
-          title: "Copied to clipboard",
-          description: "Audit results summary has been copied to your clipboard.",
-        });
-      }
-    } catch (error) {
-      console.error('Share failed:', error);
-      toast({
-        title: "Share failed",
-        description: "Unable to share results. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Get current topic count dynamically
   const getCurrentTopicCount = () => {
@@ -189,66 +96,6 @@ export default function AuditResults({ auditData, websiteUrl, auditId, lastCitat
               <p className="text-sm text-foreground leading-relaxed">
                 {auditData.scrapingStatus.largeSiteNote || 'Large site detected — analysis based on sampled pages.'}
               </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* AI Competitor Context Disclaimer */}
-      <Card className="bg-blue-500/10 border border-blue-500/30 shadow-lg fade-in-up">
-        <CardContent className="p-4 flex items-start space-x-3">
-          <Database className="h-5 w-5 text-blue-700 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-semibold text-blue-700 mb-1">About Competitor Analysis</h3>
-            <p className="text-sm text-muted-foreground">
-              Competitors shown are websites that AI platforms (ChatGPT, Perplexity, Gemini, Claude) cite when users ask questions in your industry - not necessarily your direct business competitors. This shows who you're competing against for AI visibility and citations.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Content Verification Summary - shown when LLM verification was performed */}
-      {auditData.contentVerification?.wasVerified && (
-        <Card className="bg-emerald-500/10 border border-emerald-500/30 shadow-lg fade-in-up">
-          <CardContent className="p-4">
-            <div className="flex items-start space-x-3">
-              <CheckCircle className="h-5 w-5 text-emerald-700 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-emerald-700 mb-2">AI-Verified Content Analysis</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  We sampled and verified your content using AI to ensure accuracy. Numbers below show verified counts from URL candidates detected:
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                  {auditData.contentVerification.tutorials.candidates > 0 && (
-                    <div className="bg-background/50 rounded-lg p-2">
-                      <div className="text-emerald-700 font-medium">Tutorials</div>
-                      <div className="text-foreground">{auditData.contentVerification.tutorials.verified} verified</div>
-                      <div className="text-muted-foreground">from {auditData.contentVerification.tutorials.candidates} detected</div>
-                    </div>
-                  )}
-                  {auditData.contentVerification.caseStudies.candidates > 0 && (
-                    <div className="bg-background/50 rounded-lg p-2">
-                      <div className="text-emerald-700 font-medium">Case Studies</div>
-                      <div className="text-foreground">{auditData.contentVerification.caseStudies.verified} verified</div>
-                      <div className="text-muted-foreground">from {auditData.contentVerification.caseStudies.candidates} detected</div>
-                    </div>
-                  )}
-                  {auditData.contentVerification.faqs.candidates > 0 && (
-                    <div className="bg-background/50 rounded-lg p-2">
-                      <div className="text-emerald-700 font-medium">FAQs</div>
-                      <div className="text-foreground">{auditData.contentVerification.faqs.verified} verified</div>
-                      <div className="text-muted-foreground">from {auditData.contentVerification.faqs.candidates} detected</div>
-                    </div>
-                  )}
-                  {auditData.contentVerification.frameworks.candidates > 0 && (
-                    <div className="bg-background/50 rounded-lg p-2">
-                      <div className="text-emerald-700 font-medium">Frameworks</div>
-                      <div className="text-foreground">{auditData.contentVerification.frameworks.verified} verified</div>
-                      <div className="text-muted-foreground">from {auditData.contentVerification.frameworks.candidates} detected</div>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -449,7 +296,6 @@ export default function AuditResults({ auditData, websiteUrl, auditId, lastCitat
         </CardContent>
       </Card>
 
-      {auditId && <ScoreHistoryChart auditId={auditId} />}
 
       {/* AEO Blueprint Score */}
       {auditData.blueprintResult && (
@@ -468,16 +314,6 @@ export default function AuditResults({ auditData, websiteUrl, auditId, lastCitat
             claude: auditData.auditResults.platformScores.claude,
           }}
         />
-      )}
-
-      {/* Quick Wins Checklist - Promoted to top for actionability */}
-      {auditId && auditData.playbook && auditData.playbook.actions.length > 0 && (
-        <div className="relative">
-          <div className="flex items-center justify-end mb-1">
-            <AdminGatingBadge feature="quickWinsLimit" label="Quick Wins" />
-          </div>
-          <QuickWinsChecklist auditId={auditId} playbook={auditData.playbook} />
-        </div>
       )}
 
       {/* Findings Grid */}
@@ -569,43 +405,21 @@ export default function AuditResults({ auditData, websiteUrl, auditId, lastCitat
       )}
 
       {/* Visibility Potential / Citation Intelligence */}
-      {(auditData.visibilityPotential || auditData.citationIntelligence) && (
-        <CitationIntelligenceComponent 
+      {auditData.visibilityPotential && (
+        <CitationIntelligenceComponent
           visibilityPotential={auditData.visibilityPotential}
           competitorGaps={auditData.competitorGaps}
           disclaimers={auditData.disclaimers}
-          citationIntelligence={auditData.citationIntelligence} 
         />
       )}
 
-      {auditData.citationSnapshot && (
-        <div className="relative">
-          <div className="flex items-center justify-end mb-1">
-            <AdminGatingBadge feature="competitorWatchlistLimit" label="Competitors" />
-          </div>
-          <CitationSnapshot
-            citationSnapshot={auditData.citationSnapshot}
-            competitorLimit={flags.competitorWatchlistLimit}
-            lastCheckedAt={lastCitationRefreshAt ?? auditData.citationSnapshot?.generatedAt ?? null}
-            monitoringFrequency={flags.citationMonitoringFrequency}
-          />
-        </div>
-      )}
+      {citationSlot}
 
       {auditData.playbook && auditData.playbook.actions.length > 0 && (
-        <div className="relative">
-          <div className="flex items-center justify-end mb-1">
-            <AdminGatingBadge feature="playbooks" label="Playbook" />
-          </div>
-          <FixItPlaybook playbook={auditData.playbook} playbookMode={flags.playbooks} quickWinsLimit={flags.quickWinsLimit} />
-        </div>
+        <FixItPlaybook playbook={auditData.playbook} />
       )}
 
       {auditData.scoreExplanation && (
-        <div className="relative">
-          <div className="flex items-center justify-end mb-1">
-            <AdminGatingBadge feature="schemaGeneratorLimit" label="Schemas" />
-          </div>
           <SchemaGenerator
           companyIntelligence={auditData.companyIntelligence}
           contentSignals={{
@@ -616,27 +430,7 @@ export default function AuditResults({ auditData, websiteUrl, auditId, lastCitat
           }}
           companyName={(() => { try { return new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname.replace('www.', ''); } catch { return websiteUrl; } })()}
           websiteUrl={websiteUrl}
-          schemaLimit={flags.schemaGeneratorLimit}
         />
-        </div>
-      )}
-
-      {!publicView && (
-        <Card>
-          <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h3 className="font-semibold flex items-center gap-2">
-                <Download className="h-4 w-4" /> AI-Ready Files
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Download llms.txt, schema markup, robots.txt fix and more as a ZIP.
-              </p>
-            </div>
-            <Button onClick={handleGenerateFiles} disabled={generatingFiles} data-testid="button-generate-aeo-files">
-              {generatingFiles ? 'Generating…' : 'Generate AEO Files'}
-            </Button>
-          </CardContent>
-        </Card>
       )}
 
       {/* Content Topics Section */}
@@ -644,7 +438,6 @@ export default function AuditResults({ auditData, websiteUrl, auditId, lastCitat
         <div className="text-center">
           <h2 className="text-3xl font-bold mb-2">
             Content Opportunities
-            <AdminGatingBadge feature="topicsPerCategory" label="Topics/cat" />
           </h2>
           <p className="text-muted-foreground">AI-generated topics to boost your AI readiness</p>
         </div>
@@ -714,11 +507,6 @@ export default function AuditResults({ auditData, websiteUrl, auditId, lastCitat
           )}
         </div>
       </div>
-
-      {/* Market Context - New */}
-      {auditData.marketContext && (
-        <MarketContextComponent marketContext={auditData.marketContext} />
-      )}
 
       {/* Processing Details - New */}
       {auditData.processingDetails && (

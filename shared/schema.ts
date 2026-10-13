@@ -75,10 +75,10 @@ export const topicWarningSchema = z.object({
 
 // Content topics schema (flexible length for dynamic topic generation)
 export const contentTopicsSchema = z.object({
-  authoritative: z.array(contentTopicSchema).min(1),
-  thoughtLeadership: z.array(contentTopicSchema).min(1),
-  competitiveAdvantage: z.array(contentTopicSchema).min(1),
-  emergingOpportunity: z.array(contentTopicSchema).min(1)
+  authoritative: z.array(contentTopicSchema),
+  thoughtLeadership: z.array(contentTopicSchema),
+  competitiveAdvantage: z.array(contentTopicSchema),
+  emergingOpportunity: z.array(contentTopicSchema)
 });
 
 // New enhanced schemas
@@ -102,19 +102,6 @@ export const competitorAnalysisSchema = z.object({
   competitiveAdvantages: z.array(z.string()).optional()
 });
 
-export const citationIntelligenceSchema = z.object({
-  currentCitationPresence: z.object({
-    totalCitations: z.number(),
-    platformBreakdown: platformScoresSchema,
-    topCitedContent: z.array(z.string())
-  }),
-  competitorCitationAnalysis: z.object({
-    competitorCitations: z.record(z.number()),
-    citationGaps: z.array(z.string())
-  }),
-  citationOpportunities: z.array(z.string())
-});
-
 // New honest visibility potential schema (replaces fake citation counts)
 export const visibilityPotentialSchema = z.object({
   overallPotential: z.string(),
@@ -134,20 +121,6 @@ export const competitorGapsSchema = z.object({
 export const disclaimersSchema = z.object({
   note: z.string(),
   searchVolumeNote: z.string()
-});
-
-export const marketContextSchema = z.object({
-  industryTrends: z.array(z.string()),
-  seasonalFactors: z.object({
-    peakSeason: z.string(),
-    contentTiming: z.string(),
-    searchTrends: z.string()
-  }).optional(),
-  marketSize: z.object({
-    globalMarket: z.string(),
-    marketGrowth: z.string(),
-    targetMarketSize: z.string()
-  }).optional()
 });
 
 export const enhancedRecommendationSchema = z.object({
@@ -181,14 +154,6 @@ export const auditDataSchema = z.object({
     largeSiteDetected: z.boolean().optional(),
     largeSiteNote: z.string().optional(),
   }).optional(),
-  // Content verification summary for UI transparency (shows LLM-verified counts)
-  contentVerification: z.object({
-    tutorials: z.object({ candidates: z.number(), verified: z.number(), accuracy: z.number() }),
-    caseStudies: z.object({ candidates: z.number(), verified: z.number(), accuracy: z.number() }),
-    faqs: z.object({ candidates: z.number(), verified: z.number(), accuracy: z.number() }),
-    frameworks: z.object({ candidates: z.number(), verified: z.number(), accuracy: z.number() }),
-    wasVerified: z.boolean()
-  }).optional(),
   // "Why This Score" explanation - shows what content signals drove each platform's score
   scoreExplanation: z.object({
     contentSignals: z.object({
@@ -214,11 +179,9 @@ export const auditDataSchema = z.object({
   // New enhanced fields (optional for backward compatibility)
   companyIntelligence: companyIntelligenceSchema.optional(),
   competitorAnalysis: competitorAnalysisSchema.optional(),
-  citationIntelligence: citationIntelligenceSchema.optional(),
   visibilityPotential: visibilityPotentialSchema.optional(),
   competitorGaps: competitorGapsSchema.optional(),
   disclaimers: disclaimersSchema.optional(),
-  marketContext: marketContextSchema.optional(),
   enhancedRecommendations: z.array(enhancedRecommendationSchema).optional(),
   playbook: z.object({
     actions: z.array(z.object({
@@ -329,23 +292,11 @@ export const auditDataSchema = z.object({
   blueprintResult: z.any().optional()
 });
 
-// API request/response schemas
+// API request schema (client-side URL validation)
 export const auditRequestSchema = z.object({
-  websiteUrl: z.string().url(),
-  userPlan: z.string().optional(),
-  userId: z.string().optional(),
-  userEmail: z.string().email().optional(),
-  topicsPerCategory: z.number().optional()
+  websiteUrl: z.string().min(3, 'Enter a website address'),
 });
 
-export const auditResponseSchema = z.object({
-  success: z.boolean(),
-  websiteUrl: z.string(),
-  auditData: auditDataSchema,
-  generatedAt: z.string()
-});
-
-// Types
 export type PlatformScores = z.infer<typeof platformScoresSchema>;
 export type TechnicalFindings = z.infer<typeof technicalFindingsSchema>;
 export type AuditResults = z.infer<typeof auditResultsSchema>;
@@ -353,14 +304,11 @@ export type ContentTopic = z.infer<typeof contentTopicSchema>;
 export type ContentTopics = z.infer<typeof contentTopicsSchema>;
 export type AuditData = z.infer<typeof auditDataSchema>;
 export type AuditRequest = z.infer<typeof auditRequestSchema>;
-export type AuditResponse = z.infer<typeof auditResponseSchema>;
 
 // New enhanced types
 export type CompanyIntelligence = z.infer<typeof companyIntelligenceSchema>;
 export type CompetitorAnalysis = z.infer<typeof competitorAnalysisSchema>;
-export type CitationIntelligence = z.infer<typeof citationIntelligenceSchema>;
 export type VisibilityPotential = z.infer<typeof visibilityPotentialSchema>;
 export type CompetitorGaps = z.infer<typeof competitorGapsSchema>;
 export type Disclaimers = z.infer<typeof disclaimersSchema>;
-export type MarketContext = z.infer<typeof marketContextSchema>;
 export type EnhancedRecommendation = z.infer<typeof enhancedRecommendationSchema>;

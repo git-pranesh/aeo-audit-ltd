@@ -2,15 +2,11 @@ import { useEffect, useState } from "react";
 import { Loader2, Sparkles, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
 
 const AUDIT_STAGES = [
   { name: "Scanning Website", description: "Fetching pages and sitemap" },
   { name: "Extracting Content Signals", description: "Analyzing content structure" },
-  { name: "Analyzing Company Intelligence", description: "Understanding your business" },
   { name: "Calculating Platform Scores", description: "Scoring across AI platforms" },
-  { name: "Analyzing Competitors", description: "Finding competitive insights" },
   { name: "Generating Topics", description: "Creating content recommendations" },
   { name: "Finalizing Report", description: "Compiling your audit results" }
 ];
@@ -24,10 +20,10 @@ const DEFAULT_LOADING_MESSAGES = [
   "We're building your roadmap to AI search dominance. Worth the wait!",
   "Fun fact: 99% of businesses aren't on AI search radar. You're about to join the 1%.",
   "Deep analysis in progress—your competitors wish they had this intel...",
-  "Processing enterprise-grade analysis: 4 platforms × 100 topics × readiness algorithms...",
+  "Scoring your content across ChatGPT, Perplexity, Gemini and Claude...",
   "Our AI is analyzing millions of successful AI recommendations to predict your best topics...",
   "Running advanced entity recognition and content structure optimization...",
-  "Brewing 100+ topics that AI platforms will love recommending. Almost there!"
+  "Drafting content topics that AI platforms will love recommending. Almost there!"
 ];
 
 interface LoadingStateProps {
@@ -37,7 +33,7 @@ interface LoadingStateProps {
 export default function LoadingState({ currentStage = 0 }: LoadingStateProps) {
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(DEFAULT_LOADING_MESSAGES);
+  const loadingMessages = DEFAULT_LOADING_MESSAGES;
   const [elapsedTime, setElapsedTime] = useState(0);
   const [estimatedStage, setEstimatedStage] = useState(0);
 
@@ -62,25 +58,6 @@ export default function LoadingState({ currentStage = 0 }: LoadingStateProps) {
 
   const displayStage = estimatedStage;
   const progressPercent = Math.round(((displayStage + 1) / AUDIT_STAGES.length) * 100);
-
-  // Load loading messages from Firestore
-  useEffect(() => {
-    const loadMessages = async () => {
-      try {
-        const docRef = doc(db, 'settings', 'homePageContent');
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists() && docSnap.data().loadingMessages) {
-          setLoadingMessages(docSnap.data().loadingMessages);
-          console.log('✅ Loading messages loaded from database');
-        }
-      } catch (error) {
-        console.error('❌ Error loading messages:', error);
-      }
-    };
-
-    loadMessages();
-  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {

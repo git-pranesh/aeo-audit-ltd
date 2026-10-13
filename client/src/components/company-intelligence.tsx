@@ -14,7 +14,7 @@ export default function CompanyIntelligenceComponent({ companyIntelligence, webs
     <section className="mb-8">
       <div className="text-center mb-6">
         <h2 className="text-3xl font-bold mb-2">Company Intelligence</h2>
-        <p className="text-muted-foreground">Auto-detected business context from {domain}</p>
+        <p className="text-muted-foreground">Business context confirmed for {domain}</p>
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

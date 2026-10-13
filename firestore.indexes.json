@@ -1,0 +1,15 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "audits",
+      "fieldPath": "auditData",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "audits",
+      "fieldPath": "aeoInputs",
+      "indexes": []
+    }
+  ]
+}

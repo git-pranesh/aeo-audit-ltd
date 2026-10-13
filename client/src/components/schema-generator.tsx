@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import UpgradePromptCard from "./upgrade-prompt-card";
 
 interface SchemaGeneratorProps {
   companyIntelligence?: {
@@ -540,15 +539,6 @@ export default function SchemaGenerator({
             <SchemaCodeBlock key={block.id} block={block} />
           ))}
         </div>
-        {lockedCount > 0 && (
-          <div className="mt-4">
-            <UpgradePromptCard
-              targetPlan="starter"
-              headline={`Generate all ${lockedCount + visibleBlocks.length} schema types for your site`}
-              compact
-            />
-          </div>
-        )}
       </CardContent>
     </Card>
   );

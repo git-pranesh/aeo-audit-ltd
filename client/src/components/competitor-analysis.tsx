@@ -12,7 +12,7 @@ export default function CompetitorAnalysisComponent({ competitorAnalysis }: Comp
     <section className="mb-8">
       <div className="text-center mb-6">
         <h2 className="text-3xl font-bold mb-2">Competitive Landscape</h2>
-        <p className="text-muted-foreground">Auto-discovered competitors and market analysis</p>
+        <p className="text-muted-foreground">How you compare with the competitors you listed</p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 mb-6">

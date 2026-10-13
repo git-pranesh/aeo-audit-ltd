@@ -4,12 +4,23 @@
  */
 import { jsPDF } from 'jspdf';
 import type { AuditData, ContentTopic } from "@shared/schema";
+import type { Branding } from "@shared/api";
 
 interface AuditPDFOptions {
   auditData: AuditData;
   websiteUrl: string;
   generatedAt: string;
-  pdfMode?: 'watermarked' | 'clean' | 'whitelabel';
+  /** Agency license only: replaces Citation Rocket branding throughout the PDF. */
+  branding?: Branding | null;
+}
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : null;
+}
+
+function tint(rgb: [number, number, number], amount: number): [number, number, number] {
+  return rgb.map((c) => Math.round(c + (255 - c) * amount)) as [number, number, number];
 }
 
 const COLORS = {
@@ -62,7 +73,9 @@ export class AuditPDFGenerator {
   private contentWidth: number;
   private pageCount: number = 0;
   private totalPages: number = 0;
-  private pdfMode: 'watermarked' | 'clean' | 'whitelabel';
+  private pdfMode: 'clean' | 'whitelabel';
+  private branding: Branding | null;
+  private reportTitle: string;
 
   constructor(options: AuditPDFOptions) {
     this.pdf = new jsPDF('portrait', 'mm', 'a4');
@@ -73,21 +86,9 @@ export class AuditPDFGenerator {
     this.pageHeight = this.pdf.internal.pageSize.getHeight();
     this.contentWidth = this.pageWidth - (this.margin * 2);
     this.y = this.margin;
-    this.pdfMode = options.pdfMode || 'clean';
-  }
-
-  private addWatermark(): void {
-    (this.pdf as any).saveGraphicsState();
-    const gState = new (this.pdf as any).GState({ opacity: 0.06 });
-    (this.pdf as any).setGState(gState);
-    this.pdf.setFontSize(42);
-    this.pdf.setFont('helvetica', 'bold');
-    this.pdf.setTextColor(200, 200, 200);
-    this.pdf.text('CITATION ROCKET  \u2014  FREE PLAN', this.pageWidth / 2, this.pageHeight / 2, {
-      align: 'center',
-      angle: 45,
-    });
-    (this.pdf as any).restoreGraphicsState();
+    this.branding = options.branding ?? null;
+    this.pdfMode = this.branding ? 'whitelabel' : 'clean';
+    this.reportTitle = this.branding?.reportTitle || 'AI Readiness Report';
   }
 
   private checkPageBreak(requiredSpace: number = 15): void {
@@ -97,9 +98,6 @@ export class AuditPDFGenerator {
       this.pageCount++;
       this.y = 20;
       this.addPageHeader();
-      if (this.pdfMode === 'watermarked') {
-        this.addWatermark();
-      }
     }
   }
 
@@ -107,7 +105,7 @@ export class AuditPDFGenerator {
     this.pdf.setFontSize(7);
     this.pdf.setFont('helvetica', 'normal');
     this.pdf.setTextColor(...COLORS.textMuted);
-    this.pdf.text(`AI Readiness Report — ${this.domain}`, this.margin, 12);
+    this.pdf.text(`${this.reportTitle} — ${this.domain}`, this.margin, 12);
     this.pdf.setDrawColor(...COLORS.borderLight);
     this.pdf.setLineWidth(0.3);
     this.pdf.line(this.margin, 15, this.pageWidth - this.margin, 15);
@@ -122,9 +120,8 @@ export class AuditPDFGenerator {
     this.pdf.setFontSize(7);
     this.pdf.setFont('helvetica', 'normal');
     this.pdf.setTextColor(...COLORS.textMuted);
-    if (this.pdfMode !== 'whitelabel') {
-      this.pdf.text('citationrocket.com', this.margin, footerY);
-    }
+    const footerLeft = this.branding ? this.branding.footerText || this.branding.agencyName : 'citationrocket.com';
+    if (footerLeft) this.pdf.text(footerLeft.slice(0, 90), this.margin, footerY);
     this.pdf.text(`Page ${this.pageCount}`, this.pageWidth - this.margin, footerY, { align: 'right' });
   }
 
@@ -255,15 +252,23 @@ export class AuditPDFGenerator {
     this.pdf.setLineWidth(0.3);
 
     this.pdf.setTextColor(255, 255, 255);
-    if (this.pdfMode !== 'whitelabel') {
-      this.pdf.setFontSize(10);
-      this.pdf.setFont('helvetica', 'bold');
-      this.pdf.text('CITATION ROCKET', this.margin, 25);
+    this.pdf.setFontSize(10);
+    this.pdf.setFont('helvetica', 'bold');
+    this.pdf.text((this.branding?.agencyName || 'Citation Rocket').toUpperCase().slice(0, 60), this.margin, 25);
+    if (this.branding?.logoDataUrl) {
+      try {
+        const props = this.pdf.getImageProperties(this.branding.logoDataUrl);
+        const h = 16;
+        const w = Math.min(50, (props.width / props.height) * h);
+        this.pdf.addImage(this.branding.logoDataUrl, props.fileType, this.pageWidth - this.margin - w, 14, w, h);
+      } catch {
+        // An unreadable logo must never break the export.
+      }
     }
 
     this.pdf.setFontSize(24);
     this.pdf.setFont('helvetica', 'bold');
-    this.pdf.text('AI Readiness Report', this.margin, 45);
+    this.pdf.text(this.reportTitle.slice(0, 40), this.margin, 45);
 
     this.pdf.setFontSize(16);
     this.pdf.setFont('helvetica', 'normal');
@@ -360,10 +365,6 @@ export class AuditPDFGenerator {
       if (ci.valueProposition) {
         this.addKeyValue('Value Proposition', ci.valueProposition);
       }
-    }
-
-    if (this.pdfMode === 'watermarked') {
-      this.addWatermark();
     }
   }
 
@@ -1214,15 +1215,17 @@ export class AuditPDFGenerator {
     this.pdf.line(this.margin, this.y, this.pageWidth - this.margin, this.y);
     this.y += 8;
 
-    if (this.pdfMode !== 'whitelabel') {
-      this.pdf.setFontSize(9);
-      this.pdf.setFont('helvetica', 'bold');
-      this.pdf.setTextColor(...COLORS.primary);
-      this.pdf.text('Citation Rocket', this.pageWidth / 2, this.y, { align: 'center' });
-      this.y += 5;
-      this.pdf.setFontSize(7);
-      this.pdf.setFont('helvetica', 'normal');
-      this.pdf.setTextColor(...COLORS.textMuted);
+    this.pdf.setFontSize(9);
+    this.pdf.setFont('helvetica', 'bold');
+    this.pdf.setTextColor(...COLORS.primary);
+    this.pdf.text(this.branding?.agencyName || 'Citation Rocket', this.pageWidth / 2, this.y, { align: 'center' });
+    this.y += 5;
+    this.pdf.setFontSize(7);
+    this.pdf.setFont('helvetica', 'normal');
+    this.pdf.setTextColor(...COLORS.textMuted);
+    if (this.branding) {
+      if (this.branding.footerText) this.pdf.text(this.branding.footerText.slice(0, 120), this.pageWidth / 2, this.y, { align: 'center' });
+    } else {
       this.pdf.text('AI Readiness Optimization Platform', this.pageWidth / 2, this.y, { align: 'center' });
       this.y += 4;
       this.pdf.text(`\u00A9 ${new Date().getFullYear()} Citation Rocket. All rights reserved.`, this.pageWidth / 2, this.y, { align: 'center' });
@@ -1232,15 +1235,28 @@ export class AuditPDFGenerator {
   // ===================== GENERATE =====================
 
   private generate(): void {
+    // Agency accent colour: swap the palette for this render only.
+    const saved = { primary: COLORS.primary, primaryLight: COLORS.primaryLight, primaryBg: COLORS.primaryBg };
+    const accent = this.branding ? hexToRgb(this.branding.accentColor) : null;
+    if (accent) {
+      COLORS.primary = accent;
+      COLORS.primaryLight = tint(accent, 0.15);
+      COLORS.primaryBg = tint(accent, 0.92);
+    }
+    try {
+      this.render();
+    } finally {
+      Object.assign(COLORS, saved);
+    }
+  }
+
+  private render(): void {
     this.addCoverPage();
 
     this.addPageFooter();
     this.pdf.addPage();
     this.pageCount++;
     this.addPageHeader();
-    if (this.pdfMode === 'watermarked') {
-      this.addWatermark();
-    }
 
     this.addScoreBreakdown();
     this.addIndustryBenchmark();
@@ -1255,7 +1271,8 @@ export class AuditPDFGenerator {
   }
 
   public getFileName(): string {
-    return `AI-Readiness-Report-${this.domain}-${new Date().toISOString().split('T')[0]}.pdf`;
+    const prefix = this.reportTitle.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'AI-Readiness-Report';
+    return `${prefix}-${this.domain}-${new Date().toISOString().split('T')[0]}.pdf`;
   }
 
   public downloadPDF(): void {
@@ -1276,7 +1293,7 @@ export class AuditPDFGenerator {
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
-          title: `AI Readiness Report - ${this.domain}`,
+          title: `${this.reportTitle} - ${this.domain}`,
           text: `Overall Score: ${this.auditData.auditResults.overallScore}/100`,
           files: [file]
         });
