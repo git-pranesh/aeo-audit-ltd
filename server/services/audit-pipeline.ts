@@ -356,7 +356,17 @@ export async function runAudit(params: {
     hasLlmsTxt: scrape.llmsTxtFound,
   };
 
-  return { auditData, aeoInputs };
+  return { auditData: stripEmDashes(auditData), aeoInputs };
+}
+
+/** House style: no em dashes in reports (models use them a lot). */
+function stripEmDashes<T>(value: T): T {
+  if (typeof value === 'string') return value.replace(/\s*\u2014\s*/g, ', ').replace(/ \u2013 /g, ', ') as T;
+  if (Array.isArray(value)) return value.map(stripEmDashes) as T;
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, stripEmDashes(v)])) as T;
+  }
+  return value;
 }
 
 // ─── Deterministic report helpers ─────────────────────────────────────────────

@@ -488,11 +488,11 @@ export function generateSignalBasedWeaknesses(
   const weaknesses: string[] = [];
   
   if (signals.tutorialCount < 5) {
-    weaknesses.push(`Your site has ${signals.tutorialCount} tutorials (industry benchmark: ${benchmarks.tutorials}+)—content gap for practical how-to content that ChatGPT prefers`);
+    weaknesses.push(`Your site has ${signals.tutorialCount} tutorials (industry benchmark: ${benchmarks.tutorials}+): content gap for practical how-to content that ChatGPT prefers`);
   }
   
   if (signals.caseStudyCount < 3) {
-    weaknesses.push(`Your site has ${signals.caseStudyCount} case studies (industry benchmark: ${benchmarks.caseStudies}+)—limited social proof for AI platforms to cite`);
+    weaknesses.push(`Your site has ${signals.caseStudyCount} case studies (industry benchmark: ${benchmarks.caseStudies}+): limited social proof for AI platforms to cite`);
   }
   
   if (signals.schemaTypeCount < 2) {
