@@ -455,11 +455,20 @@ function extractCompetitors(
  * "Merino wool"). One cheap structured call keeps only real businesses,
  * brands and organizations actually recommended in each answer.
  */
+/** True when the answer presents `name` as the company's own product, e.g. "Allbirds Wool Runner" or "Allbirds' Tree Dasher". */
+export function isOwnProduct(name: string, companyName: string, answer: string): boolean {
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const core = name.replace(/^(the|a)\s+/i, '').trim();
+  if (!core || !companyName.trim()) return false;
+  const re = new RegExp(`${esc(companyName.trim())}(?:['’]s?)?\\s+(?:the\\s+|new\\s+)?${esc(core)}`, 'i');
+  return re.test(answer);
+}
+
 async function refineCompetitorNames(results: PromptResult[], params: CitationSnapshotParams): Promise<void> {
   const answered = results.map((r, i) => ({ i, text: r.fullResponse.slice(0, 1800) })).filter((r) => r.text);
   if (answered.length === 0) return;
   try {
-    const parsed = await llmJson<{ i: number; names: string[] }[]>(
+    const parsed = await llmJson<{ i: number; names: string[]; own?: string[] }[]>(
       {
         task: 'structured',
         apiKey: params.apiKey,
@@ -469,23 +478,25 @@ async function refineCompetitorNames(results: PromptResult[], params: CitationSn
         temperature: 0,
         messages: [{
           role: 'user',
-          content: `For each AI answer below, list the businesses, brands, products-with-brand-names or organizations it names or recommends (e.g. "Water.org", "Red Robin", "Make"). Exclude ${params.companyName} and its own products or sub-brands, generic terms ("lawyers", "chatbot", "merino wool"), instructions/steps, places, websites like Reddit/Yelp/Wikipedia, and publications.
+          content: `For each AI answer below, list the OTHER businesses, brands, products-with-brand-names or organizations it names or recommends (e.g. "Water.org", "Red Robin", "Make"). Put anything made or sold by ${params.companyName} (its own products, product lines, sub-brands or services) in "own" instead, never in "names". Exclude generic terms ("lawyers", "chatbot", "merino wool"), instructions/steps, places, websites like Reddit/Yelp/Wikipedia, and publications.
 
 ${answered.map((a) => `### ANSWER ${a.i}\n${a.text}`).join('\n\n')}
 
-Return JSON {"results": [{"i": <answer number>, "names": ["Brand", ...]}]}. Empty list if none. JSON only.`,
+Return JSON {"results": [{"i": <answer number>, "names": ["Other brand", ...], "own": ["${params.companyName} product", ...]}]}. Empty lists if none. JSON only.`,
         }],
       },
       (raw) => (Array.isArray(raw?.results) ? raw.results : null),
     );
     const own = params.companyName.toLowerCase();
+    const ownProducts = new Set(parsed.flatMap((r) => (Array.isArray(r.own) ? r.own : [])).filter((n): n is string => typeof n === 'string').map((n) => n.trim().toLowerCase()));
     for (const r of parsed) {
       const target = results[Number(r.i)];
       if (!target || !Array.isArray(r.names)) continue;
       target.competitorsMentioned = Array.from(new Set(r.names
         .filter((n): n is string => typeof n === 'string')
         .map((n) => n.trim())
-        .filter((n) => n.length >= 2 && n.length <= 60 && !n.toLowerCase().includes(own))))
+        .filter((n) => n.length >= 2 && n.length <= 60 && !n.toLowerCase().includes(own) && !ownProducts.has(n.toLowerCase()))
+        .filter((n) => !isOwnProduct(n, params.companyName, target.fullResponse))))
         .slice(0, 8);
     }
   } catch (err) {
