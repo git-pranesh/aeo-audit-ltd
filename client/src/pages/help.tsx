@@ -17,7 +17,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Why do I need my own OpenRouter key?",
-    a: "Your lifetime license covers the software. AI calls run on your own OpenRouter account, so you only pay the model provider for what you use — about $0.002 per audit with the default model. One OpenRouter key covers every model, and you can choose any model in Settings, free to premium. We recommend a dedicated key with a low spending limit.",
+    a: "Your lifetime license covers the software. AI calls run on your own OpenRouter account, so you only pay the model provider for what you use — under $0.001 per audit with the default model (measured). One OpenRouter key covers every model, and you can choose any model in Settings, free to premium. We recommend a dedicated key with a low spending limit.",
   },
   {
     q: "What does an audit include?",
@@ -25,7 +25,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "What is the AI Citation Check?",
-    a: "An optional, manual check: AI writes 8 questions a real customer would ask about your business (3 naming you, 5 category questions), asks them to a live web-search AI on your OpenRouter key, and shows whether you were mentioned and which brands were named instead. Only the latest result is kept. About $0.05 per check with the default model.",
+    a: "An optional, manual check: AI writes 8 questions a real customer would ask about your business (3 naming you, 5 category questions), asks them to a live web-search AI on your OpenRouter key, and shows whether you were mentioned and which brands were named instead. Only the latest result is kept. About $0.04 per check with the default model (measured).",
   },
   {
     q: "Are there limits?",

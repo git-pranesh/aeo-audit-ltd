@@ -137,7 +137,7 @@ export default function AuditDetailPage() {
           {citationRunning ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Checking AI answers (≈1 min)…</> : <><Search className="h-4 w-4 mr-2" />{snapshot ? "Run citation check again" : "Run citation check"}</>}
         </Button>
       </div>
-      <p className="text-center text-xs text-muted-foreground">About $0.05 on your OpenRouter key with the default model. Only the latest result is kept.</p>
+      <p className="text-center text-xs text-muted-foreground">About $0.04 on your OpenRouter key with the default model. Only the latest result is kept.</p>
     </section>
   );
 

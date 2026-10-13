@@ -94,8 +94,9 @@ robots.txt (CMS settings, hosting file manager, or a developer).
   questions.
 - Defaults and **estimated** costs (from OpenRouter's live prices; actual bills
   vary with page size and model):
-  - Audit: `deepseek/deepseek-v4-flash` — about **$0.002** (2 AI calls).
-  - Citation check: question writer + 8 searches with `perplexity/sonar` — about **$0.05**.
+  - Audit: `deepseek/deepseek-v4-flash`, measured **$0.0003** (2 AI calls; GPT-5 mini $0.011, Claude Sonnet 5.5 $0.037).
+  - Citation check: question writer + 8 searches + brand extraction with `perplexity/sonar`, measured **$0.043** (Sonar Pro $0.085; GPT-5 mini :online $0.062).
+  - Measured on zapier.com, 13 Oct 2026. Costs vary with model, site and OpenRouter prices.
 - Free OpenRouter models work but are often rate-limited by their providers;
   the app tells the customer when that happens.
 - We recommend a dedicated key with a low spending limit (e.g. $5).
@@ -115,7 +116,7 @@ robots.txt (CMS settings, hosting file manager, or a developer).
 ## 7. Claims guide (marketing)
 
 **OK to say**
-- "Pay once. Runs on your own OpenRouter key — audits cost about a fifth of a cent in AI fees with the default model."
+- "Pay once. Requires your own OpenRouter key; with the default model an audit costs under $0.001 in AI fees (measured)."
 - "See which AI crawlers your robots.txt blocks — and the exact fix."
 - "We ask a live AI search engine 8 real customer questions about your business and show who it recommends instead."
 - "Download a 10-file AEO Pack built from your own site: llms.txt, schema markup, AI-crawler robots.txt rules, install guide."

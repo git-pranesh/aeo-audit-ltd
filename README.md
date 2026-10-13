@@ -49,7 +49,7 @@ Every LLM call goes through `server/services/openrouter.ts` with the **customer'
 
 ### AI models (customer's choice)
 
-Settings → AI models lists every OpenRouter text model (live prices, cached 1 h) with an estimated cost per audit / per citation check. Defaults: `deepseek/deepseek-v4-flash` for analysis (≈ $0.002/audit) and `perplexity/sonar` for the citation check (≈ $0.05/check). Any model works — free (`:free`, rate-limited by providers), budget or premium. The citation check needs live search: a Perplexity Sonar model or any model id with `:online`. **Scores never depend on the model** — they are deterministic; the model only drafts the business context, topic ideas, competitor comparison and citation questions.
+Settings → AI models lists every OpenRouter text model (live prices, cached 1 h) with an estimated cost per audit / per citation check. Defaults: `deepseek/deepseek-v4-flash` for analysis (measured $0.0003/audit) and `perplexity/sonar` for the citation check (measured $0.043/check). Any model works — free (`:free`, rate-limited by providers), budget or premium. The citation check needs live search: a Perplexity Sonar model or any model id with `:online`. **Scores never depend on the model** — they are deterministic; the model only drafts the business context, topic ideas, competitor comparison and citation questions.
 
 ### Accuracy rules
 
