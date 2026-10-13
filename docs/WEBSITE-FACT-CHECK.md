@@ -106,4 +106,4 @@ a minute"; add "Do I need an OpenRouter account?" and "Is there a monthly fee?".
 
 - Link-preview (OpenGraph/Twitter) text — currently says "Free audit, no credit card".
 - Any Meta ad copy, marketplace listings and onboarding emails using the old claims.
-- Terms of Service: lifetime definition, fair use, BYOK, refund window.
+- Terms of Service: lifetime definition, fair use, BYOK, no refunds (all sales final).

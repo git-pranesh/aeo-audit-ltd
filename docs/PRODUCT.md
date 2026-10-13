@@ -20,7 +20,7 @@ paid once, running on your own OpenRouter key.
 
 | | **Lifetime** | **Lifetime Agency** |
 |---|---|---|
-| Price | `[PRICE]` one-time | `[PRICE]` one-time |
+| Price | $99 one-time | $149 one-time |
 | Accounts | 1 | 1 |
 | Domains | Unlimited (fair use) | Unlimited (fair use) |
 | Audits | 10 per 24 h · 3 per hour | 30 per 24 h · 10 per hour |
@@ -36,6 +36,13 @@ paid once, running on your own OpenRouter key.
 - Direct purchases activate automatically when the buyer signs in with the
   purchase email (verified). Marketplace buyers enter a license code.
 - One license per account; codes do not stack.
+- **No refunds.** All sales are final once purchased (marketplace purchases follow
+  that marketplace's policy). Point buyers to the sample audits and the free
+  crawler check before they buy. In the EU/UK, checkout must collect consent to
+  immediate access so the statutory withdrawal right ends at delivery.
+- **Free lead magnet:** the marketing site has a free, no-AI crawler check at
+  citationrocket.com/ai-crawler-check (robots.txt, llms.txt, sitemap). It is the
+  only free thing; it is not an audit.
 
 ## 3. What every audit includes
 
@@ -157,7 +164,7 @@ read; you'll see a clear message and no AI credits are used.
 
 **Do I need an OpenRouter account?**
 Yes. Create one at openrouter.ai, add a few dollars of credit and paste a key
-in Settings. With the default model an audit costs about $0.002 in AI fees.
+in Settings. With the default model an audit costs under $0.001 in AI fees (measured).
 
 **Is there a white-label option?**
 Yes — the Lifetime Agency license puts your agency name, logo, colours,
@@ -170,3 +177,7 @@ deterministic — the same site gets the same score.
 
 **Is there a monthly fee?**
 No. You pay once. AI usage is billed by OpenRouter to your own account.
+
+**Can I get a refund?**
+No. All sales are final once purchased. Review the sample audits and run the
+free AI crawler check first.
