@@ -25,7 +25,7 @@ import { runBlueprintAudit } from '../engine/blueprint-orchestrator';
 import { deriveNameFromDomain, extractDomain } from '../engine/domain-utils';
 import { scrapeHomepageLite, scrapeWebsite } from './scraper';
 import { generateTopics, TOPIC_CATEGORIES } from './topics';
-import { llmJson } from './openrouter';
+import { llmJson, OpenRouterError } from './openrouter';
 
 // ─── Step 1: business context (one LLM call) ─────────────────────────────────
 
@@ -55,6 +55,23 @@ export async function analyzeWebsite(websiteUrl: string, apiKey: string): Promis
 
   const str = (v: unknown, max = 120) => (typeof v === 'string' && v.trim() && !/^unknown$/i.test(v.trim()) ? v.trim().slice(0, max) : '');
 
+  try {
+    return await requestContext(websiteUrl, apiKey, block, fallbackName, str);
+  } catch (err) {
+    // Key/credit problems must reach the customer; a model that keeps answering
+    // badly just means they fill in the form themselves.
+    if (err instanceof OpenRouterError && err.code === 'UPSTREAM') return unknown;
+    throw err;
+  }
+}
+
+async function requestContext(
+  websiteUrl: string,
+  apiKey: string,
+  block: string,
+  fallbackName: string,
+  str: (v: unknown, max?: number) => string,
+): Promise<ContextSuggestion> {
   return llmJson<ContextSuggestion>(
     {
       task: 'structured',
@@ -77,6 +94,8 @@ Use "" for any field the content does not clearly support. JSON only.`,
     },
     (raw) => {
       if (!raw || typeof raw !== 'object') return null;
+      // There is real page text, so an all-blank answer is a bad response: retry.
+      if (!str(raw.industry) && !str(raw.businessType) && !str(raw.targetAudience)) return null;
       return {
         companyName: str(raw.companyName, 80) || fallbackName,
         industry: str(raw.industry),
@@ -206,10 +225,8 @@ export async function runAudit(params: {
         claude: band(platformScores.claude),
       },
     },
-    competitorGaps: {
-      opportunityAreas: insights?.marketOpportunities ?? [],
-      contentAdvantages: insights?.competitorWeaknesses ?? [],
-    },
+    // Competitor opportunities already appear in the competitor section; show the top site actions here.
+    competitorGaps: { opportunityAreas: recommendations.slice(0, 5), contentAdvantages: [] },
     disclaimers: {
       note: 'Scores indicate content alignment potential, not actual citation counts.',
       searchVolumeNote: 'All search volumes are estimates presented as ranges.',

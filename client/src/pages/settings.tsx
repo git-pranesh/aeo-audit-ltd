@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { CheckCircle2, ExternalLink, KeyRound, Palette, ShieldCheck, Trash2 } from "lucide-react";
+import { KeyRound, Palette, ShieldCheck, Trash2 } from "lucide-react";
 import AppShell from "@/components/app-shell";
+import { KeySetup, LicenseSetup } from "@/components/account-setup";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/lib/auth-service";
 import { api, ApiError } from "@/lib/queryClient";
-import type { Branding, MeResponse } from "@shared/api";
+import type { Branding } from "@shared/api";
 
 function Section({ icon: Icon, title, children }: { icon: typeof KeyRound; title: string; children: React.ReactNode }) {
   return (
@@ -29,56 +29,12 @@ function Section({ icon: Icon, title, children }: { icon: typeof KeyRound; title
 }
 
 export default function SettingsPage() {
-  const { me, setMe, refreshMe, user } = useAuth();
+  const { me, refreshMe } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
   const fail = (err: unknown) =>
     toast({ title: "Could not save", description: err instanceof ApiError ? err.message : "Please try again.", variant: "destructive" });
-
-  // ─── License ───
-  const [code, setCode] = useState("");
-  const [activating, setActivating] = useState(false);
-  const activate = async () => {
-    setActivating(true);
-    try {
-      setMe(await api<MeResponse>("POST", "/api/licenses/activate", { code }));
-      setCode("");
-      toast({ title: "License activated", description: "Lifetime access is now active on this account." });
-    } catch (err) {
-      fail(err);
-    } finally {
-      setActivating(false);
-    }
-  };
-
-  // ─── OpenRouter key ───
-  const [key, setKey] = useState("");
-  const [savingKey, setSavingKey] = useState(false);
-  const saveKey = async () => {
-    setSavingKey(true);
-    try {
-      const res = await api<{ warning: string | null; limitRemaining: number | null }>("PUT", "/api/me/openrouter-key", { key });
-      setKey("");
-      await refreshMe();
-      toast({
-        title: "Key saved",
-        description: res.warning ?? (res.limitRemaining != null ? `Remaining limit on this key: $${res.limitRemaining.toFixed(2)}` : "Your key is encrypted and ready."),
-      });
-    } catch (err) {
-      fail(err);
-    } finally {
-      setSavingKey(false);
-    }
-  };
-  const removeKey = async () => {
-    try {
-      await api("DELETE", "/api/me/openrouter-key");
-      await refreshMe();
-    } catch (err) {
-      fail(err);
-    }
-  };
 
   // ─── Branding (Agency) ───
   const [branding, setBranding] = useState<Branding>({ agencyName: "", accentColor: "#4F46E5", reportTitle: "AI Readiness Report", footerText: "" });
@@ -123,63 +79,9 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto space-y-6">
         <h1 className="text-2xl font-bold">Settings</h1>
 
-        <Section icon={ShieldCheck} title="License">
-          {me.entitlement ? (
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <span>Lifetime{me.entitlement.whiteLabel ? " Agency" : ""} — active</span>
-              <Badge variant="secondary" className="ml-auto">since {new Date(me.entitlement.activatedAt).toLocaleDateString()}</Badge>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Bought on citationrocket.com? Your license activates automatically when you sign in with your purchase email
-                {me.emailVerified ? "." : " — verify your email first."}
-              </p>
-              {!me.emailVerified && (
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={async () => {
-                    await authService.sendVerificationEmail();
-                    toast({ title: "Verification email sent", description: `Check ${user?.email}, then come back and refresh.` });
-                  }}>Send verification email</Button>
-                  <Button size="sm" variant="ghost" onClick={async () => {
-                    await user?.reload();
-                    await user?.getIdToken(true);
-                    await refreshMe();
-                  }}>I've verified — refresh</Button>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="code">Or enter a license code</Label>
-                <div className="flex gap-2">
-                  <Input id="code" placeholder="CR-XXXX-XXXX-XXXX-XXXX" value={code} onChange={(e) => setCode(e.target.value)} />
-                  <Button onClick={activate} disabled={activating || code.trim().length < 4}>{activating ? "Activating…" : "Activate"}</Button>
-                </div>
-              </div>
-            </>
-          )}
-        </Section>
+        <Section icon={ShieldCheck} title="License"><LicenseSetup /></Section>
 
-        <Section icon={KeyRound} title="OpenRouter key">
-          <p className="text-sm text-muted-foreground">
-            Audits run on your own OpenRouter key — one key covers every model we use. Create a dedicated key with a low
-            spending limit (e.g. $5). Typical cost is a few cents per audit.{" "}
-            <a className="text-primary inline-flex items-center gap-1 underline" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">
-              Create a key <ExternalLink className="h-3 w-3" />
-            </a>
-          </p>
-          {me.openRouterKey && (
-            <div className="flex items-center justify-between rounded-md border p-3 text-sm">
-              <span>Saved key ending in <code>…{me.openRouterKey.last4}</code></span>
-              <Button variant="ghost" size="sm" onClick={removeKey}>Remove</Button>
-            </div>
-          )}
-          <div className="flex gap-2">
-            <Input type="password" autoComplete="off" placeholder="sk-or-v1-…" value={key} onChange={(e) => setKey(e.target.value)} />
-            <Button onClick={saveKey} disabled={savingKey || key.trim().length < 20}>{savingKey ? "Checking…" : me.openRouterKey ? "Replace" : "Save"}</Button>
-          </div>
-          <p className="text-xs text-muted-foreground">Stored encrypted (AES-256-GCM). It is never shown again or sent to your browser.</p>
-        </Section>
+        <Section icon={KeyRound} title="OpenRouter key"><KeySetup /></Section>
 
         {me.entitlement?.whiteLabel && (
           <Section icon={Palette} title="Agency branding">

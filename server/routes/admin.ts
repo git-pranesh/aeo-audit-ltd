@@ -45,16 +45,22 @@ adminRouter.get('/lookup', handler(async (req, res) => {
     if ('docs' in snap) snap.docs.forEach((d) => licenseDocs.set(d.id, d.data() as License));
     else if (snap.exists) licenseDocs.set(snap.id, snap.data() as License);
   };
-  add(await licensesCol.doc(hashCode(q)).get());
-  add(await licensesCol.doc(`order_${q.replace(/[^A-Za-z0-9_-]/g, '')}`).get());
-  if (email) add(await licensesCol.where('purchaserEmail', '==', email).limit(20).get());
-  if (uid) add(await licensesCol.where('activatedBy', '==', uid).limit(20).get());
+  // Independent lookups run in parallel (this page is used during support chats).
+  const results = await Promise.all([
+    licensesCol.doc(hashCode(q)).get(),
+    licensesCol.doc(`order_${q.replace(/[^A-Za-z0-9_-]/g, '')}`).get(),
+    ...(email ? [licensesCol.where('purchaserEmail', '==', email).limit(20).get()] : []),
+    ...(uid ? [licensesCol.where('activatedBy', '==', uid).limit(20).get()] : []),
+  ]);
+  results.forEach(add);
 
   let user = null;
   if (uid) {
-    const snap = await adminDb.collection('users').doc(uid).get();
+    const [snap, audits] = await Promise.all([
+      adminDb.collection('users').doc(uid).get(),
+      adminDb.collection('audits').where('userId', '==', uid).select('status').get(),
+    ]);
     const d = snap.data() || {};
-    const audits = await adminDb.collection('audits').where('userId', '==', uid).select('status').get();
     user = {
       uid,
       email: d.email || email,

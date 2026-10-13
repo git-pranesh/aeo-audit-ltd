@@ -28,7 +28,7 @@ try {
     console.log(
       credential
         ? '✅ Firebase Admin initialized with service account (full privileges)'
-        : '⚠️ Firebase Admin initialized WITHOUT service account (limited privileges)'
+        : '✅ Firebase Admin initialized with application default credentials'
     );
   } else {
     firebaseAdmin = admin.app();

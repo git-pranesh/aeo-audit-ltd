@@ -81,6 +81,8 @@ export default function NewAudit({ maxCompetitors = 3, initialUrl = "", initialC
       },
     };
     setStep("running");
+    // The request runs until the audit finishes; show it as "Running" in the list meanwhile.
+    const listRefresh = setTimeout(() => queryClient.invalidateQueries({ queryKey: ["/api/audits"] }), 2000);
     try {
       const audit = await api<AuditDetail>("POST", "/api/audits", payload);
       queryClient.invalidateQueries({ queryKey: ["/api/audits"] });
@@ -89,6 +91,8 @@ export default function NewAudit({ maxCompetitors = 3, initialUrl = "", initialC
       setStep("context");
       queryClient.invalidateQueries({ queryKey: ["/api/audits"] });
       showError(err);
+    } finally {
+      clearTimeout(listRefresh);
     }
   };
 

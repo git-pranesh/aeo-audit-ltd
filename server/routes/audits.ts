@@ -41,7 +41,7 @@ auditsRouter.get('/', handler<AuthenticatedRequest>(async (req, res) => {
   res.json({ audits: await listAudits(req.user!.uid) });
 }));
 
-auditsRouter.get('/:auditId', handler<AuthenticatedRequest>(async (req, res) => {
+auditsRouter.get('/:auditId', requireLicense, handler<AuthenticatedRequest>(async (req, res) => {
   const audit = await getAudit(req.user!.uid, req.params.auditId);
   if (!audit) {
     res.status(404).json({ error: 'Audit not found.' });
@@ -138,7 +138,7 @@ auditsRouter.post('/:auditId/citation-snapshot', requireLicense, citationLimiter
 
 // ─── AEO Pack ZIP (generated from saved inputs; no re-scrape) ─────────────────
 
-auditsRouter.get('/:auditId/aeo-pack', handler<AuthenticatedRequest>(async (req, res) => {
+auditsRouter.get('/:auditId/aeo-pack', requireLicense, handler<AuthenticatedRequest>(async (req, res) => {
   const audit = await getAuditForFiles(req.user!.uid, req.params.auditId);
   if (!audit || audit.status !== 'completed' || !audit.aeoInputs) {
     res.status(404).json({ error: 'Audit not found.' });

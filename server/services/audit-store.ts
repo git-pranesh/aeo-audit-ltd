@@ -189,6 +189,8 @@ export async function listAudits(uid: string): Promise<AuditSummary[]> {
     .select('websiteUrl', 'domain', 'status', 'createdAt', 'completedAt', 'overallScore', 'letterGrade', 'previousScore', 'error')
     .get();
   return snap.docs
+    // Skip documents written by the pre-LTD app (different shape).
+    .filter((d) => typeof d.get('createdAt') === 'string' && typeof d.get('status') === 'string')
     .map((d) => toSummary(d.id, d.data() as StoredAudit))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

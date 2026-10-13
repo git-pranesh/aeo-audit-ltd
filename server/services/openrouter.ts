@@ -74,6 +74,9 @@ export async function llmCall(options: LlmOptions): Promise<LlmResponse> {
   const model = MODEL_MAP[task];
   const body: Record<string, unknown> = { model, messages, max_tokens: maxTokens, temperature };
   if (json && !model.startsWith('perplexity/')) body.response_format = { type: 'json_object' };
+  // Structured extraction must not "think": reasoning tokens count against
+  // max_tokens (empty answers) and cost the customer money for no benefit.
+  if (task === 'structured') body.reasoning = { enabled: false };
 
   let response: Response;
   try {

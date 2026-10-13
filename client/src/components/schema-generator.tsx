@@ -437,7 +437,7 @@ function SchemaCodeBlock({ block }: { block: SchemaBlock }) {
   const previewLines = block.code.split('\n').slice(0, 8).join('\n');
 
   return (
-    <Card className="border border-border/70 shadow-md hover:shadow-lg transition-shadow">
+    <Card className="min-w-0 border border-border/70 shadow-md hover:shadow-lg transition-shadow">
       <CardContent className="p-5 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1 flex-1">
@@ -534,7 +534,7 @@ export default function SchemaGenerator({
         )}
       </CardHeader>
       <CardContent>
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {visibleBlocks.map(block => (
             <SchemaCodeBlock key={block.id} block={block} />
           ))}

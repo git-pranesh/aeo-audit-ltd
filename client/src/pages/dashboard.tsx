@@ -1,21 +1,23 @@
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Circle, Loader2, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, TrendingDown, TrendingUp } from "lucide-react";
+import { KeySetup, LicenseSetup } from "@/components/account-setup";
 import AppShell from "@/components/app-shell";
 import NewAudit from "@/components/new-audit";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AuditSummary } from "@shared/api";
 
-function SetupStep({ done, title, children }: { done: boolean; title: string; children?: React.ReactNode }) {
+function SetupStep({ n, done, title, children }: { n: number; done: boolean; title: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
-      {done ? <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" /> : <Circle className="h-5 w-5 text-muted-foreground mt-0.5" />}
-      <div className="flex-1">
-        <p className={done ? "text-muted-foreground line-through" : "font-medium"}>{title}</p>
-        {!done && children}
+      {done
+        ? <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0" />
+        : <span className="h-6 w-6 rounded-full border-2 border-primary text-primary text-sm font-semibold flex items-center justify-center flex-shrink-0">{n}</span>}
+      <div className="flex-1 space-y-2 min-w-0">
+        <p className="font-medium">{title}</p>
+        {children}
       </div>
     </div>
   );
@@ -38,16 +40,13 @@ export default function Dashboard() {
       <div className="max-w-4xl mx-auto space-y-8">
         {!ready && (
           <Card>
-            <CardContent className="p-6 space-y-4">
-              <h2 className="text-xl font-semibold">Get set up (2 minutes)</h2>
-              <SetupStep done={licensed} title="Activate your lifetime license">
-                <p className="text-sm text-muted-foreground">Bought directly? Sign in with your purchase email and it activates automatically. Have a code? Enter it in Settings.</p>
-                <Link href="/settings"><Button size="sm" className="mt-2">Activate license</Button></Link>
-              </SetupStep>
-              <SetupStep done={hasKey} title="Add your OpenRouter key">
-                <p className="text-sm text-muted-foreground">Audits run on your own OpenRouter key (typically a few cents per audit).</p>
-                <Link href="/settings"><Button size="sm" className="mt-2" variant={licensed ? "default" : "outline"}>Add key</Button></Link>
-              </SetupStep>
+            <CardContent className="p-6 space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold">Welcome — two quick steps, in any order</h2>
+                <p className="text-sm text-muted-foreground">Then you can run your first audit right here.</p>
+              </div>
+              <SetupStep n={1} done={licensed} title="Lifetime license"><LicenseSetup /></SetupStep>
+              <SetupStep n={2} done={hasKey} title="Your OpenRouter key"><KeySetup /></SetupStep>
             </CardContent>
           </Card>
         )}
