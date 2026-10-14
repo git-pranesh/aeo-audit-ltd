@@ -506,8 +506,8 @@ export class AuditPDFGenerator {
     this.pdf.setTextColor(...COLORS.primary);
     this.pdf.text('Platform', col1, this.y);
     this.pdf.text('Your Score', col2, this.y);
-    this.pdf.text('Industry Avg', col3, this.y);
-    this.pdf.text('Top Performers', col4, this.y);
+    this.pdf.text('Reference', col3, this.y);
+    this.pdf.text('Stretch target', col4, this.y);
     this.y += 7;
 
     const platforms: Array<{ label: string; key: 'overall' | 'chatgpt' | 'perplexity' | 'gemini' | 'claude' }> = [
@@ -582,7 +582,7 @@ export class AuditPDFGenerator {
     this.pdf.setFontSize(6.5);
     this.pdf.setFont('helvetica', 'italic');
     this.pdf.setTextColor(...COLORS.textLight);
-    const benchNote = 'Industry averages and top performer scores are reference benchmarks derived from content signal analysis patterns, not sourced from a live dataset.';
+    const benchNote = 'Reference and stretch scores are targets we set for this industry, not averages measured from other companies.';
     const benchLines = this.pdf.splitTextToSize(benchNote, this.contentWidth);
     this.pdf.text(benchLines, this.margin, this.y);
     this.y += benchLines.length * 3.5 + 2;

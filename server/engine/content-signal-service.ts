@@ -540,7 +540,7 @@ export function generateSignalBasedRecommendations(
   const tutorialTarget = Math.max(benchmarks.avgTutorials * 2, 5);
   if (signals.tutorialCount < benchmarks.avgTutorials) {
     const gap = roundUp(tutorialTarget - signals.tutorialCount);
-    recommendations.push(`Your site: ${signals.tutorialCount} tutorials | ${industryLabel} reference target: ${benchmarks.avgTutorials}, stretch target: ${tutorialTarget}+ | Action: Create ${gap} step-by-step how-to guides to reach top-performer level`);
+    recommendations.push(`Your site: ${signals.tutorialCount} tutorials | ${industryLabel} reference target: ${benchmarks.avgTutorials}, stretch target: ${tutorialTarget}+ | Action: Create ${gap} step-by-step how-to guides to reach the stretch target`);
   }
   
   const faqTarget = Math.max(benchmarks.avgFAQPages * 2, 4);
@@ -568,11 +568,11 @@ export function generateSignalBasedRecommendations(
   }
   
   if (signals.frameworkMentionCount < 3) {
-    recommendations.push(`Your site: ${signals.frameworkMentionCount} frameworks | ${industryLabel} top performers use 5+ proprietary methodologies | Action: Develop 5 original methodology or framework articles for Claude visibility`);
+    recommendations.push(`Your site: ${signals.frameworkMentionCount} frameworks | stretch target: 5+ named frameworks or methodologies | Action: Develop 5 original methodology or framework articles for Claude visibility`);
   }
   
   if (signals.blogPostCount < 20) {
-    recommendations.push(`Your site: ${signals.blogPostCount} blog posts | ${industryLabel} top performers publish 50+ articles | Action: Increase publishing cadence to 4+ posts/month`);
+    recommendations.push(`Your site: ${signals.blogPostCount} blog posts | stretch target: 50+ articles | Action: Increase publishing cadence to 4+ posts/month`);
   }
   
   return recommendations.slice(0, 7);

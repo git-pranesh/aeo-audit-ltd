@@ -31,7 +31,7 @@ export interface IndustryBenchmark {
 const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
   legal: {
     industryName: 'Legal Services',
-    sampleSize: 'Based on AI readiness scoring patterns observed across the Legal Services industry',
+    sampleSize: 'Reference values set by Citation Rocket for Legal Services sites, not measured from other companies',
     averageScores: { overall: 28, chatgpt: 22, perplexity: 30, gemini: 25, claude: 35 },
     topPerformerScores: { overall: 58, chatgpt: 52, perplexity: 60, gemini: 55, claude: 65 },
     commonStrengths: [
@@ -50,7 +50,7 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
 
   marketing: {
     industryName: 'Marketing & Digital Agency',
-    sampleSize: 'Based on AI readiness scoring patterns observed across the Marketing & Digital Agency industry',
+    sampleSize: 'Reference values set by Citation Rocket for Marketing & Digital Agency sites, not measured from other companies',
     averageScores: { overall: 45, chatgpt: 48, perplexity: 42, gemini: 40, claude: 50 },
     topPerformerScores: { overall: 72, chatgpt: 75, perplexity: 70, gemini: 68, claude: 76 },
     commonStrengths: [
@@ -68,7 +68,7 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
 
   saas: {
     industryName: 'SaaS & Software',
-    sampleSize: 'Based on AI readiness scoring patterns observed across the SaaS & Software industry',
+    sampleSize: 'Reference values set by Citation Rocket for SaaS & Software sites, not measured from other companies',
     averageScores: { overall: 48, chatgpt: 55, perplexity: 45, gemini: 50, claude: 42 },
     topPerformerScores: { overall: 78, chatgpt: 82, perplexity: 74, gemini: 80, claude: 76 },
     commonStrengths: [
@@ -86,7 +86,7 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
 
   healthcare: {
     industryName: 'Healthcare & Medical',
-    sampleSize: 'Based on AI readiness scoring patterns observed across the Healthcare & Medical industry',
+    sampleSize: 'Reference values set by Citation Rocket for Healthcare & Medical sites, not measured from other companies',
     averageScores: { overall: 35, chatgpt: 30, perplexity: 38, gemini: 32, claude: 40 },
     topPerformerScores: { overall: 62, chatgpt: 58, perplexity: 65, gemini: 60, claude: 66 },
     commonStrengths: [
@@ -104,7 +104,7 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
 
   realestate: {
     industryName: 'Real Estate',
-    sampleSize: 'Based on AI readiness scoring patterns observed across the Real Estate industry',
+    sampleSize: 'Reference values set by Citation Rocket for Real Estate sites, not measured from other companies',
     averageScores: { overall: 20, chatgpt: 15, perplexity: 22, gemini: 18, claude: 25 },
     topPerformerScores: { overall: 48, chatgpt: 42, perplexity: 50, gemini: 45, claude: 55 },
     commonStrengths: [
@@ -123,7 +123,7 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
 
   ecommerce: {
     industryName: 'E-commerce & Retail',
-    sampleSize: 'Based on AI readiness scoring patterns observed across the E-commerce & Retail industry',
+    sampleSize: 'Reference values set by Citation Rocket for E-commerce & Retail sites, not measured from other companies',
     averageScores: { overall: 32, chatgpt: 28, perplexity: 30, gemini: 38, claude: 32 },
     topPerformerScores: { overall: 60, chatgpt: 55, perplexity: 58, gemini: 68, claude: 60 },
     commonStrengths: [
@@ -140,9 +140,28 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
     contentBenchmarks: { avgTutorials: 2, avgCaseStudies: 1, avgFAQPages: 4, avgSchemaTypes: 3, avgDataPoints: 15 },
   },
 
+  local: {
+    industryName: 'Restaurants & Local Businesses',
+    sampleSize: 'Reference values set by Citation Rocket for restaurants and local businesses, not measured from other companies',
+    averageScores: { overall: 25, chatgpt: 24, perplexity: 22, gemini: 28, claude: 24 },
+    topPerformerScores: { overall: 50, chatgpt: 48, perplexity: 46, gemini: 55, claude: 48 },
+    commonStrengths: [
+      'Menu, location and opening-hours pages answer the questions customers ask',
+      'Location pages give AI assistants clear local facts',
+      'FAQ pages about ordering, delivery and dietary needs are easy to quote',
+    ],
+    commonWeaknesses: [
+      'Menus and hours shown only in images or PDFs that AI may not read',
+      'No Restaurant or LocalBusiness schema for address and opening hours',
+      'Allergen and nutrition details hard to find',
+      'Missing or unreadable sitemap',
+    ],
+    contentBenchmarks: { avgTutorials: 0, avgCaseStudies: 0, avgFAQPages: 2, avgSchemaTypes: 2, avgDataPoints: 5 },
+  },
+
   default: {
-    industryName: 'General Industry',
-    sampleSize: 'Based on AI readiness scoring patterns observed across multiple industries',
+    industryName: 'General',
+    sampleSize: 'General reference values set by Citation Rocket, not measured from other companies',
     averageScores: { overall: 32, chatgpt: 30, perplexity: 32, gemini: 30, claude: 36 },
     topPerformerScores: { overall: 65, chatgpt: 62, perplexity: 66, gemini: 64, claude: 68 },
     commonStrengths: [
