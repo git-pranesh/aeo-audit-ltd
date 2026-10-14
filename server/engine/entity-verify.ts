@@ -37,11 +37,20 @@ export function domainsMatch(a: string | null | undefined, b: string | null | un
  * entity's official website (P856) matches the scanned domain. Also reports
  * whether that verified entity has an English Wikipedia article.
  */
+/** Wikimedia rate-limits anonymous clients (HTTP 429), so identify ourselves and retry once. */
+async function wikimediaFetch(url: string, timeoutMs: number): Promise<Response> {
+  const go = () => fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { 'User-Agent': 'CitationRocketBot/2.0 (+https://citationrocket.com)' } });
+  const res = await go();
+  if (res.status !== 429) return res;
+  await new Promise((r) => setTimeout(r, 1500));
+  return go();
+}
+
 export async function verifyWikidataByDomain(
   brandName: string,
   domain: string,
   clientWikidataQid?: string | null
-): Promise<{ qNumber: string | null; wikipediaExists: boolean }> {
+): Promise<{ qNumber: string | null; wikipediaExists: boolean; sameNameElsewhere?: { qNumber: string; officialSite: string; wikipediaExists: boolean } | null }> {
   try {
     let candidateIds: string[] = [];
 
@@ -49,7 +58,7 @@ export async function verifyWikidataByDomain(
       candidateIds = [clientWikidataQid];
     } else if (brandName) {
       const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(brandName)}&language=en&limit=5&format=json&origin=*`;
-      const res = await fetch(searchUrl, { signal: AbortSignal.timeout(5000) });
+      const res = await wikimediaFetch(searchUrl, 5000);
       if (res.ok) {
         const data = await res.json() as any;
         candidateIds = (data?.search ?? [])
@@ -62,8 +71,8 @@ export async function verifyWikidataByDomain(
     if (candidateIds.length === 0) return { qNumber: null, wikipediaExists: false };
 
     const idsParam = candidateIds.join('|');
-    const entUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(idsParam)}&props=claims|sitelinks&format=json&origin=*`;
-    const entRes = await fetch(entUrl, { signal: AbortSignal.timeout(6000) });
+    const entUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(idsParam)}&props=claims|sitelinks|labels&languages=en&format=json&origin=*`;
+    const entRes = await wikimediaFetch(entUrl, 6000);
     if (!entRes.ok) {
       return clientWikidataQid
         ? { qNumber: clientWikidataQid, wikipediaExists: false }
@@ -95,7 +104,17 @@ export async function verifyWikidataByDomain(
       return { qNumber: clientWikidataQid, wikipediaExists: hasEnwiki(entities[clientWikidataQid]) };
     }
 
-    // 3. No domain-verified entity → do not credit (avoids false positives).
+    // 3. No domain-verified entity → do not credit (avoids false positives), but report
+    //    an exact-name entity that lists a different official website: a real consistency issue.
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    for (const id of candidateIds) {
+      const e = entities[id];
+      const label = e?.labels?.en?.value;
+      const site = officialSites(e)[0];
+      if (label && site && norm(label) === norm(brandName)) {
+        return { qNumber: null, wikipediaExists: false, sameNameElsewhere: { qNumber: id, officialSite: site, wikipediaExists: hasEnwiki(e) } };
+      }
+    }
     return { qNumber: null, wikipediaExists: false };
   } catch {
     return { qNumber: clientWikidataQid ?? null, wikipediaExists: false };

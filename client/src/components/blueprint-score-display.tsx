@@ -26,7 +26,7 @@ interface BlueprintResult {
   answerCapsule: BlueprintModule & { answerCapsuleScore: number; hasDefinitionFirstPattern: boolean; questionFramedHeadingCount: number; h1IsDeclarative: boolean };
   eeat: BlueprintModule & { eeAtScore: number; hasAuthorByline: boolean; knowledgeGraphEntityFound: boolean; wikidataEntityFound: boolean; hasOrganizationSchema: boolean; eeAtBreakdown: { experience: number; expertise: number; authority: number; trust: number } };
   botAccess: BlueprintModule & { botAccessScore: number; citationBotsBlocked: string[]; llmsTxtPresent: boolean; hasSitemapInRobotsTxt: boolean; robotsTxtFetched?: boolean };
-  offsite: BlueprintModule & { offsiteScore: number; linkedinCompanyPageExists?: boolean | null; g2ProfileExists?: boolean | null; wikipediaArticleExists: boolean; wikidataQNumber: string | null; redditBrandMentionCount?: number | null };
+  offsite: BlueprintModule & { offsiteScore: number; linkedinCompanyPageExists?: boolean | null; wikidataSameNameElsewhere?: { qNumber: string; officialSite: string; wikipediaExists: boolean } | null; g2ProfileExists?: boolean | null; wikipediaArticleExists: boolean; wikidataQNumber: string | null; redditBrandMentionCount?: number | null };
   freshness: BlueprintModule & { freshnessScore: number; daysSinceModified: number | null; hasVisibleLastUpdatedAnnotation: boolean; freshnessStatus: 'green' | 'yellow' | 'red' };
   schemaCompleteness: { schemaCompletenessScore: number; organization: { present: boolean; criticalMissing: string[] }; article: { present: boolean; hasDateModified: boolean }; faqPage: { present: boolean } };
   fanOut: { fanOutScore: number; h1IsQuestionStyle: boolean; answerBlocksPresent?: number; headingsWithAnswerBlockBelow: number };
@@ -73,9 +73,12 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       description: 'Wikipedia, Wikidata and LinkedIn. Review sites and Reddit block automated checks, so check those yourself.',
       correlation: 'Mentions on other trusted sites',
       details: [
-        { label: 'Wikipedia article', value: blueprint.offsite.wikipediaArticleExists },
-        { label: 'Wikidata entity', value: !!blueprint.offsite.wikidataQNumber },
-        { label: 'LinkedIn company page', value: blueprint.offsite.linkedinCompanyPageExists === true },
+        { label: 'Wikidata entity whose official website is this domain', value: !!blueprint.offsite.wikidataQNumber },
+        { label: 'Wikipedia article for that entity', value: blueprint.offsite.wikipediaArticleExists },
+        { label: 'LinkedIn company page found', value: blueprint.offsite.linkedinCompanyPageExists === true },
+        ...(blueprint.offsite.wikidataSameNameElsewhere
+          ? [{ label: `A Wikidata entity with this name lists ${blueprint.offsite.wikidataSameNameElsewhere.officialSite.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')} as its official website${blueprint.offsite.wikidataSameNameElsewhere.wikipediaExists ? ' (it has a Wikipedia article)' : ''}`, value: false }]
+          : []),
       ],
     },
     {

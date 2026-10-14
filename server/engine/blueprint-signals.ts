@@ -101,6 +101,8 @@ export interface OffsiteSignals {
   knowledgeGraphEntityType: string | null;  // 'Organization', 'Person', null
   wikidataQNumber: string | null;
   wikipediaArticleExists: boolean;
+  /** Exact-name Wikidata entity whose official website is a different domain (not credited). */
+  wikidataSameNameElsewhere?: { qNumber: string; officialSite: string; wikipediaExists: boolean } | null;
   crunchbaseProfileExists: boolean | null;   // null = not checked
   linkedinCompanyPageExists: boolean | null;
   entityFoundationScore: number;      // 0–10

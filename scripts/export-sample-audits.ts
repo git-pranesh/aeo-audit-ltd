@@ -32,7 +32,10 @@ for (const site of SITES.filter((s) => !only.length || only.includes(s.slug))) {
   const context = { companyName: suggestion.companyName, industry: suggestion.industry, businessType: suggestion.businessType, targetAudience: suggestion.targetAudience, valueProposition: suggestion.valueProposition, keywords: suggestion.suggestedKeywords, competitors: site.competitors };
   const { auditData, aeoInputs } = await runAudit({ auditId: `sample-${site.slug}`, websiteUrl: site.url, context, apiKey });
   const auditSeconds = Math.round((Date.now() - started) / 1000);
-  const snapshot = await generateCitationSnapshot({
+  // Re-use a citation check already saved in outDir (KEEP_CITATION=1) to avoid paying for it twice.
+  const existing = path.join(outDir, `${site.slug}.json`);
+  const kept = process.env.KEEP_CITATION && fs.existsSync(existing) ? JSON.parse(fs.readFileSync(existing, 'utf8')).citationSnapshot : null;
+  const snapshot = kept ?? await generateCitationSnapshot({
     websiteUrl: site.url, industry: context.industry, companyName: context.companyName, keywords: context.keywords, apiKey,
   });
   const aeoFiles = await generateAeoFiles({

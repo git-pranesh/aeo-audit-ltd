@@ -62,7 +62,7 @@ export async function runBlueprintAudit(input: BlueprintInput): Promise<Blueprin
 
   const [eeat, offsite] = await Promise.all([
     safeRun(() => detectEEAT(html, text, websiteUrl, brandName), result.eeat),
-    safeRun(() => scanOffsitePresence(brandName, domain, industry, companyName, input.clientWikidataQid, reviewsApply), result.offsite),
+    safeRun(() => scanOffsitePresence(brandName, domain, industry, companyName, input.clientWikidataQid, reviewsApply, html), result.offsite),
   ]);
   result.eeat = eeat;
   result.offsite = offsite;

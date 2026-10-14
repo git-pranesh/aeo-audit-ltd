@@ -25,11 +25,12 @@ export async function scanOffsitePresence(
   industry: string,
   companyName: string,
   clientWikidataQid?: string | null,
-  reviewsApply: boolean = true
+  reviewsApply: boolean = true,
+  html: string = ''
 ): Promise<OffsiteSignals> {
   // Run all checks in parallel (with individual timeouts)
   const [entityResults] = await Promise.allSettled([
-    checkEntityFoundation(brandName, domain, companyName, clientWikidataQid),
+    checkEntityFoundation(brandName, domain, companyName, clientWikidataQid, html),
   ]);
 
   const entity = entityResults.status === 'fulfilled' ? entityResults.value : defaultEntityResult();
@@ -56,6 +57,7 @@ export async function scanOffsitePresence(
     knowledgeGraphEntityType: entity.entityType,
     wikidataQNumber: entity.wikidataQNumber,
     wikipediaArticleExists: entity.wikipediaExists,
+    wikidataSameNameElsewhere: entity.wikidataSameNameElsewhere ?? null,
     crunchbaseProfileExists: entity.crunchbaseExists,
     linkedinCompanyPageExists: entity.linkedinExists,
     entityFoundationScore: entity.entityFoundationScore,
@@ -83,21 +85,24 @@ async function checkEntityFoundation(
   brandName: string,
   domain: string,
   companyName: string,
-  clientWikidataQid?: string | null
+  clientWikidataQid?: string | null,
+  html: string = ''
 ) {
+  // A LinkedIn link on the site itself is definitive; a guessed URL only counts when it resolves.
+  const linkedFromSite = /linkedin\.com\/company\/[A-Za-z0-9_%&.\-]+/i.test(html);
   // Crunchbase, G2, Capterra, Trustpilot and Reddit answer 403 to every server
   // request, so checking them would report "not found" for brands that are there.
   const [kgResult, wikidataResult, linkedinResult] =
     await Promise.allSettled([
       verifyKnowledgeGraph(brandName, domain, process.env.GOOGLE_KG_API_KEY),
       verifyWikidataByDomain(brandName, domain, clientWikidataQid),
-      checkUrlState(`https://www.linkedin.com/company/${slugify(brandName)}`),
+      linkedFromSite ? Promise.resolve(true) : checkUrlState(`https://www.linkedin.com/company/${slugify(brandName)}`),
     ]);
 
   const kg = kgResult.status === 'fulfilled' ? kgResult.value : null;
   const wikidata = wikidataResult.status === 'fulfilled'
     ? wikidataResult.value
-    : { qNumber: null, wikipediaExists: false };
+    : { qNumber: null, wikipediaExists: false, sameNameElsewhere: null };
   const wikipediaExists = wikidata.wikipediaExists;
   const linkedinExists = linkedinResult.status === 'fulfilled' ? linkedinResult.value : null;
 
@@ -114,6 +119,7 @@ async function checkEntityFoundation(
     entityType: kg?.entityType ?? null,
     wikidataQNumber: wikidata.qNumber,
     wikipediaExists,
+    wikidataSameNameElsewhere: wikidata.sameNameElsewhere ?? null,
     crunchbaseExists: null,
     linkedinExists,
     entityFoundationScore: Math.min(10, entityFoundationScore),
@@ -148,7 +154,7 @@ function slugify(name: string): string {
 // ─── Default values ───────────────────────────────────────────────────────────
 
 function defaultEntityResult() {
-  return { entityType: null, wikidataQNumber: null, wikipediaExists: false, crunchbaseExists: false, linkedinExists: false, entityFoundationScore: 0 };
+  return { entityType: null, wikidataQNumber: null, wikipediaExists: false, wikidataSameNameElsewhere: null, crunchbaseExists: null, linkedinExists: null, entityFoundationScore: 0 };
 }
 
 
