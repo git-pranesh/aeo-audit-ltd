@@ -126,7 +126,7 @@ npm run check             # TypeScript
 firebase deploy --only firestore:rules,firestore:indexes
 gcloud run deploy citation-rocket --source . --region us-central1 \
   --min-instances 0 --max-instances 5 --timeout 300 --memory 512Mi \
-  --set-env-vars NODE_ENV=production,ADMIN_EMAILS=you@domain.com,DODO_PRODUCT_LIFETIME=...,DODO_PRODUCT_AGENCY=... \
+  --set-env-vars NODE_ENV=production,ADMIN_EMAILS=you@domain.com,DODO_PRODUCT_LIFETIME=pdt_0NphdjcFNRkuXxV30LiXo,DODO_PRODUCT_AGENCY=pdt_0NphdqcgwjZSa19oO4qrB \
   --set-secrets KEY_ENCRYPTION_SECRET=key-encryption-secret:latest,DODO_WEBHOOK_SECRET=dodo-webhook-secret:latest
 ```
 

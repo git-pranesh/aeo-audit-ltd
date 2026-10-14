@@ -9,7 +9,7 @@ import { authService } from "@/lib/auth-service";
 import { api, ApiError } from "@/lib/queryClient";
 import type { MeResponse } from "@shared/api";
 
-export const BUY_URL = "https://www.citationrocket.com";
+export const BUY_URL = "https://citationrocket.com/pricing";
 
 function useFail() {
   const { toast } = useToast();

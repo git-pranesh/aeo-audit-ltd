@@ -107,6 +107,23 @@ describe('HTTP API', () => {
     expect(after.entitlement).toBeNull();
   });
 
+  it('webhook: a lost chargeback revokes the license; other products are ignored', async () => {
+    const pay = { type: 'payment.succeeded', data: { payment_id: 'pay_77', customer: { email: 'cb@example.com' }, product_cart: [{ product_id: 'prod_lifetime', quantity: 1 }] } };
+    let s = signed(pay, 'msg_d');
+    expect((await fetch(`${base}/api/webhooks/dodo`, { method: 'POST', body: s.body, headers: s.headers })).status).toBe(200);
+    const other = { type: 'payment.succeeded', data: { payment_id: 'pay_78', customer: { email: 'x@example.com' }, product_cart: [{ product_id: 'pdt_something_else', quantity: 1 }] } };
+    s = signed(other, 'msg_e');
+    expect((await fetch(`${base}/api/webhooks/dodo`, { method: 'POST', body: s.body, headers: s.headers })).status).toBe(200);
+    expect(fakeDb._all('licenses').filter(([, l]: any) => l.orderReference === 'pay_78')).toHaveLength(0);
+
+    const me = await (await call('GET', '/api/me', 'cb1:cb@example.com:true')).json();
+    expect(me.entitlement).toMatchObject({ whiteLabel: false, channel: 'direct' });
+    s = signed({ type: 'dispute.lost', data: { payment_id: 'pay_77', dispute_id: 'dsp_1' } }, 'msg_f');
+    expect((await fetch(`${base}/api/webhooks/dodo`, { method: 'POST', body: s.body, headers: s.headers })).status).toBe(200);
+    const after = await (await call('GET', '/api/me', 'cb1:cb@example.com:true')).json();
+    expect(after.entitlement).toBeNull();
+  });
+
   it('account deletion removes audits and key and releases the license', async () => {
     const [code] = await generateCodes(1, { whiteLabel: false, channel: 'marketplace' });
     await call('POST', '/api/licenses/activate', 'u1:a@b.com:true', { code });

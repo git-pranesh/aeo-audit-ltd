@@ -21,6 +21,10 @@ export default function Home() {
   const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
   const [modal, setModal] = useState<"login" | "signup" | null>(null);
+  // Dodo returns buyers here with ?payment_id=…&status=succeeded&email=…
+  const params = new URLSearchParams(window.location.search);
+  const paid = params.get("status") === "succeeded" && !!params.get("payment_id");
+  const paidEmail = params.get("email");
 
   useEffect(() => {
     if (!loading && isAuthenticated) navigate("/dashboard");
@@ -40,6 +44,18 @@ export default function Home() {
           </p>
         </div>
 
+        {paid && (
+          <Card className="text-left border-green-600/30 bg-green-50 dark:bg-green-950/20" data-testid="purchase-success">
+            <CardContent className="p-5 space-y-1.5">
+              <p className="font-semibold flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-green-600" />Payment received. Thank you!</p>
+              <p className="text-sm text-muted-foreground">
+                Create your account (or sign in) with {paidEmail ? <b className="text-foreground">{paidEmail}</b> : "the email you used at checkout"}.
+                Your license activates automatically once that email is verified. Signing in with Google verifies it instantly.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button size="lg" onClick={() => setModal("signup")} data-testid="button-signup">Create account</Button>
           <Button size="lg" variant="outline" onClick={() => setModal("login")} data-testid="button-login">Sign in</Button>
@@ -58,7 +74,7 @@ export default function Home() {
         </Card>
 
         <p className="text-sm text-muted-foreground">
-          Don't have a license yet? <a className="text-primary underline" href="https://www.citationrocket.com" target="_blank" rel="noreferrer">Get lifetime access</a>
+          Don't have a license yet? <a className="text-primary underline" href="https://citationrocket.com/pricing" target="_blank" rel="noreferrer">Get lifetime access</a>
         </p>
       </div>
 

@@ -2,11 +2,12 @@
  * Dodo Payments webhook: one-time purchases only.
  *
  *   payment.succeeded → create a license bound to the buyer's email
- *   refund.succeeded  → revoke it
+ *   refund.succeeded  → mark it refunded (e.g. a refund issued manually or by law)
+ *   dispute.lost      → revoke it (chargeback)
  *   duplicate delivery → no-op (license id derives from the payment id)
  *
  * Configure in Dodo: endpoint https://<app>/api/webhooks/dodo, events
- * payment.succeeded + refund.succeeded. Set DODO_WEBHOOK_SECRET and the product
+ * payment.succeeded, refund.succeeded and dispute.lost. Set DODO_WEBHOOK_SECRET and the product
  * ids DODO_PRODUCT_LIFETIME / DODO_PRODUCT_AGENCY.
  */
 
@@ -62,6 +63,12 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
       if (licenseId) {
         await setLicenseStatus(licenseId, 'refunded');
         console.log(`Webhook: refund for ${paymentId} → license refunded`);
+      }
+    } else if (event?.type === 'dispute.lost' && paymentId) {
+      const licenseId = await findLicenseByOrder(paymentId);
+      if (licenseId) {
+        await setLicenseStatus(licenseId, 'revoked');
+        console.log(`Webhook: chargeback lost for ${paymentId} → license revoked`);
       }
     }
     res.json({ received: true });
