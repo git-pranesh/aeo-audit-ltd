@@ -540,31 +540,31 @@ export function generateSignalBasedRecommendations(
   const tutorialTarget = Math.max(benchmarks.avgTutorials * 2, 5);
   if (signals.tutorialCount < benchmarks.avgTutorials) {
     const gap = roundUp(tutorialTarget - signals.tutorialCount);
-    recommendations.push(`Your site: ${signals.tutorialCount} tutorials | ${industryLabel} average: ${benchmarks.avgTutorials}, top performers: ${tutorialTarget}+ | Action: Create ${gap} step-by-step how-to guides to reach top-performer level`);
+    recommendations.push(`Your site: ${signals.tutorialCount} tutorials | ${industryLabel} reference target: ${benchmarks.avgTutorials}, stretch target: ${tutorialTarget}+ | Action: Create ${gap} step-by-step how-to guides to reach top-performer level`);
   }
   
   const faqTarget = Math.max(benchmarks.avgFAQPages * 2, 4);
   if (signals.faqSectionCount < benchmarks.avgFAQPages) {
     const gap = roundUp(faqTarget - signals.faqSectionCount);
-    recommendations.push(`Your site: ${signals.faqSectionCount} FAQ sections | ${industryLabel} average: ${benchmarks.avgFAQPages}, top performers: ${faqTarget}+ | Action: Add ${gap} FAQ pages with structured markup for ChatGPT visibility`);
+    recommendations.push(`Your site: ${signals.faqSectionCount} FAQ sections | ${industryLabel} reference target: ${benchmarks.avgFAQPages}, stretch target: ${faqTarget}+ | Action: Add ${gap} FAQ pages with structured markup for ChatGPT visibility`);
   }
   
   const dataTarget = Math.max(benchmarks.avgDataPoints * 2, 20);
   if (signals.dataPointCount < benchmarks.avgDataPoints) {
     const gap = roundUp(dataTarget - signals.dataPointCount);
-    recommendations.push(`Your site: ${signals.dataPointCount} data points | ${industryLabel} average: ${benchmarks.avgDataPoints}, top performers: ${dataTarget}+ | Action: Add research-backed statistics across ${Math.min(gap, 10)} key articles`);
+    recommendations.push(`Your site: ${signals.dataPointCount} data points | ${industryLabel} reference target: ${benchmarks.avgDataPoints}, stretch target: ${dataTarget}+ | Action: Add research-backed statistics across ${Math.min(gap, 10)} key articles`);
   }
   
   const schemaTarget = Math.max(benchmarks.avgSchemaTypes * 2, 4);
   if (signals.schemaTypeCount < benchmarks.avgSchemaTypes) {
     const gap = schemaTarget - signals.schemaTypeCount;
-    recommendations.push(`Your site: ${signals.schemaTypeCount} schema types | ${industryLabel} average: ${benchmarks.avgSchemaTypes}, top performers: ${schemaTarget}+ | Action: Implement ${gap} additional schema types (FAQ, HowTo, Article, Product) across key pages`);
+    recommendations.push(`Your site: ${signals.schemaTypeCount} schema types | ${industryLabel} reference target: ${benchmarks.avgSchemaTypes}, stretch target: ${schemaTarget}+ | Action: Implement ${gap} additional schema types (FAQ, HowTo, Article, Product) across key pages`);
   }
   
   const caseStudyTarget = Math.max(benchmarks.avgCaseStudies * 2, 5);
   if (signals.caseStudyCount < benchmarks.avgCaseStudies) {
     const gap = roundUp(caseStudyTarget - signals.caseStudyCount);
-    recommendations.push(`Your site: ${signals.caseStudyCount} case studies | ${industryLabel} average: ${benchmarks.avgCaseStudies}, top performers: ${caseStudyTarget}+ | Action: Create ${gap} detailed customer success stories`);
+    recommendations.push(`Your site: ${signals.caseStudyCount} case studies | ${industryLabel} reference target: ${benchmarks.avgCaseStudies}, stretch target: ${caseStudyTarget}+ | Action: Create ${gap} detailed customer success stories`);
   }
   
   if (signals.frameworkMentionCount < 3) {

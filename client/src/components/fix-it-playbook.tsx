@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Zap, Clock, Target, Copy, Check, Code, FileText,
-  TrendingUp, Rocket, ChevronDown, BarChart3, Lock
+  Rocket, ChevronDown, Lock
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -98,23 +98,6 @@ function CopyButton({ code }: { code: string }) {
   );
 }
 
-function ImpactBar({ label, value, maxValue }: { label: string; value: number; maxValue: number }) {
-  const percentage = maxValue > 0 ? Math.min((value / maxValue) * 100, 100) : 0;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-semibold text-foreground">+{value} pts</span>
-      </div>
-      <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-primary/80 to-primary rounded-full transition-all duration-700 ease-out"
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
-  );
-}
 
 function ActionCard({ action }: { action: PlaybookAction }) {
   const priority = priorityConfig[action.priority] || priorityConfig.medium;
@@ -231,8 +214,6 @@ export default function FixItPlaybook({ playbook }: FixItPlaybookProps) {
   const hasQuickWins = playbook.quickWins.length > 0;
   const maxVisible = showAll ? playbook.actions.length : 4;
   const displayActions = playbook.actions.slice(0, maxVisible);
-  const imp = playbook.estimatedScoreImprovement;
-  const maxPlatformImpact = Math.max(imp.chatgpt, imp.perplexity, imp.gemini, imp.claude, 1);
 
   if (playbook.actions.length === 0) return null;
 
@@ -243,12 +224,6 @@ export default function FixItPlaybook({ playbook }: FixItPlaybookProps) {
           <Rocket className="h-7 w-7 text-primary" />
           <h2 className="text-3xl font-bold">Your AI Readiness Playbook</h2>
         </div>
-        {imp.overall > 0 && (
-          <p className="text-lg">
-            <span className="text-primary font-bold">+{imp.overall} points</span>
-            <span className="text-muted-foreground"> estimated improvement</span>
-          </p>
-        )}
         <p className="text-sm text-muted-foreground">Actions ranked by priority, with steps, time estimates and code</p>
       </div>
 
@@ -299,34 +274,6 @@ export default function FixItPlaybook({ playbook }: FixItPlaybookProps) {
 
       <MethodologyBanner className="px-1" />
 
-      {imp.overall > 0 && (
-        <Card className="border-primary/20 shadow-lg">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <div className="w-7 h-7 bg-primary/20 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-4 w-4 text-primary" />
-              </div>
-              Estimated Impact by Platform
-              <span className="text-xs text-muted-foreground font-normal ml-1">If all actions are implemented</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-0">
-            <ImpactBar label="ChatGPT" value={imp.chatgpt} maxValue={maxPlatformImpact} />
-            <ImpactBar label="Perplexity" value={imp.perplexity} maxValue={maxPlatformImpact} />
-            <ImpactBar label="Gemini" value={imp.gemini} maxValue={maxPlatformImpact} />
-            <ImpactBar label="Claude" value={imp.claude} maxValue={maxPlatformImpact} />
-            <div className="pt-2 border-t border-border">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  Overall Estimated Improvement
-                </span>
-                <span className="text-xl font-bold text-primary">+{imp.overall} pts</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

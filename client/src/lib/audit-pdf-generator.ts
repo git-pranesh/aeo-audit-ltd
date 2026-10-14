@@ -818,30 +818,6 @@ export class AuditPDFGenerator {
 
     this.addSectionTitle('Fix-It Playbook');
 
-    if (pb.estimatedScoreImprovement) {
-      this.checkPageBreak(25);
-      this.drawInfoCard(this.margin, this.y, this.contentWidth, 22, COLORS.greenBg, COLORS.green);
-      this.y += 6;
-      this.pdf.setFontSize(8);
-      this.pdf.setFont('helvetica', 'bold');
-      this.pdf.setTextColor(...COLORS.green);
-      this.pdf.text('Estimated Score Improvement (if all actions completed)', this.margin + 4, this.y);
-      this.y += 6;
-
-      const improvements = [
-        { label: 'Overall', value: pb.estimatedScoreImprovement.overall },
-        { label: 'ChatGPT', value: pb.estimatedScoreImprovement.chatgpt },
-        { label: 'Perplexity', value: pb.estimatedScoreImprovement.perplexity },
-        { label: 'Gemini', value: pb.estimatedScoreImprovement.gemini },
-        { label: 'Claude', value: pb.estimatedScoreImprovement.claude },
-      ];
-      const impTexts = improvements.map(i => `${i.label}: +${i.value}`);
-      this.pdf.setFontSize(8);
-      this.pdf.setFont('helvetica', 'normal');
-      this.pdf.setTextColor(...COLORS.text);
-      this.pdf.text(impTexts.join('   |   '), this.margin + 4, this.y);
-      this.y += 12;
-    }
 
     if (pb.quickWins && pb.quickWins.length > 0) {
       this.checkPageBreak(12);
