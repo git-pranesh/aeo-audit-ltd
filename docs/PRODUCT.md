@@ -57,13 +57,13 @@ Typical run time in testing: **20–60 seconds** (up to ~2 minutes for slow site
 | Platform scores (ChatGPT, Perplexity, Gemini, Claude) | **Estimates** of how well your content matches what each assistant tends to cite, from on-site signals. Not measured rankings from those platforms. |
 | Content & technical signals | Counted from up to **10 pages** we read plus your sitemap: FAQ sections, how-to/tutorial pages, blog posts, case studies, docs, data points, outbound citations, schema.org types (parsed JSON-LD/microdata), headings, images. Nothing is estimated or extrapolated. |
 | AI crawler access | Your robots.txt checked for AI **search** crawlers (OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User, PerplexityBot, Perplexity-User, bingbot) and AI **training** crawlers (GPTBot, ClaudeBot, Google-Extended, Applebot-Extended, CCBot, meta-externalagent). Blocked search crawlers become the #1 action. |
-| AEO blueprint | Answer-capsule, E-E-A-T signals, schema completeness, freshness, entity/off-site presence (public checks such as Wikidata), llms.txt presence. |
-| Industry benchmark | Your score next to **reference targets** for your industry. These are fixed reference values, not a live dataset of other companies (the report says so). |
+| AEO blueprint | Answer-capsule, E-E-A-T signals, schema completeness, freshness, off-site presence from verifiable sources only (Wikidata entity for this domain, its Wikipedia article, LinkedIn page; an exact-name entity on another domain is reported, not credited), llms.txt presence. G2, Trustpilot, Capterra, Crunchbase and Reddit block automated requests, so they are not checked. Does not change the AI Readiness Score. |
+| Industry benchmark | Your score next to **reference** and **stretch** targets for your industry (SaaS, legal, healthcare, real estate, e-commerce, marketing, restaurants and local businesses, or general). These are fixed reference values, not a live dataset of other companies (the report says so). |
 | Strengths & areas to improve | Generated from the measured signals, filtered for your industry (a restaurant is not told to write API docs). |
-| Fix-It Playbook | Prioritized actions with step-by-step instructions, effort/time estimates and code where relevant; targets adjusted to your industry. |
+| Fix-It Playbook | Prioritized actions with step-by-step instructions, effort/time estimates and code where relevant; targets adjusted to your industry. Each action states the most it can add to one assistant's estimate, from the scoring formula. No combined "estimated improvement" figure. |
 | Content topic ideas | **20** questions (5 each: Authoritative, Thought Leadership, Competitive Advantage, Emerging Opportunity) written by AI from your confirmed business details and measured gaps. Any number in a topic must appear on your own site. No search-volume data is used or shown. |
 | Competitor comparison | Only if you add competitors (max 3): AI-written strengths, weaknesses and opportunities vs. those names. We do not auto-discover competitors. |
-| AI Citation Check (optional, manual) | AI writes 8 real customer questions for your business (3 about your brand, 5 category questions that don't name you), then asks them to a live web-search AI (Perplexity Sonar via OpenRouter by default). Shows whether you were mentioned, the answer context, and which brands were named instead. Latest result only; no scheduled re-checks. |
+| AI Citation Check (optional, manual) | AI writes 8 real customer questions for your business (3 about your brand, 5 category questions that don't name you), then asks them to a live web-search AI (Perplexity Sonar via OpenRouter by default). Shows whether you were mentioned, the answer context, and which competitors were named (businesses offering the same kind of product or service; publications, marketplaces and your own products are excluded). Latest result only; no scheduled re-checks. |
 | Re-audit | Run again any time; the report shows the change vs. your previous audit of the same domain. |
 | Exports | PDF report and full CSV (generated in your browser). |
 | AEO Pack (ZIP, 10 files) | See §4. |
@@ -141,6 +141,8 @@ robots.txt (CMS settings, hosting file manager, or a developer).
 - "The only tool…", "no other tool…" (unless you have verified every competitor and can prove it).
 - "12 prompts", "15 pages", "11 files", "AGENTS.md included", "HowTo schema" (old product).
 - "No developer needed" (installation needs access to your site files/head).
+- "Checks your G2 / Trustpilot / Reddit presence" (those sites block automated checks).
+- "+N points estimated improvement", "industry average", "top 10%" (benchmarks are reference targets we set).
 
 ## 8. Website FAQ answers (factual)
 

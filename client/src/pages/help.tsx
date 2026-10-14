@@ -25,7 +25,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "What is the AI Citation Check?",
-    a: "An optional, manual check: AI writes 8 questions a real customer would ask about your business (3 naming you, 5 category questions), asks them to a live web-search AI on your OpenRouter key, and shows whether you were mentioned and which brands were named instead. Only the latest result is kept. About $0.04 per check with the default model (measured).",
+    a: "An optional, manual check: AI writes 8 questions a real customer would ask about your business (3 naming you, 5 category questions), asks them to a live web-search AI on your OpenRouter key, and shows whether you were mentioned and which competitors were named. Only the latest result is kept. About $0.04 per check with the default model (measured).",
   },
   {
     q: "Are there limits?",
