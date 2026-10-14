@@ -104,7 +104,7 @@ client/src/pages/          home · dashboard · audit-detail · settings · admi
 
 | Channel | How |
 |---|---|
-| **Direct (Meta ads → your checkout)** | Dodo one-time products. Webhook `payment.succeeded` creates a license bound to the buyer's email; it **auto-activates when they sign in with that (verified) email**. `refund.succeeded` revokes it. No codes or emails to send. |
+| **Direct (Meta ads → your checkout)** | Dodo one-time products. Webhook `payment.succeeded` creates a license bound to the buyer's email; it **auto-activates when they sign in with that (verified) email**. `refund.succeeded` or a lost chargeback (`dispute.lost`) revokes it. No codes or emails to send. |
 | **Marketplaces / partners** | Admin → *Generate license codes* → CSV (shown once; only hashes are stored). Upload the CSV to the marketplace. Buyers enter the code in Settings. |
 | **Refund / replacement** | Admin → search email/code/order → *Mark refunded* / *Revoke*, then generate a new code if needed. |
 
@@ -130,7 +130,7 @@ gcloud run deploy citation-rocket --source . --region us-central1 \
   --set-secrets KEY_ENCRYPTION_SECRET=key-encryption-secret:latest,DODO_WEBHOOK_SECRET=dodo-webhook-secret:latest
 ```
 
-Give the Cloud Run service account *Cloud Datastore User* and *Firebase Authentication Admin*. Set the Dodo webhook URL to `https://<service>/api/webhooks/dodo` (events: `payment.succeeded`, `refund.succeeded`). Add your app domain to Firebase Auth → Authorized domains.
+Give the Cloud Run service account *Cloud Datastore User* and *Firebase Authentication Admin*. Set the Dodo webhook URL to `https://<service>/api/webhooks/dodo` (events: `payment.succeeded`, `refund.succeeded`, `dispute.lost`). Add your app domain to Firebase Auth → Authorized domains.
 
 ### Migrating existing SaaS users (same Firebase project)
 
