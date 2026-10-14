@@ -26,7 +26,7 @@ interface BlueprintResult {
   answerCapsule: BlueprintModule & { answerCapsuleScore: number; hasDefinitionFirstPattern: boolean; questionFramedHeadingCount: number; h1IsDeclarative: boolean };
   eeat: BlueprintModule & { eeAtScore: number; hasAuthorByline: boolean; knowledgeGraphEntityFound: boolean; wikidataEntityFound: boolean; hasOrganizationSchema: boolean; eeAtBreakdown: { experience: number; expertise: number; authority: number; trust: number } };
   botAccess: BlueprintModule & { botAccessScore: number; citationBotsBlocked: string[]; llmsTxtPresent: boolean; hasSitemapInRobotsTxt: boolean; robotsTxtFetched?: boolean };
-  offsite: BlueprintModule & { offsiteScore: number; g2ProfileExists: boolean; wikipediaArticleExists: boolean; wikidataQNumber: string | null; redditBrandMentionCount: number };
+  offsite: BlueprintModule & { offsiteScore: number; linkedinCompanyPageExists?: boolean | null; g2ProfileExists?: boolean | null; wikipediaArticleExists: boolean; wikidataQNumber: string | null; redditBrandMentionCount?: number | null };
   freshness: BlueprintModule & { freshnessScore: number; daysSinceModified: number | null; hasVisibleLastUpdatedAnnotation: boolean; freshnessStatus: 'green' | 'yellow' | 'red' };
   schemaCompleteness: { schemaCompletenessScore: number; organization: { present: boolean; criticalMissing: string[] }; article: { present: boolean; hasDateModified: boolean }; faqPage: { present: boolean } };
   fanOut: { fanOutScore: number; h1IsQuestionStyle: boolean; answerBlocksPresent?: number; headingsWithAnswerBlockBelow: number };
@@ -61,8 +61,7 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       correlation: 'Shows who is behind the content',
       details: [
         { label: 'Author byline', value: blueprint.eeat.hasAuthorByline },
-        { label: 'Knowledge Graph entity', value: blueprint.eeat.knowledgeGraphEntityFound },
-        { label: 'Wikidata entity', value: blueprint.eeat.wikidataEntityFound },
+        { label: 'Wikidata entity linked to this domain', value: blueprint.eeat.wikidataEntityFound },
         { label: 'Organization schema', value: blueprint.eeat.hasOrganizationSchema },
       ],
     },
@@ -71,13 +70,12 @@ export default function BlueprintScoreDisplay({ blueprint }: Props) {
       label: 'Off-Site Authority',
       score: blueprint.offsite.offsiteScore,
       max: 30,
-      description: 'G2, Wikipedia, Wikidata, Reddit brand presence',
+      description: 'Wikipedia, Wikidata and LinkedIn. Review sites and Reddit block automated checks, so check those yourself.',
       correlation: 'Mentions on other trusted sites',
       details: [
-        { label: 'G2 profile', value: blueprint.offsite.g2ProfileExists },
         { label: 'Wikipedia article', value: blueprint.offsite.wikipediaArticleExists },
         { label: 'Wikidata entity', value: !!blueprint.offsite.wikidataQNumber },
-        { label: 'Reddit mentions', value: blueprint.offsite.redditBrandMentionCount > 0 },
+        { label: 'LinkedIn company page', value: blueprint.offsite.linkedinCompanyPageExists === true },
       ],
     },
     {

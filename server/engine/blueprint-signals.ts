@@ -101,19 +101,19 @@ export interface OffsiteSignals {
   knowledgeGraphEntityType: string | null;  // 'Organization', 'Person', null
   wikidataQNumber: string | null;
   wikipediaArticleExists: boolean;
-  crunchbaseProfileExists: boolean;
-  linkedinCompanyPageExists: boolean;
+  crunchbaseProfileExists: boolean | null;   // null = not checked
+  linkedinCompanyPageExists: boolean | null;
   entityFoundationScore: number;      // 0–10
 
   // Review Platform Coverage (0–10)
-  g2ProfileExists: boolean;
+  g2ProfileExists: boolean | null;
   g2ReviewCount: number | null;
-  capteRraProfileExists: boolean;
-  trustpilotProfileExists: boolean;
+  capteRraProfileExists: boolean | null;
+  trustpilotProfileExists: boolean | null;
   reviewPlatformScore: number;        // 0–10
 
   // Community Presence (0–10)
-  redditBrandMentionCount: number;
+  redditBrandMentionCount: number | null;
   redditRelevantSubreddits: string[];  // subreddits covering the brand's category
   redditBrandPresentInSubreddits: string[]; // subreddits where brand IS mentioned
   communityScore: number;             // 0–10

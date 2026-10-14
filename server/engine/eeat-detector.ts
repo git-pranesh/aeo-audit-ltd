@@ -142,7 +142,8 @@ export async function detectEEAT(
   // Authority (0–10)
   let authority = 0;
   if (hasExpertQuoteWithAttribution) authority += 3;
-  if (knowledgeGraphEntityFound) authority += 5;
+  // Google KG needs an API key that may be absent; a verified Wikidata entity counts the same.
+  if (knowledgeGraphEntityFound || wikidataEntityFound) authority += 5;
   if (wikidataEntityFound) authority += 2;
 
   // Trust (0–8)

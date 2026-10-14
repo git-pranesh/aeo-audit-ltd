@@ -7,7 +7,7 @@
  * Three tiers:
  *   Entity Foundation (0–10): KG, Wikidata, Wikipedia, Crunchbase, LinkedIn
  *   Review Platforms  (0–10): G2, Capterra, Trustpilot
- *   Community         (0–10): Reddit presence (via community-scanner.ts)
+ *   Review sites and Reddit are not checked: they block automated requests.
  *
  * APIs: All free.
  *   Google KG: 100K req/day free
@@ -17,7 +17,6 @@
  */
 
 import type { OffsiteSignals } from './blueprint-signals';
-import { scanRedditPresence } from './community-scanner';
 import { verifyWikidataByDomain, verifyKnowledgeGraph } from './entity-verify';
 
 export async function scanOffsitePresence(
@@ -29,15 +28,14 @@ export async function scanOffsitePresence(
   reviewsApply: boolean = true
 ): Promise<OffsiteSignals> {
   // Run all checks in parallel (with individual timeouts)
-  const [entityResults, reviewResults, redditResults] = await Promise.allSettled([
+  const [entityResults] = await Promise.allSettled([
     checkEntityFoundation(brandName, domain, companyName, clientWikidataQid),
-    checkReviewPlatforms(brandName, domain),
-    scanRedditPresence(brandName, domain, industry),
   ]);
 
   const entity = entityResults.status === 'fulfilled' ? entityResults.value : defaultEntityResult();
-  const reviews = reviewResults.status === 'fulfilled' ? reviewResults.value : defaultReviewResult();
-  const reddit = redditResults.status === 'fulfilled' ? redditResults.value : defaultRedditResult();
+  // Review platforms and Reddit block automated checks: reported as "not checked", never as absent.
+  const reviews = { g2Exists: null, g2ReviewCount: null, capteRraExists: null, trustpilotExists: null, reviewPlatformScore: 0 };
+  const reddit = { brandMentionCount: null, relevantSubredditsForCategory: [] as string[], brandPresentInSubreddits: [] as string[], communityScore: 0 };
 
   // Category-aware off-site authority (max 30). Each tier is scored as a fraction
   // of its own reachable max, then weighted. For entities that would NOT plausibly
@@ -49,11 +47,9 @@ export async function scanOffsitePresence(
   const reviewFrac = reviews.reviewPlatformScore / 10;
   const communityFrac = reddit.communityScore / 10;
 
-  const offsiteScore = Math.min(30, Math.round(
-    reviewsApply
-      ? entityFrac * 10 + reviewFrac * 10 + communityFrac * 10
-      : entityFrac * 20 + communityFrac * 10
-  ));
+  // Only the verifiable tier (Wikidata, Wikipedia, LinkedIn, optional Google KG) is scored.
+  void reviewFrac; void communityFrac; void reviewsApply;
+  const offsiteScore = Math.min(30, Math.round(entityFrac * 30));
 
   return {
     // Entity
@@ -89,12 +85,13 @@ async function checkEntityFoundation(
   companyName: string,
   clientWikidataQid?: string | null
 ) {
-  const [kgResult, wikidataResult, crunchbaseResult, linkedinResult] =
+  // Crunchbase, G2, Capterra, Trustpilot and Reddit answer 403 to every server
+  // request, so checking them would report "not found" for brands that are there.
+  const [kgResult, wikidataResult, linkedinResult] =
     await Promise.allSettled([
       verifyKnowledgeGraph(brandName, domain, process.env.GOOGLE_KG_API_KEY),
       verifyWikidataByDomain(brandName, domain, clientWikidataQid),
-      checkUrlExists(`https://www.crunchbase.com/organization/${slugify(brandName)}`),
-      checkUrlExists(`https://www.linkedin.com/company/${slugify(brandName)}`),
+      checkUrlState(`https://www.linkedin.com/company/${slugify(brandName)}`),
     ]);
 
   const kg = kgResult.status === 'fulfilled' ? kgResult.value : null;
@@ -102,82 +99,33 @@ async function checkEntityFoundation(
     ? wikidataResult.value
     : { qNumber: null, wikipediaExists: false };
   const wikipediaExists = wikidata.wikipediaExists;
-  const crunchbaseExists = crunchbaseResult.status === 'fulfilled' ? crunchbaseResult.value : false;
-  const linkedinExists = linkedinResult.status === 'fulfilled' ? linkedinResult.value : false;
+  const linkedinExists = linkedinResult.status === 'fulfilled' ? linkedinResult.value : null;
 
   // Reachable to the full 10 WITHOUT the Google KG API (which needs a key that may
   // be absent): strong Wikipedia/Wikidata/Crunchbase presence alone can earn the
   // maximum, so authoritative non-commercial entities are not silently capped.
   let entityFoundationScore = 0;
-  if (kg?.found) entityFoundationScore += 4;
-  if (wikidata.qNumber) entityFoundationScore += 4;
+  if (kg?.found || wikidata.qNumber) entityFoundationScore += 4;
+  if (wikidata.qNumber) entityFoundationScore += 1;
   if (wikipediaExists) entityFoundationScore += 3;
-  if (crunchbaseExists) entityFoundationScore += 2;
-  if (linkedinExists) entityFoundationScore += 1;
+  if (linkedinExists) entityFoundationScore += 2;
 
   return {
     entityType: kg?.entityType ?? null,
     wikidataQNumber: wikidata.qNumber,
     wikipediaExists,
-    crunchbaseExists,
+    crunchbaseExists: null,
     linkedinExists,
     entityFoundationScore: Math.min(10, entityFoundationScore),
   };
 }
 
-// ─── Review Platforms ─────────────────────────────────────────────────────────
 
-async function checkReviewPlatforms(brandName: string, domain: string) {
-  const slug = slugify(brandName);
-  const domainSlug = domain.split('.')[0];
-
-  const [g2Result, capteRraResult, trustpilotResult] = await Promise.allSettled([
-    checkG2Profile(slug, domainSlug),
-    checkUrlExists(`https://www.capterra.com/p/search/?q=${encodeURIComponent(brandName)}`),
-    checkUrlExists(`https://www.trustpilot.com/review/${domain}`),
-  ]);
-
-  const g2 = g2Result.status === 'fulfilled' ? g2Result.value : { exists: false, reviewCount: null };
-  const capteRraExists = capteRraResult.status === 'fulfilled' ? capteRraResult.value : false;
-  const trustpilotExists = trustpilotResult.status === 'fulfilled' ? trustpilotResult.value : false;
-
-  // Blueprint: 4.6–6.3 citations for sites on multiple review platforms vs 1.8 for absent
-  let reviewPlatformScore = 0;
-  if (g2.exists) reviewPlatformScore += 4;
-  if (capteRraExists) reviewPlatformScore += 3;
-  if (trustpilotExists) reviewPlatformScore += 3;
-
-  return {
-    g2Exists: g2.exists,
-    g2ReviewCount: g2.reviewCount,
-    capteRraExists,
-    trustpilotExists,
-    reviewPlatformScore: Math.min(10, reviewPlatformScore),
-  };
-}
-
-async function checkG2Profile(slug: string, domainSlug: string): Promise<{ exists: boolean; reviewCount: number | null }> {
-  try {
-    // Try common G2 URL patterns
-    const urls = [
-      `https://www.g2.com/products/${slug}/reviews`,
-      `https://www.g2.com/products/${domainSlug}/reviews`,
-    ];
-
-    for (const url of urls) {
-      const exists = await checkUrlExists(url);
-      if (exists) return { exists: true, reviewCount: null }; // count requires scraping
-    }
-
-    return { exists: false, reviewCount: null };
-  } catch {
-    return { exists: false, reviewCount: null };
-  }
-}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-async function checkUrlExists(url: string): Promise<boolean> {
+/** true = page exists, false = definitely not found (404/410), null = blocked or unreachable. */
+async function checkUrlState(url: string): Promise<boolean | null> {
   try {
     const res = await fetch(url, {
       method: 'GET',
@@ -185,11 +133,13 @@ async function checkUrlExists(url: string): Promise<boolean> {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CitationRocketBot/1.0)' },
       redirect: 'follow',
     });
-    return res.ok && res.status < 400;
+    if (res.ok) return true;
+    return res.status === 404 || res.status === 410 ? false : null;
   } catch {
-    return false;
+    return null;
   }
 }
+
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -201,10 +151,4 @@ function defaultEntityResult() {
   return { entityType: null, wikidataQNumber: null, wikipediaExists: false, crunchbaseExists: false, linkedinExists: false, entityFoundationScore: 0 };
 }
 
-function defaultReviewResult() {
-  return { g2Exists: false, g2ReviewCount: null, capteRraExists: false, trustpilotExists: false, reviewPlatformScore: 0 };
-}
 
-function defaultRedditResult() {
-  return { brandMentionCount: 0, relevantSubredditsForCategory: [], brandPresentInSubreddits: [], communityScore: 0 };
-}
