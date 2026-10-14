@@ -478,11 +478,12 @@ async function refineCompetitorNames(results: PromptResult[], params: CitationSn
         temperature: 0,
         messages: [{
           role: 'user',
-          content: `For each AI answer below, list the OTHER businesses, brands, products-with-brand-names or organizations it names or recommends (e.g. "Water.org", "Red Robin", "Make"). Put anything made or sold by ${params.companyName} (its own products, product lines, sub-brands or services) in "own" instead, never in "names". Exclude generic terms ("lawyers", "chatbot", "merino wool"), instructions/steps, places, websites like Reddit/Yelp/Wikipedia, and publications.
+          content: `${params.companyName} is in this industry: ${params.industry || 'unknown'}. For each AI answer below, list the COMPETITORS: other businesses or brands named in the answer that offer the same kind of product or service as ${params.companyName}, so a customer could choose them instead (e.g. for a burger chain: other restaurant chains; for an automation tool: other automation tools).
+Do NOT list: ${params.companyName}'s own products, product lines or sub-brands (put those in "own"); publications, media and review sites (Forbes, WSJ, TODAY, Wirecutter); marketplaces, retailers and delivery apps; apps or tools that merely integrate with or are used alongside ${params.companyName}; nutrition or data sites; generic terms; places; Reddit, Yelp, Wikipedia.
 
 ${answered.map((a) => `### ANSWER ${a.i}\n${a.text}`).join('\n\n')}
 
-Return JSON {"results": [{"i": <answer number>, "names": ["Other brand", ...], "own": ["${params.companyName} product", ...]}]}. Empty lists if none. JSON only.`,
+Return JSON {"results": [{"i": <answer number>, "names": ["Competitor", ...], "own": ["${params.companyName} product", ...]}]}. Empty lists if none. JSON only.`,
         }],
       },
       (raw) => (Array.isArray(raw?.results) ? raw.results : null),
