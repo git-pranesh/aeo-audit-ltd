@@ -7,7 +7,7 @@ import { handler } from './http';
 import {
   deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
 } from '../services/user-service';
-import { claimPurchasedLicense } from '../services/license-service';
+import { claimPurchasedLicense, unusedPurchasesFor } from '../services/license-service';
 import { setServerPlan, trackServerEvent } from '../analytics';
 import { requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
 import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
@@ -42,6 +42,7 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
       await trackServerEvent('license_activated', { plan, channel: claimed.channel, via: 'purchase_email' }, uid, req);
     }
   }
+  const unusedPurchases = user.entitlement ? await unusedPurchasesFor(email, emailVerified) : [];
   return {
     uid,
     email: email || user.email,
@@ -57,6 +58,7 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
       defaults: { structured: MODEL_MAP.structured, webSearch: MODEL_MAP.webSearch },
     },
     ...(metaRegistrationEventId ? { metaRegistrationEventId } : {}),
+    ...(unusedPurchases.length ? { unusedPurchases } : {}),
   };
 }
 

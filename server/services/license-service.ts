@@ -136,6 +136,21 @@ export async function claimPurchasedLicense(uid: string, email: string | undefin
   }
 }
 
+/**
+ * Direct purchases made with this (verified) email that are still unclaimed
+ * while the account already holds a license: usually a duplicate purchase.
+ */
+export async function unusedPurchasesFor(email: string | undefined, emailVerified: boolean): Promise<{ licenseId: string; whiteLabel: boolean; createdAt: string | null }[]> {
+  if (!email || !emailVerified) return [];
+  const snap = await licenses().where('purchaserEmail', '==', email.toLowerCase()).limit(10).get();
+  return snap.docs
+    .filter((d) => (d.data() as License).status === 'available')
+    .map((d) => {
+      const l = d.data() as License & { createdAt?: string };
+      return { licenseId: d.id, whiteLabel: !!l.whiteLabel, createdAt: l.createdAt ?? null };
+    });
+}
+
 /** Generate marketplace/partner codes. Returns plaintext codes — the only time they exist. */
 export async function generateCodes(count: number, opts: { whiteLabel: boolean; channel: SalesChannel; note?: string }): Promise<string[]> {
   const n = Math.max(1, Math.min(1000, Math.floor(count)));

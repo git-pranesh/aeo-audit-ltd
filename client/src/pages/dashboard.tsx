@@ -38,6 +38,17 @@ export default function Dashboard() {
   return (
     <AppShell>
       <div className="max-w-4xl mx-auto space-y-8">
+        {me?.unusedPurchases?.map((p) => (
+          <Card key={p.licenseId} className="border-amber-500/40 bg-amber-50 dark:bg-amber-950/20" data-testid="unused-purchase">
+            <CardContent className="p-5 space-y-1.5 text-sm">
+              <p className="font-semibold">You bought another {p.whiteLabel ? "Lifetime Agency" : "Lifetime"} license{p.createdAt ? ` on ${new Date(p.createdAt).toLocaleDateString()}` : ""}</p>
+              <p className="text-muted-foreground">
+                This account already has an active {me.entitlement?.whiteLabel ? "Lifetime Agency" : "Lifetime"} license, and one account can hold one license, so the extra purchase is not in use.
+                Email <a className="underline" href={`mailto:support@citationrocket.com?subject=${encodeURIComponent("Extra license " + p.licenseId)}`}>support@citationrocket.com</a> with the reference <code>{p.licenseId}</code> and we will sort it out.
+              </p>
+            </CardContent>
+          </Card>
+        ))}
         {!ready && (
           <Card>
             <CardContent className="p-6 space-y-6">

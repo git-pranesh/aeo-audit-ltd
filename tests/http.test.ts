@@ -124,6 +124,21 @@ describe('HTTP API', () => {
     expect(after.entitlement).toBeNull();
   });
 
+  it('a second purchase by a licensed buyer is reported, not silently lost', async () => {
+    for (const [pid, prod, id] of [['pay_d1', 'prod_agency', 'msg_g'], ['pay_d2', 'prod_lifetime', 'msg_h']]) {
+      const s = signed({ type: 'payment.succeeded', data: { payment_id: pid, customer: { email: 'dup@example.com' }, product_cart: [{ product_id: prod, quantity: 1 }] } }, id);
+      expect((await fetch(`${base}/api/webhooks/dodo`, { method: 'POST', body: s.body, headers: s.headers })).status).toBe(200);
+      if (pid === 'pay_d1') {
+        const first = await (await call('GET', '/api/me', 'dup1:dup@example.com:true')).json();
+        expect(first.entitlement).toMatchObject({ whiteLabel: true });
+        expect(first.unusedPurchases).toBeUndefined();
+      }
+    }
+    const me = await (await call('GET', '/api/me', 'dup1:dup@example.com:true')).json();
+    expect(me.entitlement).toMatchObject({ whiteLabel: true });
+    expect(me.unusedPurchases).toEqual([expect.objectContaining({ licenseId: 'order_pay_d2', whiteLabel: false })]);
+  });
+
   it('account deletion removes audits and key and releases the license', async () => {
     const [code] = await generateCodes(1, { whiteLabel: false, channel: 'marketplace' });
     await call('POST', '/api/licenses/activate', 'u1:a@b.com:true', { code });

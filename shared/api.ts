@@ -32,6 +32,8 @@ export interface MeResponse {
   aiModels: AiModels;
   /** Present only on the response that created the account: the Meta CompleteRegistration event id to fire in the browser. */
   metaRegistrationEventId?: string;
+  /** Licenses bought with this email that could not attach because the account already has one. */
+  unusedPurchases?: { licenseId: string; whiteLabel: boolean; createdAt: string | null }[];
 }
 
 /** Chosen OpenRouter models; null = our recommended default. */
