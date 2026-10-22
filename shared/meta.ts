@@ -2,7 +2,7 @@
  * Meta (Facebook) Pixel + Conversions API settings shared by browser and server.
  * Tracking is switched off while META_PIXEL_ID is empty.
  */
-export const META_PIXEL_ID = '';
+export const META_PIXEL_ID = '1148542264388952';
 
 /** Purchase value reported to Meta: the USD list price of each license. */
 export const PLAN_VALUE_USD = { lifetime: 99, agency: 149 } as const;
