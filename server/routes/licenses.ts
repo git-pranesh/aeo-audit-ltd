@@ -4,6 +4,7 @@ import { requireAuth, type AuthenticatedRequest } from '../security/auth';
 import { licenseLimiter } from '../security/rate-limits';
 import { handler } from './http';
 import { activateCode } from '../services/license-service';
+import { setServerPlan, trackServerEvent } from '../analytics';
 import { getOrCreateUser } from '../services/user-service';
 import { buildMe } from './me';
 
@@ -17,6 +18,9 @@ export const licensesRouter = Router();
 licensesRouter.post('/activate', requireAuth, licenseLimiter, handler<AuthenticatedRequest>(async (req, res) => {
   const { code } = z.object({ code: z.string().trim().min(4).max(80) }).parse(req.body);
   await getOrCreateUser(req.user!.uid, req.user!.email);
-  await activateCode(req.user!.uid, code);
+  const entitlement = await activateCode(req.user!.uid, code);
+  const plan = entitlement.whiteLabel ? 'agency' : 'lifetime';
+  await setServerPlan(req.user!.uid, plan);
+  await trackServerEvent('license_activated', { plan, channel: entitlement.channel, via: 'license_code' }, req.user!.uid, req);
   res.json(await buildMe(req));
 }));

@@ -1,3 +1,4 @@
+import { analytics } from "@heycatch/sdk";
 import { auth } from "./firebase";
 import {
   GoogleAuthProvider,
@@ -65,6 +66,7 @@ export const authService = {
 
   async signOut(): Promise<void> {
     await signOut(auth);
+    analytics.resetIdentity(); // the next visitor on this browser starts anonymous
   },
 
   async resetPassword(email: string): Promise<void> {

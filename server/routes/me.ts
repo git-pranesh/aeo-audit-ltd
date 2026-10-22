@@ -8,6 +8,7 @@ import {
   deleteAccount, deleteOpenRouterKey, getOrCreateUser, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
 } from '../services/user-service';
 import { claimPurchasedLicense } from '../services/license-service';
+import { setServerPlan, trackServerEvent } from '../analytics';
 import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
 import { estimateAuditCost, estimateSnapshotCost, getCatalog, resolveModel } from '../services/model-catalog';
 import { limitsFor } from '../services/audit-store';
@@ -21,7 +22,13 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
   if (!user.entitlement) {
     // Direct purchases are claimed automatically by verified email.
     const claimed = await claimPurchasedLicense(uid, email, emailVerified);
-    if (claimed) user = { ...user, entitlement: claimed };
+    if (claimed) {
+      user = { ...user, entitlement: claimed };
+      // A direct purchase becomes a person's license here, the first moment we know who bought it.
+      const plan = claimed.whiteLabel ? 'agency' : 'lifetime';
+      await setServerPlan(uid, plan);
+      await trackServerEvent('license_activated', { plan, channel: claimed.channel, via: 'purchase_email' }, uid, req);
+    }
   }
   return {
     uid,
