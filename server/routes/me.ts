@@ -5,10 +5,11 @@ import { requireAuth, isAdminUser, type AuthenticatedRequest } from '../security
 import { keyLimiter } from '../security/rate-limits';
 import { handler } from './http';
 import {
-  deleteAccount, deleteOpenRouterKey, getOrCreateUser, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
+  deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
 } from '../services/user-service';
 import { claimPurchasedLicense } from '../services/license-service';
 import { setServerPlan, trackServerEvent } from '../analytics';
+import { requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
 import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
 import { estimateAuditCost, estimateSnapshotCost, getCatalog, resolveModel } from '../services/model-catalog';
 import { limitsFor } from '../services/audit-store';
@@ -18,7 +19,18 @@ meRouter.use(requireAuth);
 
 export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
   const { uid, email, emailVerified } = req.user!;
-  let user = await getOrCreateUser(uid, email);
+  const { user: found, created } = await getOrCreateUserWithFlag(uid, email);
+  let user = found;
+  const metaRegistrationEventId = created ? `reg_${uid}` : undefined;
+  if (metaRegistrationEventId && requestAllowsTracking(req)) {
+    await sendMetaEvent({
+      event_name: 'CompleteRegistration',
+      event_id: metaRegistrationEventId,
+      event_source_url: 'https://app.citationrocket.com/',
+      action_source: 'website',
+      user_data: { ...requestUserData(req), external_id: [sha256(uid)], ...(email ? { em: [sha256(email)] } : {}) },
+    });
+  }
   if (!user.entitlement) {
     // Direct purchases are claimed automatically by verified email.
     const claimed = await claimPurchasedLicense(uid, email, emailVerified);
@@ -44,6 +56,7 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
       webSearch: user.aiModels?.webSearch?.id ?? null,
       defaults: { structured: MODEL_MAP.structured, webSearch: MODEL_MAP.webSearch },
     },
+    ...(metaRegistrationEventId ? { metaRegistrationEventId } : {}),
   };
 }
 

@@ -12,6 +12,8 @@ import AuditDetail from "@/pages/audit-detail";
 import SettingsPage from "@/pages/settings";
 import AdminPage from "@/pages/admin";
 import HelpSupport from "@/pages/help";
+import Welcome from "@/pages/welcome";
+import ConsentBanner from "@/components/consent-banner";
 import NotFound from "@/pages/not-found";
 
 /** Redirects signed-out visitors to the sign-in page. */
@@ -29,6 +31,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/welcome/:plan" component={Welcome} />
       <Route path="/dashboard">{() => <Protected component={Dashboard} />}</Route>
       <Route path="/audit/:auditId">{() => <Protected component={AuditDetail} />}</Route>
       <Route path="/settings">{() => <Protected component={SettingsPage} />}</Route>
@@ -46,6 +49,7 @@ export default function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <ConsentBanner />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

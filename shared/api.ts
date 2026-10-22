@@ -30,6 +30,8 @@ export interface MeResponse {
   isAdmin: boolean;
   limits: FairUseLimits;
   aiModels: AiModels;
+  /** Present only on the response that created the account: the Meta CompleteRegistration event id to fire in the browser. */
+  metaRegistrationEventId?: string;
 }
 
 /** Chosen OpenRouter models; null = our recommended default. */

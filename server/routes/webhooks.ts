@@ -15,6 +15,8 @@ import { Router, text } from 'express';
 import { Webhook } from 'standardwebhooks';
 import { createPurchasedLicense, findLicenseByOrder, setLicenseStatus } from '../services/license-service';
 import { setServerPlan, trackServerEvent } from '../analytics';
+import { sendMetaEvent, sha256 } from '../services/meta-capi';
+import { PLAN_VALUE_USD } from '../../shared/meta';
 
 export const webhooksRouter = Router();
 
@@ -58,6 +60,25 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
       } else {
         const { created } = await createPurchasedLicense({ orderReference: paymentId, email, whiteLabel: isAgency });
         console.log(`Webhook: payment ${paymentId} → license ${created ? 'created' : 'already existed'}${isAgency ? ' (agency)' : ''}`);
+        const meta0 = (data.metadata ?? {}) as Record<string, string>;
+        if (created && meta0.consent === 'allowed') {
+          // Browser identifiers captured by citationrocket.com/buy and passed through Dodo checkout metadata.
+          const meta = (data.metadata ?? {}) as Record<string, string>;
+          const plan = isAgency ? 'agency' : 'lifetime';
+          await sendMetaEvent({
+            event_name: 'Purchase',
+            event_id: paymentId, // the "Payment received" page fires the browser Purchase with the same id
+            event_source_url: 'https://www.citationrocket.com/pricing',
+            action_source: 'website',
+            user_data: {
+              em: [sha256(email)],
+              client_user_agent: meta.ua || undefined,
+              fbp: meta.fbp || undefined,
+              fbc: meta.fbc || undefined,
+            },
+            custom_data: { value: PLAN_VALUE_USD[plan], currency: 'USD', content_name: plan === 'agency' ? 'Lifetime Agency' : 'Lifetime', content_type: 'product' },
+          });
+        }
       }
     } else if (event?.type === 'refund.succeeded' && paymentId) {
       const licenseId = await findLicenseByOrder(paymentId);

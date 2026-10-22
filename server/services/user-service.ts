@@ -35,16 +35,21 @@ export interface UserRecord {
 const users = () => adminDb.collection('users');
 
 export async function getOrCreateUser(uid: string, email?: string, displayName?: string): Promise<UserRecord> {
+  return (await getOrCreateUserWithFlag(uid, email, displayName)).user;
+}
+
+/** Same as getOrCreateUser, and says whether this call created the account record. */
+export async function getOrCreateUserWithFlag(uid: string, email?: string, displayName?: string): Promise<{ user: UserRecord; created: boolean }> {
   const ref = users().doc(uid);
   const snap = await ref.get();
-  if (snap.exists) return snap.data() as UserRecord;
+  if (snap.exists) return { user: snap.data() as UserRecord, created: false };
   const record: UserRecord = {
     email: (email || '').toLowerCase(),
     ...(displayName ? { displayName } : {}),
     createdAt: new Date().toISOString(),
   };
   await ref.set(record, { merge: true });
-  return record;
+  return { user: record, created: true };
 }
 
 export async function getUser(uid: string): Promise<UserRecord | null> {
