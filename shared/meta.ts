@@ -4,6 +4,9 @@
  */
 export const META_PIXEL_ID = '1109689344985476';
 
+/** Google Analytics 4 measurement id (same stream as citationrocket.com). */
+export const GA_MEASUREMENT_ID = 'G-J12JW6JMPR';
+
 /** Purchase value reported to Meta: the USD list price of each license. */
 export const PLAN_VALUE_USD = { lifetime: 99, agency: 149 } as const;
 export type MetaPlan = keyof typeof PLAN_VALUE_USD;

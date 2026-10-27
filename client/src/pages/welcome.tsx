@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/lib/auth-service";
 import { useParams } from "wouter";
 import Home from "@/pages/home";
-import { trackMeta } from "@/lib/meta-pixel";
+import { trackGa, trackMeta } from "@/lib/meta-pixel";
 import { PLAN_VALUE_USD, type MetaPlan } from "@shared/meta";
 
 /**
@@ -26,6 +26,7 @@ export default function Welcome() {
       sessionStorage.setItem(key, "1");
     } catch { /* private mode: fire anyway */ }
     const p = plan as MetaPlan;
+    trackGa("purchase", { transaction_id: paymentId, currency: "USD", value: PLAN_VALUE_USD[p], items: [{ item_id: p, item_name: p === "agency" ? "Lifetime Agency" : "Lifetime", price: PLAN_VALUE_USD[p], quantity: 1 }] });
     trackMeta("Purchase", { value: PLAN_VALUE_USD[p], currency: "USD", content_name: p === "agency" ? "Lifetime Agency" : "Lifetime", content_type: "product" }, paymentId);
   }, [plan]);
 

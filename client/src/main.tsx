@@ -2,7 +2,7 @@ import { analytics } from "@heycatch/sdk";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { loadPixel } from "./lib/meta-pixel";
+import { loadGa, loadPixel } from "./lib/meta-pixel";
 
 analytics.init({
   projectKey: "hck_pk_UcdGoSp6IP9msvAHpcGe84rGIUqwgWIy",
@@ -14,5 +14,6 @@ analytics.init({
 });
 
 loadPixel();
+loadGa();
 
 createRoot(document.getElementById("root")!).render(<App />);
