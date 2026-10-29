@@ -3,7 +3,7 @@
  * may be tracked: outside the EEA/UK/CH, or after they accepted the consent
  * banner (choice shared with citationrocket.com through a .citationrocket.com cookie).
  */
-import { CONSENT_COOKIE, GA_MEASUREMENT_ID, META_PIXEL_ID, REGION_COOKIE } from "@shared/meta";
+import { CHAT_WIDGET_SRC, CONSENT_COOKIE, GA_MEASUREMENT_ID, META_PIXEL_ID, REGION_COOKIE } from "@shared/meta";
 
 type Fbq = ((...args: unknown[]) => void) & { callMethod?: (...a: unknown[]) => void; queue?: unknown[]; loaded?: boolean; version?: string; push?: unknown };
 declare global { interface Window { fbq?: Fbq; _fbq?: Fbq } }
@@ -24,7 +24,7 @@ export function consentState(): ConsentState {
 export function saveConsent(granted: boolean) {
   const domain = location.hostname.endsWith("citationrocket.com") ? "; domain=.citationrocket.com" : "";
   document.cookie = `${CONSENT_COOKIE}=${granted ? "granted" : "denied"}; path=/; max-age=${60 * 60 * 24 * 180}; SameSite=Lax; Secure${domain}`;
-  if (granted) { loadPixel(); loadGa(); }
+  if (granted) { loadPixel(); loadGa(); loadChat(); }
   else { pending.length = 0; gaPending.length = 0; }
 }
 
@@ -87,4 +87,15 @@ export function loadGa() {
 export function trackGa(name: string, params: Record<string, unknown> = {}) {
   if (window.gtag) window.gtag("event", name, { transport_type: "beacon", ...params });
   else if (GA_MEASUREMENT_ID && consentState() === "ask") gaPending.push([name, { transport_type: "beacon", ...params }]);
+}
+
+/** DM Champ chat widget: same consent rule as the trackers (it contacts the vendor's servers on every page). */
+let chatLoaded = false;
+export function loadChat() {
+  if (chatLoaded || consentState() !== "allowed") return;
+  chatLoaded = true;
+  const s = document.createElement("script");
+  s.src = CHAT_WIDGET_SRC;
+  s.defer = true;
+  document.body.appendChild(s);
 }

@@ -4,6 +4,9 @@
  */
 export const META_PIXEL_ID = '1109689344985476';
 
+/** DM Champ website chat widget (same bot as citationrocket.com). */
+export const CHAT_WIDGET_SRC = 'https://api.dmchamp.com/v1/chat-widget/0lMeDTT5zMPsR7OXhrEM';
+
 /** Google Analytics 4 measurement id (same stream as citationrocket.com). */
 export const GA_MEASUREMENT_ID = 'G-J12JW6JMPR';
 

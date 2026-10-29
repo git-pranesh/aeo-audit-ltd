@@ -11,7 +11,7 @@ export default function ConsentBanner() {
   return (
     <div className="fixed bottom-4 inset-x-4 z-50 mx-auto max-w-xl rounded-xl border bg-card p-4 shadow-lg text-sm" role="dialog" aria-label="Cookie consent">
       <p className="text-muted-foreground">
-        We use the Meta Pixel and Google Analytics to measure our ads and understand how the app is used. They set cookies only if you accept. See our{" "}
+        We use the Meta Pixel and Google Analytics to measure our ads and understand how the app is used, and a chat widget to answer your questions. They load, and may set cookies, only if you accept. See our{" "}
         <a className="underline" href="https://www.citationrocket.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
       </p>
       <div className="mt-3 flex gap-2 justify-end">
