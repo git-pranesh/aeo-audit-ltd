@@ -8,7 +8,7 @@ import {
   deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
 } from '../services/user-service';
 import { claimPurchasedLicense, unusedPurchasesFor } from '../services/license-service';
-import { setServerPlan, trackServerEvent } from '../analytics';
+import { setServerPlan, trackRegistrationComplete, trackServerEvent } from '../analytics';
 import { requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
 import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
 import { estimateAuditCost, estimateSnapshotCost, getCatalog, resolveModel } from '../services/model-catalog';
@@ -22,6 +22,9 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
   const { user: found, created } = await getOrCreateUserWithFlag(uid, email);
   let user = found;
   const metaRegistrationEventId = created ? `reg_${uid}` : undefined;
+  if (created) {
+    await trackRegistrationComplete(uid, email, req);
+  }
   if (metaRegistrationEventId && requestAllowsTracking(req)) {
     await sendMetaEvent({
       event_name: 'CompleteRegistration',
