@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { identify } from "@hellyeah/x-ray";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { analytics } from "@heycatch/sdk";
 import { trackGa, trackMeta } from "@/lib/meta-pixel";
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
+        identify(firebaseUser.uid, { email: firebaseUser.email ?? undefined });
         // Stable Firebase uid as the id; email and name as properties; sign-up date set once.
         analytics.setIdentity(
           firebaseUser.uid,

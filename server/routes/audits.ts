@@ -89,6 +89,10 @@ auditsRouter.post('/', requireLicense, auditStartLimiter, handler<AuthenticatedR
   }
 
   const { auditId } = start;
+  await trackServerEvent('audit_started', {
+    domain,
+    industry: context.industry || null,
+  }, uid, req);
   try {
     const { auditData, aeoInputs } = await runAudit({ auditId, websiteUrl, context, apiKey, models: await getModelChoice(uid) });
     const previousScore = await previousScoreFor(uid, domain, auditId);

@@ -5,14 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/lib/auth-service";
 import { useParams } from "wouter";
+import { cv, track } from "@hellyeah/x-ray";
 import Home from "@/pages/home";
 import { trackGa, trackMeta } from "@/lib/meta-pixel";
 import { PLAN_VALUE_USD, type MetaPlan } from "@shared/meta";
 
 /**
  * Dodo returns buyers to /welcome/<plan>?payment_id=…&status=succeeded&email=….
- * Fires the browser Purchase once per payment (same event id as the server
- * Purchase from the webhook), then shows the normal sign-in page.
+ * Fires browser purchase events once per payment, then shows the normal
+ * sign-in page.
  */
 export default function Welcome() {
   const { plan } = useParams<{ plan: string }>();
@@ -26,6 +27,12 @@ export default function Welcome() {
       sessionStorage.setItem(key, "1");
     } catch { /* private mode: fire anyway */ }
     const p = plan as MetaPlan;
+    track(cv.purchase, {
+      eventId: paymentId,
+      revenue: PLAN_VALUE_USD[p],
+      currency: "USD",
+      metadata: { provider: "dodo", order_id: paymentId, plan: p },
+    });
     trackGa("purchase", { transaction_id: paymentId, currency: "USD", value: PLAN_VALUE_USD[p], items: [{ item_id: p, item_name: p === "agency" ? "Lifetime Agency" : "Lifetime", price: PLAN_VALUE_USD[p], quantity: 1 }] });
     trackMeta("Purchase", { value: PLAN_VALUE_USD[p], currency: "USD", content_name: p === "agency" ? "Lifetime Agency" : "Lifetime", content_type: "product" }, paymentId);
   }, [plan]);
