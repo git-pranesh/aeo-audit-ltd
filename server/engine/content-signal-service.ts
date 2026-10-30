@@ -517,11 +517,12 @@ export function generateSignalBasedWeaknesses(
   // whole site, so each line says what we found rather than claiming the content is absent.
   const found = (n: number, what: string) => `In the pages we read we found ${n} ${what}`;
 
-  if (signals.tutorialCount < 5) {
+  // Each weakness fires only when the count is below the benchmark it quotes.
+  if (signals.tutorialCount < benchmarks.tutorials) {
     weaknesses.push(`${found(signals.tutorialCount, 'tutorials')} (sites that get cited typically have ${benchmarks.tutorials}+): practical how-to content is what ChatGPT prefers to quote`);
   }
 
-  if (signals.caseStudyCount < 3) {
+  if (signals.caseStudyCount < benchmarks.caseStudies) {
     weaknesses.push(`${found(signals.caseStudyCount, 'case studies')} (sites that get cited typically have ${benchmarks.caseStudies}+): social proof AI assistants can point to`);
   }
 
@@ -529,15 +530,15 @@ export function generateSignalBasedWeaknesses(
     weaknesses.push(`Limited schema markup detected (${signals.schemaTypeCount} type${signals.schemaTypeCount === 1 ? '' : 's'}); implementing FAQ, HowTo, and Article schemas would improve AI discoverability`);
   }
 
-  if (signals.dataPointCount < 10) {
+  if (signals.dataPointCount < benchmarks.dataPoints) {
     weaknesses.push(`${found(signals.dataPointCount, 'data points')} (benchmark: ${benchmarks.dataPoints}+); statistics and research citations are what Perplexity favours`);
   }
 
-  if (signals.faqSectionCount < 2) {
+  if (signals.faqSectionCount < benchmarks.faqSections) {
     weaknesses.push(`${found(signals.faqSectionCount, 'FAQ sections')} (benchmark: ${benchmarks.faqSections}+); structured FAQs improve ChatGPT citation potential`);
   }
 
-  if (signals.frameworkMentionCount < 3) {
+  if (signals.frameworkMentionCount < benchmarks.frameworkMentions) {
     weaknesses.push(`${found(signals.frameworkMentionCount, 'named frameworks or methodologies')} (benchmark: ${benchmarks.frameworkMentions}+); Claude prefers content with clear models`);
   }
 

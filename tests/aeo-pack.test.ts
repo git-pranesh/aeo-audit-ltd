@@ -85,6 +85,15 @@ describe('content signals are observed, not inferred', () => {
     expect(s.tutorialCount).toBe(2);
   });
 
+  it('never lists a weakness the site already meets the benchmark for', async () => {
+    const { generateSignalBasedWeaknesses } = await import('../server/engine/content-signal-service');
+    const { getBenchmarks } = await import('../server/engine/benchmarks');
+    const b = getBenchmarks('', 10);
+    const s = extractContentSignals('<p>x</p>', '', Array.from({ length: b.tutorials }, (_, i) => `https://x.test/guides/g${i}`), {}, 'x.test');
+    const w = generateSignalBasedWeaknesses(s, 'X', [], '', 10);
+    expect(w.some((l) => /tutorials/.test(l))).toBe(false);
+  });
+
   it('survives a link farm and malformed hrefs quickly', () => {
     const farm = Array.from({ length: 50000 }, (_, i) => `<a href="/blog/p${i}">p</a><a href="../x">y</a><a href="//cdn.x.test/a">z</a><a href="">e</a>`).join('');
     const t0 = Date.now();
