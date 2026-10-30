@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Cpu, KeyRound, Palette, ShieldCheck, Trash2 } from "lucide-react";
+import { BadgeDollarSign, Cpu, KeyRound, Palette, ShieldCheck, Trash2 } from "lucide-react";
 import AppShell from "@/components/app-shell";
 import { KeySetup, LicenseSetup } from "@/components/account-setup";
 import { ModelSettings } from "@/components/model-picker";
@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/lib/auth-service";
 import { api, ApiError } from "@/lib/queryClient";
 import type { Branding } from "@shared/api";
+import type { GuaranteeStatus } from "@shared/guarantee";
 
 function Section({ icon: Icon, title, children }: { icon: typeof KeyRound; title: string; children: React.ReactNode }) {
   return (
@@ -27,6 +28,28 @@ function Section({ icon: Icon, title, children }: { icon: typeof KeyRound; title
       </CardContent>
     </Card>
   );
+}
+
+const longDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+
+function GuaranteeStatusText({ status: g }: { status: GuaranteeStatus }) {
+  if (g.eligible) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="guarantee-open">
+        Not for you? Refund yourself here until <b className="text-foreground">{longDate(g.until)}</b>, as long as you have run fewer than {g.maxAudits} audits
+        and downloaded nothing. So far: <b className="text-foreground">{g.auditsRun} of {g.maxAudits}</b> audits, no downloads.
+        After that the licence is yours and the sale is final.
+      </p>
+    );
+  }
+  const why: Record<string, string> = {
+    audits: `The guarantee ended because you ran ${g.maxAudits} audits.`,
+    downloads: "The guarantee ended when you downloaded a PDF, CSV or AEO Pack.",
+    expired: `The ${longDate(g.until)} guarantee window has closed.`,
+    not_direct: "The money-back guarantee covers purchases made on citationrocket.com. Marketplace and partner licences follow the seller's policy.",
+    refunded: "A refund has been requested for this licence.",
+  };
+  return <p className="text-sm text-muted-foreground" data-testid="guarantee-closed">{why[g.reason] ?? "Not available."} Your licence is yours for life.</p>;
 }
 
 export default function SettingsPage() {
@@ -59,6 +82,21 @@ export default function SettingsPage() {
       toast({ title: "Branding saved", description: "Your PDFs now use your agency branding." });
     } catch (err) {
       fail(err);
+    }
+  };
+
+  // ─── Money-back guarantee (direct purchases) ───
+  const [refunding, setRefunding] = useState(false);
+  const requestRefund = async () => {
+    setRefunding(true);
+    try {
+      await api("POST", "/api/me/refund");
+      await refreshMe();
+      toast({ title: "Refund sent", description: "Your payment is on its way back to your original payment method. Your licence has ended." });
+    } catch (err) {
+      toast({ title: "Refund not sent", description: err instanceof ApiError ? err.message : "Please try again or email support@citationrocket.com.", variant: "destructive" });
+    } finally {
+      setRefunding(false);
     }
   };
 
@@ -113,6 +151,29 @@ export default function SettingsPage() {
               <Input placeholder="youragency.com · hello@youragency.com" value={branding.footerText}
                 onChange={(e) => setBranding({ ...branding, footerText: e.target.value })} /></div>
             <Button onClick={saveBranding} disabled={!branding.agencyName.trim()}>Save branding</Button>
+          </Section>
+        )}
+
+        {me.guarantee && me.entitlement && (
+          <Section icon={BadgeDollarSign} title="Money-back guarantee">
+            <GuaranteeStatusText status={me.guarantee} />
+            {me.guarantee.eligible && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild><Button variant="outline" disabled={refunding} data-testid="button-refund">{refunding ? "Sending…" : "Refund my purchase"}</Button></AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Refund your purchase?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The full amount goes back to your original payment method (usually within 5 to 10 business days) and your licence ends immediately. Your audits stay on this account but you will not be able to open them without a licence.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep my licence</AlertDialogCancel>
+                    <AlertDialogAction onClick={requestRefund}>Refund me</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </Section>
         )}
 

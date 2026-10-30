@@ -34,6 +34,26 @@ export interface MeResponse {
   metaRegistrationEventId?: string;
   /** Licenses bought with this email that could not attach because the account already has one. */
   unusedPurchases?: { licenseId: string; whiteLabel: boolean; createdAt: string | null }[];
+  /** Money-back guarantee state for direct purchases; null without a licence. */
+  guarantee: import('./guarantee').GuaranteeStatus | null;
+}
+
+/** Free preview audit (website, no account): the deterministic part of a full audit. */
+export interface PreviewResult {
+  domain: string;
+  websiteUrl: string;
+  score: number;
+  grade: string;
+  platformScores: { chatgpt: number; perplexity: number; gemini: number; claude: number };
+  searchBotsBlocked: string[];
+  llmsTxt: boolean;
+  sitemap: boolean;
+  issues: string[];
+  fixes: { title: string; priority: string; timeToImplement: string }[];
+  totalFixes: number;
+  totalIssues: number;
+  checkedAt: string;
+  cached: boolean;
 }
 
 /** Chosen OpenRouter models; null = our recommended default. */

@@ -26,7 +26,7 @@ import { deriveNameFromDomain, extractDomain } from '../engine/domain-utils';
 import { adviceTopicOf, isAdviceRelevant } from '../engine/industry';
 import { extractSiteFacts, type SiteFacts } from '../engine/site-facts';
 import { scrapeHomepageLite, scrapeWebsite } from './scraper';
-import { generateTopics, TOPIC_CATEGORIES } from './topics';
+import { generateTopics, TOPIC_CATEGORIES, type TopicResult } from './topics';
 import { llmJson, OpenRouterError, type ModelChoice } from './openrouter';
 
 // ─── Step 1: business context (one LLM call) ─────────────────────────────────
@@ -140,8 +140,10 @@ export async function runAudit(params: {
   context: ConfirmedContext;
   apiKey: string;
   models?: ModelChoice;
+  /** Skip the AI topic call (free preview on the website). */
+  preview?: boolean;
 }): Promise<AuditOutput> {
-  const { auditId, websiteUrl, context, apiKey, models = {} } = params;
+  const { auditId, websiteUrl, context, apiKey, models = {}, preview = false } = params;
   const startedAt = Date.now();
   const domain = extractDomain(websiteUrl);
   const companyName = context.companyName || deriveNameFromDomain(websiteUrl) || domain;
@@ -184,7 +186,10 @@ export async function runAudit(params: {
       industry: context.industry,
       primaryQuery: context.keywords[0] || '',
     }).catch(() => null),
-    generateTopics({ websiteUrl, context, signals, platformScores, lowestPlatform }, apiKey, auditId, models, scrape.text),
+    // Preview audits (website, no account) skip the only AI call: everything else is deterministic and free.
+    preview
+      ? Promise.resolve<TopicResult>({ topics: Object.fromEntries(TOPIC_CATEGORIES.map((c) => [c, []])) as unknown as TopicResult['topics'], competitorInsights: null })
+      : generateTopics({ websiteUrl, context, signals, platformScores, lowestPlatform }, apiKey, auditId, models, scrape.text),
   ]);
 
   const competitors = context.competitors;

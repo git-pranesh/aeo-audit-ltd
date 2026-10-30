@@ -8,6 +8,7 @@ import { adminAuth, adminDb } from '../firebase-admin';
 import { decryptSecret, encryptSecret, type EncryptedSecret } from '../security/encryption';
 import { OpenRouterError, type ModelChoice } from './openrouter';
 import { releaseLicense, type Entitlement } from './license-service';
+import type { GuaranteeUsage } from '../../shared/guarantee';
 
 export interface Branding {
   agencyName: string;
@@ -30,6 +31,37 @@ export interface UserRecord {
   entitlement?: Entitlement;
   openRouterKey?: StoredKey;
   branding?: Branding;
+  /** Money-back guarantee counters (audits started, exports taken). Never reset. */
+  guarantee?: GuaranteeUsage;
+}
+
+/** Marks a self-serve refund as requested. False if one was already requested (double click, retry). */
+export async function markRefundRequested(uid: string): Promise<boolean> {
+  const ref = users().doc(uid);
+  return adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const g: GuaranteeUsage = snap.data()?.guarantee ?? {};
+    if (g.refundRequestedAt) return false;
+    tx.set(ref, { guarantee: { ...g, refundRequestedAt: new Date().toISOString() } }, { merge: true });
+    return true;
+  });
+}
+
+export async function setRefundResult(uid: string, result: { refundId: string } | null): Promise<void> {
+  const { FieldValue } = await import('firebase-admin/firestore');
+  await users().doc(uid).set({
+    guarantee: result ? { refundId: result.refundId } : { refundRequestedAt: FieldValue.delete() },
+  }, { merge: true });
+}
+
+/** Counts an export (PDF, CSV or AEO Pack). Any download ends the money-back guarantee. */
+export async function recordDownload(uid: string, kind: 'pdf' | 'csv' | 'pack'): Promise<void> {
+  const ref = users().doc(uid);
+  await adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const g: GuaranteeUsage = snap.data()?.guarantee ?? {};
+    tx.set(ref, { guarantee: { ...g, downloads: (g.downloads ?? 0) + 1, lastDownload: kind } }, { merge: true });
+  });
 }
 
 const users = () => adminDb.collection('users');

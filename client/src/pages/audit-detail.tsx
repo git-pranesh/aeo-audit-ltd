@@ -58,8 +58,17 @@ export default function AuditDetailPage() {
   const fail = (err: unknown) =>
     toast({ title: "Something went wrong", description: err instanceof ApiError ? err.message : "Please try again.", variant: "destructive" });
 
-  const downloadCsv = () => {
+  // Exports end the money-back guarantee; the server counts them (the AEO Pack is counted server-side).
+  const noteDownload = (kind: "pdf" | "csv") => api("POST", "/api/me/download-event", { kind }).catch(() => {});
+
+  const downloadPdf = async () => {
+    await noteDownload("pdf");
+    handleDownloadPDF();
+  };
+
+  const downloadCsv = async () => {
     if (!audit || !auditData) return;
+    await noteDownload("csv");
     const exporter = new CSVExporter({ auditData, websiteUrl: audit.websiteUrl, generatedAt: audit.completedAt ?? audit.createdAt });
     exporter.downloadCSV(`ai-readiness-${audit.domain}-${audit.createdAt.slice(0, 10)}.csv`, exporter.generateFullCSV());
   };
@@ -164,7 +173,7 @@ export default function AuditDetailPage() {
 
           {audit.status === "completed" && (
             <div className="flex flex-wrap gap-2">
-              <Button onClick={handleDownloadPDF} disabled={isGenerating} data-testid="button-pdf">
+              <Button onClick={downloadPdf} disabled={isGenerating} data-testid="button-pdf">
                 <FileText className="h-4 w-4 mr-2" />{isGenerating ? "Generating…" : branding ? "Branded PDF" : "PDF"}
               </Button>
               <Button variant="outline" onClick={downloadCsv} data-testid="button-csv"><Table className="h-4 w-4 mr-2" />CSV</Button>

@@ -31,6 +31,13 @@ export interface License {
   activatedAt?: string;
   createdAt: string;
   note?: string;
+  /** Direct sales: what the buyer paid, in cents (founding price steps). */
+  amountPaid?: number;
+}
+
+export async function getLicense(licenseId: string): Promise<License | null> {
+  const snap = await licenses().doc(licenseId).get();
+  return snap.exists ? (snap.data() as License) : null;
 }
 
 export interface Entitlement {
@@ -187,6 +194,7 @@ export async function createPurchasedLicense(params: {
   orderReference: string;
   email: string;
   whiteLabel: boolean;
+  amountPaid?: number;
 }): Promise<{ created: boolean; licenseId: string }> {
   const licenseId = `order_${params.orderReference.replace(/[^A-Za-z0-9_-]/g, '')}`;
   const license: License = {
@@ -197,6 +205,7 @@ export async function createPurchasedLicense(params: {
     purchaserEmail: params.email.toLowerCase(),
     orderReference: params.orderReference,
     createdAt: new Date().toISOString(),
+    ...(typeof params.amountPaid === 'number' ? { amountPaid: params.amountPaid } : {}),
   };
   try {
     await licenses().doc(licenseId).create(license);

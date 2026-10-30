@@ -5,9 +5,13 @@ import { requireAuth, isAdminUser, type AuthenticatedRequest } from '../security
 import { keyLimiter } from '../security/rate-limits';
 import { handler } from './http';
 import {
-  deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
+  deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, markRefundRequested, recordDownload, saveBranding,
+  saveModelChoice, saveOpenRouterKey, setRefundResult,
 } from '../services/user-service';
-import { claimPurchasedLicense, unusedPurchasesFor } from '../services/license-service';
+import { claimPurchasedLicense, getLicense, setLicenseStatus, unusedPurchasesFor } from '../services/license-service';
+import { guaranteeStatus, type GuaranteeStatus } from '../../shared/guarantee';
+import { createRefund, DodoError } from '../services/dodo';
+import { invalidateFoundingCache } from '../services/founding';
 import { cookieValue, requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
 import { cv, sendXrayEvent, xrayVisitorId } from '../services/xray';
 import { XRAY_COOKIE } from '../../shared/meta';
@@ -47,7 +51,17 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
     }
   }
   const unusedPurchases = user.entitlement ? await unusedPurchasesFor(email, emailVerified) : [];
+  let guarantee: GuaranteeStatus | null = null;
+  if (user.entitlement) {
+    const license = await getLicense(user.entitlement.licenseId);
+    guarantee = guaranteeStatus({
+      channel: user.entitlement.channel,
+      purchasedAt: license?.createdAt ?? user.entitlement.activatedAt,
+      usage: user.guarantee,
+    });
+  }
   return {
+    guarantee,
     uid,
     email: email || user.email,
     emailVerified,
@@ -152,6 +166,62 @@ meRouter.put('/branding', handler<AuthenticatedRequest>(async (req, res) => {
 meRouter.delete('/branding', handler<AuthenticatedRequest>(async (req, res) => {
   await saveBranding(req.user!.uid, null);
   res.json({ ok: true });
+}));
+
+// ─── Money-back guarantee ─────────────────────────────────────────────────────
+
+/** PDF and CSV are generated in the browser; the client reports them before generating. The AEO Pack is counted server-side. */
+meRouter.post('/download-event', handler<AuthenticatedRequest>(async (req, res) => {
+  const { kind } = z.object({ kind: z.enum(['pdf', 'csv']) }).parse(req.body);
+  await recordDownload(req.user!.uid, kind);
+  res.json({ ok: true });
+}));
+
+const REASONS: Record<string, string> = {
+  not_direct: 'The money-back guarantee applies to purchases made on citationrocket.com.',
+  expired: 'The guarantee window has closed.',
+  audits: 'The guarantee ended because the audit limit was reached.',
+  downloads: 'The guarantee ended when a PDF, CSV or AEO Pack was downloaded.',
+  refunded: 'A refund has already been requested for this licence.',
+};
+
+/** Self-serve refund while the guarantee holds: Dodo refund, licence refunded, access ends now. */
+meRouter.post('/refund', handler<AuthenticatedRequest>(async (req, res) => {
+  const uid = req.user!.uid;
+  const user = await getUser(uid);
+  if (!user?.entitlement) {
+    res.status(404).json({ error: 'No licence on this account.', code: 'NO_LICENSE' });
+    return;
+  }
+  const license = await getLicense(user.entitlement.licenseId);
+  const status = guaranteeStatus({ channel: user.entitlement.channel, purchasedAt: license?.createdAt ?? user.entitlement.activatedAt, usage: user.guarantee });
+  if (!status.eligible) {
+    res.status(403).json({ error: REASONS[status.reason] ?? 'Not eligible.', code: 'NOT_ELIGIBLE' });
+    return;
+  }
+  if (!license?.orderReference) {
+    res.status(400).json({ error: 'This licence has no payment reference. Email support@citationrocket.com.', code: 'NO_PAYMENT' });
+    return;
+  }
+  if (!(await markRefundRequested(uid))) {
+    res.status(409).json({ error: REASONS.refunded, code: 'ALREADY_REQUESTED' });
+    return;
+  }
+  try {
+    const refund = await createRefund(license.orderReference, 'Self-serve money-back guarantee');
+    await setLicenseStatus(user.entitlement.licenseId, 'refunded');
+    await setRefundResult(uid, { refundId: refund.refundId });
+    invalidateFoundingCache();
+    console.log(`Refund ${refund.refundId} (${refund.status}) for ${license.orderReference} by ${uid}`);
+    res.json({ ok: true, refundId: refund.refundId });
+  } catch (err) {
+    await setRefundResult(uid, null); // let them try again
+    if (err instanceof DodoError) {
+      res.status(err.status).json({ error: `${err.message} If this keeps happening, email support@citationrocket.com.`, code: 'REFUND_FAILED' });
+      return;
+    }
+    throw err;
+  }
 }));
 
 // ─── Account deletion ─────────────────────────────────────────────────────────

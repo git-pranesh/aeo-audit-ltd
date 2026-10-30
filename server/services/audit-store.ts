@@ -124,11 +124,14 @@ export async function startAudit(params: {
     const createdAt = new Date(now).toISOString();
     const doc: StoredAudit = { userId: uid, websiteUrl, domain, status: 'running', createdAt, context };
     tx.create(auditRef, doc);
+    // guarantee.auditsRun is a lifetime counter (money-back guarantee); deleting audits does not lower it.
+    const guarantee = userSnap.data()?.guarantee ?? {};
     tx.set(userRef, {
       usage: {
         active: [...active, { id: auditId, startedAt: now }],
         recent: [...recent, now],
       },
+      guarantee: { ...guarantee, auditsRun: (guarantee.auditsRun ?? 0) + 1 },
     }, { merge: true });
     return { kind: 'started', auditId } as StartResult;
   });

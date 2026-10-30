@@ -5,7 +5,7 @@ import { requireAuth, requireLicense, type AuthenticatedRequest } from '../secur
 import { analyzeLimiter, auditStartLimiter, citationLimiter } from '../security/rate-limits';
 import { assertPublicUrl } from '../security/ssrf';
 import { handler } from './http';
-import { getModelChoice, getUser, requireOpenRouterKey } from '../services/user-service';
+import { getModelChoice, getUser, recordDownload, requireOpenRouterKey } from '../services/user-service';
 import { analyzeWebsite, runAudit } from '../services/audit-pipeline';
 import {
   FAIR_USE, completeAudit, limitsFor, deleteAudit, failAudit, getAudit, getAuditForFiles, listAudits,
@@ -165,6 +165,7 @@ auditsRouter.get('/:auditId/aeo-pack', requireLicense, handler<AuthenticatedRequ
   });
 
   const safeName = (ctx.companyName || audit.domain).replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 60) || 'site';
+  await recordDownload(req.user!.uid, 'pack');
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="${safeName}-aeo-pack.zip"`);
   const archive = archiver('zip', { zlib: { level: 9 } });

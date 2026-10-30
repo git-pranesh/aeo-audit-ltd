@@ -4,12 +4,14 @@ import { licensesRouter } from './licenses';
 import { auditsRouter } from './audits';
 import { webhooksRouter } from './webhooks';
 import { adminRouter } from './admin';
+import { publicRouter } from './public';
 
 export function registerRoutes(app: Express): void {
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
 
+  app.use('/api/public', publicRouter);
   app.use('/api/me', meRouter);
   app.use('/api/licenses', licensesRouter);
   app.use('/api/audits', auditsRouter);
