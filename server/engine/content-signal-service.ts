@@ -486,36 +486,39 @@ export function generateSignalBasedWeaknesses(
 ): string[] {
   const benchmarks = getBenchmarks(industry, totalPageCount || signals.totalPageCount || 0);
   const weaknesses: string[] = [];
-  
+  // Every count below comes from the pages we fetched plus sitemap URL patterns, never the
+  // whole site, so each line says what we found rather than claiming the content is absent.
+  const found = (n: number, what: string) => `In the pages we read we found ${n} ${what}`;
+
   if (signals.tutorialCount < 5) {
-    weaknesses.push(`Your site has ${signals.tutorialCount} tutorials (industry benchmark: ${benchmarks.tutorials}+): content gap for practical how-to content that ChatGPT prefers`);
+    weaknesses.push(`${found(signals.tutorialCount, 'tutorials')} (sites that get cited typically have ${benchmarks.tutorials}+): practical how-to content is what ChatGPT prefers to quote`);
   }
-  
+
   if (signals.caseStudyCount < 3) {
-    weaknesses.push(`Your site has ${signals.caseStudyCount} case studies (industry benchmark: ${benchmarks.caseStudies}+): limited social proof for AI platforms to cite`);
+    weaknesses.push(`${found(signals.caseStudyCount, 'case studies')} (sites that get cited typically have ${benchmarks.caseStudies}+): social proof AI assistants can point to`);
   }
-  
+
   if (signals.schemaTypeCount < 2) {
     weaknesses.push(`Limited schema markup detected (${signals.schemaTypeCount} type${signals.schemaTypeCount === 1 ? '' : 's'}); implementing FAQ, HowTo, and Article schemas would improve AI discoverability`);
   }
-  
+
   if (signals.dataPointCount < 10) {
-    weaknesses.push(`Content lacks data backing (${signals.dataPointCount} data points found; benchmark: ${benchmarks.dataPoints}+); adding statistics and research citations would boost Perplexity visibility`);
+    weaknesses.push(`${found(signals.dataPointCount, 'data points')} (benchmark: ${benchmarks.dataPoints}+); statistics and research citations are what Perplexity favours`);
   }
-  
+
   if (signals.faqSectionCount < 2) {
-    weaknesses.push(`Only ${signals.faqSectionCount} FAQ sections found (benchmark: ${benchmarks.faqSections}+); adding structured FAQs would improve ChatGPT citation potential`);
+    weaknesses.push(`${found(signals.faqSectionCount, 'FAQ sections')} (benchmark: ${benchmarks.faqSections}+); structured FAQs improve ChatGPT citation potential`);
   }
-  
+
   if (signals.frameworkMentionCount < 3) {
-    weaknesses.push(`Limited analytical frameworks (${signals.frameworkMentionCount} found; benchmark: ${benchmarks.frameworkMentions}+); Claude prefers content with clear methodologies and models`);
+    weaknesses.push(`${found(signals.frameworkMentionCount, 'named frameworks or methodologies')} (benchmark: ${benchmarks.frameworkMentions}+); Claude prefers content with clear models`);
   }
-  
+
   // Ensure at least one weakness
   if (weaknesses.length === 0) {
     weaknesses.push(`${companyName} has room to expand content depth across all AI platform preferences`);
   }
-  
+
   return weaknesses.slice(0, 5);
 }
 
