@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { trackGa, trackMeta } from "@/lib/meta-pixel";
+import { identifyXray, trackGa, trackMeta } from "@/lib/meta-pixel";
 import { auth } from "@/lib/firebase";
 import { api } from "@/lib/queryClient";
 import type { MeResponse } from "@shared/api";
@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
+        identifyXray(firebaseUser.uid, firebaseUser.email);
         await refreshMe();
       }
       else setMe(null);

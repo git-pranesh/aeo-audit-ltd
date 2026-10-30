@@ -17,7 +17,6 @@ export const licensesRouter = Router();
 licensesRouter.post('/activate', requireAuth, licenseLimiter, handler<AuthenticatedRequest>(async (req, res) => {
   const { code } = z.object({ code: z.string().trim().min(4).max(80) }).parse(req.body);
   await getOrCreateUser(req.user!.uid, req.user!.email);
-  const entitlement = await activateCode(req.user!.uid, code);
-  const plan = entitlement.whiteLabel ? 'agency' : 'lifetime';
+  await activateCode(req.user!.uid, code);
   res.json(await buildMe(req));
 }));

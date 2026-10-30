@@ -15,6 +15,7 @@ import { Router, text } from 'express';
 import { Webhook } from 'standardwebhooks';
 import { createPurchasedLicense, findLicenseByOrder, setLicenseStatus } from '../services/license-service';
 import { sendMetaEvent, sha256 } from '../services/meta-capi';
+import { cv, sendXrayEvent } from '../services/xray';
 import { PLAN_VALUE_USD } from '../../shared/meta';
 
 export const webhooksRouter = Router();
@@ -76,6 +77,17 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
               fbc: meta.fbc || undefined,
             },
             custom_data: { value: PLAN_VALUE_USD[plan], currency: 'USD', content_name: plan === 'agency' ? 'Lifetime Agency' : 'Lifetime', content_type: 'product' },
+          });
+          // X-Ray visitor id captured at citationrocket.com/buy joins this sale to the ad click.
+          const visitorId = /^[0-9a-f-]{36}$/i.test(meta.hy_vid || '') ? meta.hy_vid : undefined;
+          await sendXrayEvent(cv.purchase, {
+            distinctId: visitorId ?? `payment_${paymentId}`,
+            eventId: paymentId,
+            visitorId,
+            revenue: PLAN_VALUE_USD[plan],
+            currency: 'USD',
+            identity: { email },
+            metadata: { plan, provider: 'dodo' },
           });
         }
       }

@@ -8,7 +8,9 @@ import {
   deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
 } from '../services/user-service';
 import { claimPurchasedLicense, unusedPurchasesFor } from '../services/license-service';
-import { requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
+import { cookieValue, requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
+import { cv, sendXrayEvent, xrayVisitorId } from '../services/xray';
+import { XRAY_COOKIE } from '../../shared/meta';
 import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
 import { estimateAuditCost, estimateSnapshotCost, getCatalog, resolveModel } from '../services/model-catalog';
 import { limitsFor } from '../services/audit-store';
@@ -29,14 +31,19 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
       action_source: 'website',
       user_data: { ...requestUserData(req), external_id: [sha256(uid)], ...(email ? { em: [sha256(email)] } : {}) },
     });
+    await sendXrayEvent(cv.registrationComplete, {
+      distinctId: uid,
+      eventId: metaRegistrationEventId,
+      visitorId: xrayVisitorId(cookieValue(req, XRAY_COOKIE)),
+      url: 'https://app.citationrocket.com/',
+      ...(email ? { identity: { email } } : {}),
+    });
   }
   if (!user.entitlement) {
     // Direct purchases are claimed automatically by verified email.
     const claimed = await claimPurchasedLicense(uid, email, emailVerified);
     if (claimed) {
       user = { ...user, entitlement: claimed };
-      // A direct purchase becomes a person's license here, the first moment we know who bought it.
-      const plan = claimed.whiteLabel ? 'agency' : 'lifetime';
     }
   }
   const unusedPurchases = user.entitlement ? await unusedPurchasesFor(email, emailVerified) : [];

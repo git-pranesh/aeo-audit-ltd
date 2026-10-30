@@ -3,7 +3,8 @@
  * may be tracked: outside the EEA/UK/CH, or after they accepted the consent
  * banner (choice shared with citationrocket.com through a .citationrocket.com cookie).
  */
-import { CHAT_WIDGET_SRC, CONSENT_COOKIE, GA_MEASUREMENT_ID, META_PIXEL_ID, REGION_COOKIE } from "@shared/meta";
+import { identify, inject } from "@hellyeah/x-ray";
+import { CHAT_WIDGET_SRC, CONSENT_COOKIE, GA_MEASUREMENT_ID, META_PIXEL_ID, REGION_COOKIE, XRAY_WEBSITE_ID } from "@shared/meta";
 
 type Fbq = ((...args: unknown[]) => void) & { callMethod?: (...a: unknown[]) => void; queue?: unknown[]; loaded?: boolean; version?: string; push?: unknown };
 declare global { interface Window { fbq?: Fbq; _fbq?: Fbq } }
@@ -24,7 +25,7 @@ export function consentState(): ConsentState {
 export function saveConsent(granted: boolean) {
   const domain = location.hostname.endsWith("citationrocket.com") ? "; domain=.citationrocket.com" : "";
   document.cookie = `${CONSENT_COOKIE}=${granted ? "granted" : "denied"}; path=/; max-age=${60 * 60 * 24 * 180}; SameSite=Lax; Secure${domain}`;
-  if (granted) { loadPixel(); loadGa(); loadChat(); }
+  if (granted) { loadPixel(); loadGa(); loadXray(); loadChat(); }
   else { pending.length = 0; gaPending.length = 0; }
 }
 
@@ -98,4 +99,18 @@ export function loadChat() {
   s.src = CHAT_WIDGET_SRC;
   s.defer = true;
   document.body.appendChild(s);
+}
+
+/** HellYeah X-Ray: page views and ad click ids, same consent rule. Cookie shared with citationrocket.com, where the ad click lands. */
+let xrayLoaded = false;
+export function loadXray() {
+  if (xrayLoaded || !XRAY_WEBSITE_ID || consentState() !== "allowed") return;
+  xrayLoaded = true;
+  const live = location.hostname.endsWith("citationrocket.com");
+  inject({ websiteId: XRAY_WEBSITE_ID, env: live ? "prod" : "dev", ...(live ? { cookieDomain: ".citationrocket.com" } : {}) });
+}
+
+/** Links the visitor to their account (email is hashed by X-Ray for ad platform matching). Only once X-Ray is allowed. */
+export function identifyXray(uid: string, email?: string | null) {
+  if (xrayLoaded) identify(uid, email ? { email } : undefined);
 }
