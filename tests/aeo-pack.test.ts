@@ -62,6 +62,36 @@ describe('content signals are observed, not inferred', () => {
     expect(s.blogPostCount).toBe(2);
     expect(s.caseStudyCount).toBe(1);
   });
+
+  it('classifies internal links on fetched pages when the sitemap leaves sections out', () => {
+    const html = '<nav><a href="/customers">Customers</a><a href="/reviews/">Reviews</a><a href="https://x.test/academy/seo-basics">Academy</a>'
+      + '<a href="/blog/reviews-of-tools">Post</a><a href="https://other.test/case-studies/z">Partner</a><a href="mailto:a@x.test">Mail</a><a href="tel:+1">Call</a><a href="javascript:void(0)">x</a></nav>';
+    const s = extractContentSignals(html, '', [], {}, 'x.test');
+    expect(s.caseStudyCount).toBe(2); // /customers and /reviews are social proof pages
+    expect(s.tutorialCount).toBe(1); // /academy/seo-basics
+    expect(s.blogPostCount).toBe(1); // /blog/reviews-of-tools is a blog post, not a review page
+    expect(s.externalLinkCount).toBe(1);
+  });
+
+  it('does not double count a URL that is in the sitemap and linked on the page', () => {
+    const s = extractContentSignals('<a href="/case-studies/acme/">Acme</a>', '', ['https://x.test/case-studies/acme'], {}, 'x.test');
+    expect(s.caseStudyCount).toBe(1);
+  });
+
+  it('caps word-mention fallbacks so text alone cannot invent many pages', () => {
+    const text = Array.from({ length: 40 }, () => 'read our case study and this step by step tutorial').join(' ');
+    const s = extractContentSignals('<p>x</p>', text, [], {}, 'x.test');
+    expect(s.caseStudyCount).toBe(2);
+    expect(s.tutorialCount).toBe(2);
+  });
+
+  it('survives a link farm and malformed hrefs quickly', () => {
+    const farm = Array.from({ length: 50000 }, (_, i) => `<a href="/blog/p${i}">p</a><a href="../x">y</a><a href="//cdn.x.test/a">z</a><a href="">e</a>`).join('');
+    const t0 = Date.now();
+    const s = extractContentSignals(farm, '', [], {}, 'x.test');
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(s.blogPostCount).toBeLessThanOrEqual(5000);
+  });
 });
 
 describe('scores are earned, never floored', () => {

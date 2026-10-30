@@ -105,7 +105,33 @@ export function extractContentSignals(
       return false;
     }
   };
-  const paths = Array.from(new Set(sitemapUrls.filter(sameSite).map((u) => {
+  // Many sites (Ahrefs, for one) leave their main marketing pages out of the sitemap, so the
+  // internal links on the pages we fetched count too. Both sources are deduplicated by path.
+  const base = domain ? `https://${domain}` : 'https://localhost';
+  const MAX_LINKS = 5000; // a link farm must not blow up memory or time
+  const linkedUrls: string[] = [];
+  for (const m of rawHtml.matchAll(/<a\s[^>]*href\s*=\s*["']([^"'#?]+)/gi)) {
+    if (linkedUrls.length >= MAX_LINKS) break;
+    const href = m[1].trim();
+    if (!href || /^(mailto:|tel:|javascript:)/i.test(href)) continue;
+    try {
+      linkedUrls.push(new URL(href, base).toString());
+    } catch {
+      // relative garbage, skip
+    }
+  }
+  const toPath = (u: string) => {
+    try {
+      const url = new URL(u);
+      return `${url.hostname.toLowerCase()}${url.pathname.toLowerCase().replace(/\/+$/, '')}`;
+    } catch {
+      return '';
+    }
+  };
+  // Site size (which sets the benchmark tier) still comes from the sitemap alone, so adding
+  // navigation links can only reveal content, never move a small site into a bigger tier.
+  const sitemapPathCount = new Set(sitemapUrls.filter(sameSite).map(toPath).filter(Boolean)).size;
+  const paths = Array.from(new Set([...sitemapUrls, ...linkedUrls].filter(sameSite).map((u) => {
     try {
       const url = new URL(u);
       return `${url.hostname.toLowerCase()}${url.pathname.toLowerCase().replace(/\/+$/, '')}`;
@@ -115,7 +141,7 @@ export function extractContentSignals(
   }).filter(Boolean)));
 
   const CATEGORIES: [keyof typeof buckets, RegExp][] = [
-    ['caseStudies', /\/(case-stud(y|ies)|customer-stor(y|ies)|success-stor(y|ies)|client-stor(y|ies))\/[^/]+/],
+    ['caseStudies', /\/(case-stud(y|ies)|customer-stor(y|ies)|success-stor(y|ies)|client-stor(y|ies))\/[^/]+|^[^/]+\/(testimonials?|reviews|customers|clients)(\/[^/]+)?$/],
     ['faqs', /\/(faqs?|frequently-asked-questions?)(\/|$)/],
     ['docs', /(^(docs|developers?|help|support|kb)\.)|\/(docs|documentation|api-reference|developers?|knowledge-base|kb|help-center)\/[^/]+|\/help\/[^/]+\/[^/]+/],
     ['tutorials', /(^(learn|academy)\.)|\/(tutorials?|how-to|guides?|learn|academy|courses?|getting-started)\/[^/]+/],
@@ -131,7 +157,8 @@ export function extractContentSignals(
 
   // ── Practical content (ChatGPT) ────────────────────────────────────────────
   const tutorialTextMentions = count(text, /step[- ]by[- ]step|\btutorial\b|guide to|getting started|beginner'?s guide|walkthrough/g);
-  const tutorialCount = buckets.tutorials || Math.floor(tutorialTextMentions / 3);
+  // Word mentions alone never prove dedicated pages exist, so without URL evidence the count is capped at 2.
+  const tutorialCount = buckets.tutorials || Math.min(2, Math.floor(tutorialTextMentions / 3));
   const howToGuideCount = count(text, /\bhow to [a-z]/g);
 
   const faqSchemaBlocks = count(html, /"@type"\s*:\s*"faqpage"/g);
@@ -190,7 +217,7 @@ export function extractContentSignals(
 
   // ── Depth (Claude) ─────────────────────────────────────────────────────────
   const caseStudyTextMentions = count(text, /case stud(y|ies)|customer stor(y|ies)|success stor(y|ies)|client spotlight/g);
-  const caseStudyCount = Math.max(buckets.caseStudies, Math.floor(caseStudyTextMentions / 2));
+  const caseStudyCount = Math.max(buckets.caseStudies, Math.min(2, Math.floor(caseStudyTextMentions / 2)));
   const frameworkTextMentions = count(text, /\bframeworks?\b|\bmethodology\b|\bplaybooks?\b|best practices|principles of/g);
   const frameworkMentionCount = buckets.frameworks + Math.floor(frameworkTextMentions / 3);
   const wordCount = text.split(/\s+/).filter(Boolean).length;
@@ -200,7 +227,7 @@ export function extractContentSignals(
   // ── Site-level ─────────────────────────────────────────────────────────────
   const blogPostCount = buckets.blog;
   const documentationPageCount = buckets.docs;
-  const totalPageCount = paths.length || 10;
+  const totalPageCount = sitemapPathCount || 10;
   const contentDepthScore = Math.min(100, documentationPageCount * 3 + blogPostCount * 2 + tutorialCount * 2 + caseStudyCount * 5);
 
   console.log(`📊 Signals — tutorials:${tutorialCount} faqs:${faqSectionCount} caseStudies:${caseStudyCount} blogs:${blogPostCount} docs:${documentationPageCount} schema:${schemaTypeCount} extLinks:${externalLinkCount}`);
