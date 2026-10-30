@@ -8,7 +8,6 @@ import {
   deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, saveBranding, saveModelChoice, saveOpenRouterKey,
 } from '../services/user-service';
 import { claimPurchasedLicense, unusedPurchasesFor } from '../services/license-service';
-import { setServerPlan, trackServerEvent } from '../analytics';
 import { requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
 import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
 import { estimateAuditCost, estimateSnapshotCost, getCatalog, resolveModel } from '../services/model-catalog';
@@ -38,8 +37,6 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
       user = { ...user, entitlement: claimed };
       // A direct purchase becomes a person's license here, the first moment we know who bought it.
       const plan = claimed.whiteLabel ? 'agency' : 'lifetime';
-      await setServerPlan(uid, plan);
-      await trackServerEvent('license_activated', { plan, channel: claimed.channel, via: 'purchase_email' }, uid, req);
     }
   }
   const unusedPurchases = user.entitlement ? await unusedPurchasesFor(email, emailVerified) : [];

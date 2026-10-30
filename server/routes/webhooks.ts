@@ -14,7 +14,6 @@
 import { Router, text } from 'express';
 import { Webhook } from 'standardwebhooks';
 import { createPurchasedLicense, findLicenseByOrder, setLicenseStatus } from '../services/license-service';
-import { setServerPlan, trackServerEvent } from '../analytics';
 import { sendMetaEvent, sha256 } from '../services/meta-capi';
 import { PLAN_VALUE_USD } from '../../shared/meta';
 
@@ -83,22 +82,14 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
     } else if (event?.type === 'refund.succeeded' && paymentId) {
       const licenseId = await findLicenseByOrder(paymentId);
       if (licenseId) {
-        const license = await setLicenseStatus(licenseId, 'refunded');
+        await setLicenseStatus(licenseId, 'refunded');
         console.log(`Webhook: refund for ${paymentId} → license refunded`);
-        if (license?.activatedBy) {
-          await setServerPlan(license.activatedBy, 'none');
-          await trackServerEvent('license_refunded', { plan: license.whiteLabel ? 'agency' : 'lifetime' }, license.activatedBy);
-        }
       }
     } else if (event?.type === 'dispute.lost' && paymentId) {
       const licenseId = await findLicenseByOrder(paymentId);
       if (licenseId) {
-        const license = await setLicenseStatus(licenseId, 'revoked');
+        await setLicenseStatus(licenseId, 'revoked');
         console.log(`Webhook: chargeback lost for ${paymentId} → license revoked`);
-        if (license?.activatedBy) {
-          await setServerPlan(license.activatedBy, 'none');
-          await trackServerEvent('license_revoked_chargeback', { plan: license.whiteLabel ? 'agency' : 'lifetime' }, license.activatedBy);
-        }
       }
     }
     res.json({ received: true });

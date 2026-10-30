@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { analytics } from "@heycatch/sdk";
 import { trackGa, trackMeta } from "@/lib/meta-pixel";
 import { auth } from "@/lib/firebase";
 import { api } from "@/lib/queryClient";
@@ -52,24 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        // Stable Firebase uid as the id; email and name as properties; sign-up date set once.
-        analytics.setIdentity(
-          firebaseUser.uid,
-          { email: firebaseUser.email ?? undefined, name: firebaseUser.displayName ?? undefined },
-          firebaseUser.metadata.creationTime ? { signup_date: new Date(firebaseUser.metadata.creationTime).toISOString() } : undefined,
-        );
         await refreshMe();
       }
       else setMe(null);
       setLoading(false);
     });
   }, [refreshMe]);
-
-  // Plan as a person property, sent only when it changes.
-  const plan = !user ? null : me?.entitlement ? (me.entitlement.whiteLabel ? "agency" : "lifetime") : me ? "none" : null;
-  useEffect(() => {
-    if (plan) analytics.setPersonProperties({ plan });
-  }, [plan]);
 
   return (
     <AuthContext.Provider value={{ user, me, loading, isAuthenticated: !!user, refreshMe, setMe }}>
