@@ -127,7 +127,7 @@ function ActionCard({ action }: { action: PlaybookAction }) {
           <div className="flex items-center gap-2 text-xs">
             <span className="text-muted-foreground">You have: <span className="text-foreground/70">{action.currentState}</span></span>
             <span className="text-primary font-bold">&rarr;</span>
-            <span className="text-muted-foreground">You need: <span className="text-primary">{action.targetState}</span></span>
+            <span className="text-muted-foreground">Our target: <span className="text-primary">{action.targetState}</span></span>
           </div>
         </div>
       </AccordionTrigger>

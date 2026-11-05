@@ -298,7 +298,7 @@ export function generatePlaybook(
       estimatedImpact: 'Up to about 9 points on the ChatGPT estimate',
       timeToImplement: '30 minutes',
       difficulty: 'easy',
-      currentState: `${contentSignals.faqSectionCount} FAQ sections detected`,
+      currentState: `${contentSignals.faqSectionCount} FAQ ${contentSignals.faqSectionCount === 1 ? 'section' : 'sections'} detected`,
       targetState: `${benchmarks.faqSections}+ FAQ schemas across key pages`,
       stepByStep: [
         `Identify your top ${Math.max(safeGap, 3)} most-visited pages`,

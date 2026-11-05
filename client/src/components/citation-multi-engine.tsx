@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import type { AuditData } from "@shared/schema";
+import { countAnswers } from "@shared/engines";
 
 type Snapshot = NonNullable<AuditData["citationSnapshot"]>;
 type Answer = Snapshot["promptResults"][number];
@@ -31,22 +32,21 @@ export default function CitationMultiEngine({ snapshot, lastCheckedAt, companyNa
   const label = (id?: string) => engines.find((e) => e.id === id)?.label ?? id ?? "";
   const questions = Array.from(new Set(snapshot.promptResults.map((r) => r.prompt)));
   const answersFor = (q: string) => snapshot.promptResults.filter((r) => r.prompt === q);
-  const namedBy = engines.filter((e) => !e.failed && e.mentionedCount > 0).length;
-  const asked = engines.filter((e) => !e.failed).length;
   // The number that matters: answers where the question did not already contain the business name.
-  const brand = companyName.trim().toLowerCase();
-  const answered = snapshot.promptResults.filter((r) => !r.error);
-  const open = answered.filter((r) => !brand || !r.prompt.toLowerCase().includes(brand));
-  const openNamed = open.filter((r) => r.mentioned).length;
-  const byName = answered.length - open.length;
-  const byNameNamed = answered.filter((r) => r.mentioned).length - openNamed;
+  const { open, openNamed, byName, byNameNamed } = countAnswers(snapshot.promptResults, companyName);
+  const perEngine = (id: string) => countAnswers(snapshot.promptResults, companyName, id);
+  const live = engines.filter((e) => !e.failed);
+  const namedBy = live.filter((e) => perEngine(e.id).openNamed > 0).length;
+  const asked = live.length;
 
   return (
     <div className="space-y-6" data-testid="citation-multi">
       <div className="text-center">
         <h2 className="text-3xl font-bold mb-2">AI Citation Check</h2>
         <p className="text-muted-foreground">
-          {namedBy} of {asked} AI engines named you somewhere in this check.
+          {open > 0
+            ? `${namedBy} of ${asked} AI engines named you when customers did not ask for you by name.`
+            : `${asked} AI engines answered every question.`}
         </p>
         {lastCheckedAt && (
           <p className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-2">
@@ -63,10 +63,10 @@ export default function CitationMultiEngine({ snapshot, lastCheckedAt, companyNa
       )}
 
       <div className="grid md:grid-cols-2 gap-3">
-        <Card className={openNamed === 0 ? "border-red-300 bg-red-50/60" : openNamed / Math.max(open.length, 1) <= 0.25 ? "border-yellow-300 bg-yellow-50/60" : "border-green-300 bg-green-50/60"} data-testid="citation-open-stat">
+        <Card className={openNamed === 0 ? "border-red-300 bg-red-50/60" : openNamed / Math.max(open, 1) <= 0.25 ? "border-yellow-300 bg-yellow-50/60" : "border-green-300 bg-green-50/60"} data-testid="citation-open-stat">
           <CardContent className="p-5">
             <p className="text-sm font-medium">When customers ask without naming you</p>
-            <p className="mt-1 text-4xl font-bold">{openNamed} of {open.length}</p>
+            <p className="mt-1 text-4xl font-bold">{openNamed} of {open}</p>
             <p className="mt-1 text-sm text-muted-foreground">answers recommended or mentioned you. This is where AI decides who to suggest.</p>
           </CardContent>
         </Card>
@@ -80,7 +80,10 @@ export default function CitationMultiEngine({ snapshot, lastCheckedAt, companyNa
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {engines.map((e) => (
+        {engines.map((e) => {
+          const c = perEngine(e.id);
+          const rate = c.open ? Math.round((c.openNamed / c.open) * 100) : 0;
+          return (
           <Card key={e.id} data-testid={`engine-result-${e.id}`}>
             <CardContent className="p-4">
               <p className="text-sm font-medium truncate">{e.label}</p>
@@ -88,14 +91,16 @@ export default function CitationMultiEngine({ snapshot, lastCheckedAt, companyNa
                 <p className="mt-2 text-sm text-muted-foreground">Did not answer this time. Try again.</p>
               ) : (
                 <>
-                  <p className="mt-1 text-3xl font-bold">{e.mentionRate}%</p>
-                  <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden"><div className={`h-full ${barColor(e.mentionRate)}`} style={{ width: `${Math.max(e.mentionRate, 2)}%` }} /></div>
-                  <p className="mt-2 text-xs text-muted-foreground">Named you in {e.mentionedCount} of {e.answered}</p>
+                  <p className="mt-1 text-3xl font-bold">{c.open ? `${c.openNamed} of ${c.open}` : "n/a"}</p>
+                  <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden"><div className={`h-full ${barColor(rate)}`} style={{ width: `${Math.max(rate, 2)}%` }} /></div>
+                  <p className="mt-2 text-xs text-muted-foreground">Not asked by name</p>
+                  {c.byName > 0 && <p className="text-xs text-muted-foreground">By name: {c.byNameNamed} of {c.byName}</p>}
                 </>
               )}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       <Card>

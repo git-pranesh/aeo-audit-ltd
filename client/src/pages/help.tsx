@@ -25,7 +25,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "What is the AI Citation Check?",
-    a: "An optional, manual check: AI writes 8 questions a real customer would ask about your business (3 naming you, 5 category questions), asks them to a live web-search AI on your OpenRouter key, and shows whether you were mentioned and which competitors were named. Only the latest result is kept. About $0.04 per check with the default model (measured).",
+    a: "An optional check you start yourself. Choose any of five engines: Perplexity, Gemini, Claude, GPT and Grok. AI writes 8 questions a real customer would ask (3 naming you, 5 not naming you), or you can write up to 25 of your own. You see the cost first: about 5 cents on Perplexity alone, about 80 cents to $1 on all five, on your OpenRouter key. The report separates answers where the question did not name you, which is the number that matters, and keeps a dated history of past checks.",
   },
   {
     q: "Are there limits?",
@@ -63,7 +63,7 @@ export default function HelpSupport() {
           ))}
         </Accordion>
         <p className="text-sm text-muted-foreground">
-          Still stuck? Email <a className="text-primary underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+          Full guide with screenshots: <a className="text-primary underline" href="https://www.citationrocket.com/help" target="_blank" rel="noreferrer">Help Centre</a>. Still stuck? Email <a className="text-primary underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
         </p>
       </div>
     </AppShell>

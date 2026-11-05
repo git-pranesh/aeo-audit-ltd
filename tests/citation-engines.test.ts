@@ -5,7 +5,7 @@ import type { Server } from 'http';
 import { fakeDb } from './setup';
 import { registerRoutes } from '../server/routes';
 import { generateCitationSnapshot } from '../server/services/citation-snapshot';
-import { CUSTOM_ENGINE, ENGINES, estimateCheckUsd } from '../shared/engines';
+import { CUSTOM_ENGINE, ENGINES, countAnswers, estimateCheckUsd } from '../shared/engines';
 import { generateCodes, activateCode } from '../server/services/license-service';
 import { saveOpenRouterKey } from '../server/services/user-service';
 
@@ -167,5 +167,18 @@ describe('citation check route', () => {
     const res = await post({ engines: [CUSTOM_ENGINE] });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain('at least one');
+  });
+});
+
+describe('countAnswers', () => {
+  it('counts answers to questions that name the business apart from the rest', () => {
+    const results = [
+      { prompt: 'Is Acme any good?', mentioned: true, engine: 'gpt' },
+      { prompt: 'Who makes the best widgets?', mentioned: false, engine: 'gpt' },
+      { prompt: 'Who makes the best widgets?', mentioned: true, engine: 'grok' },
+      { prompt: 'Which widget lasts longest?', mentioned: false, engine: 'grok', error: 'failed' },
+    ];
+    expect(countAnswers(results, 'Acme')).toEqual({ open: 2, openNamed: 1, byName: 1, byNameNamed: 1 });
+    expect(countAnswers(results, 'Acme', 'gpt')).toEqual({ open: 1, openNamed: 0, byName: 1, byNameNamed: 1 });
   });
 });

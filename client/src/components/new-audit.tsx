@@ -152,7 +152,7 @@ export default function NewAudit({ maxCompetitors = 3, initialUrl = "", initialC
 
         <div className="grid sm:grid-cols-2 gap-4">
           <Field label="Company name"><Input value={context.companyName} onChange={set("companyName")} /></Field>
-          <Field label="Industry"><Input value={context.industry} onChange={set("industry")} placeholder="e.g. B2B payroll software" /></Field>
+          <Field label="Industry (required)"><Input value={context.industry} onChange={set("industry")} placeholder="e.g. B2B payroll software" /></Field>
           <Field label="Business type"><Input value={context.businessType} onChange={set("businessType")} placeholder="e.g. SaaS, agency, e-commerce" /></Field>
           <Field label="Target audience"><Input value={context.targetAudience} onChange={set("targetAudience")} placeholder="e.g. HR teams at SMBs" /></Field>
         </div>
@@ -191,6 +191,7 @@ export default function NewAudit({ maxCompetitors = 3, initialUrl = "", initialC
             Run audit <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
+        {!context.industry.trim() && <p className="text-sm text-destructive" data-testid="industry-needed">Add your industry to run the audit. We could not tell it from your homepage.</p>}
         <p className="text-xs text-muted-foreground">
           Takes about 1 to 2 minutes. Makes one small AI call on your OpenRouter key, usually under a cent.
         </p>

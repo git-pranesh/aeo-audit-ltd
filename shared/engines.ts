@@ -26,6 +26,23 @@ export const ENGINE_IDS = ENGINES.map((e) => e.id) as [EngineId, ...EngineId[]];
 /** Most questions a customer can ask in one check. */
 export const MAX_OWN_QUESTIONS = 25;
 
+/**
+ * A question that already contains the business name will nearly always get an answer naming it,
+ * so the two kinds of answer are always counted apart. `engine` limits the count to one engine.
+ */
+export function countAnswers(
+  results: { prompt: string; mentioned: boolean; error?: string | null; engine?: string }[],
+  companyName: string,
+  engine?: string,
+) {
+  const brand = companyName.trim().toLowerCase();
+  const answered = results.filter((r) => !r.error && (!engine || r.engine === engine));
+  const open = answered.filter((r) => !brand || !r.prompt.toLowerCase().includes(brand));
+  const openNamed = open.filter((r) => r.mentioned).length;
+  const byName = answered.length - open.length;
+  return { open: open.length, openNamed, byName, byNameNamed: answered.filter((r) => r.mentioned).length - openNamed };
+}
+
 /** The customer's own citation-check model from Settings, offered beside the five. */
 export const CUSTOM_ENGINE = 'custom';
 

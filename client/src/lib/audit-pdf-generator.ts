@@ -3,6 +3,7 @@
  * Beautiful, print-safe layout with branded styling
  */
 import { jsPDF } from 'jspdf';
+import { countAnswers } from "@shared/engines";
 import type { AuditData, ContentTopic } from "@shared/schema";
 import type { Branding } from "@shared/api";
 
@@ -689,16 +690,19 @@ export class AuditPDFGenerator {
     const statsCardW = (this.contentWidth - 8) / 3;
     const statsY = this.y;
 
+    const companyName = this.auditData.companyIntelligence?.companyName ?? '';
+    const counts = countAnswers(cs.promptResults, companyName);
+    const openRate = counts.open ? Math.round((counts.openNamed / counts.open) * 100) : 0;
     const stats = [
-      { label: 'Prompts Checked', value: String(cs.totalPromptsChecked), color: COLORS.primary },
-      { label: 'Times Mentioned', value: `${cs.mentionedCount} of ${cs.totalPromptsChecked}`, color: COLORS.green },
-      { label: 'Mention Rate', value: `${cs.mentionRate}%`, color: cs.mentionRate >= 50 ? COLORS.green : cs.mentionRate >= 25 ? COLORS.amber : COLORS.red },
+      { label: 'Answers Checked', value: String(counts.open + counts.byName), color: COLORS.primary },
+      { label: 'Asked Without Your Name', value: `${counts.openNamed} of ${counts.open}`, color: openRate >= 50 ? COLORS.green : openRate >= 25 ? COLORS.amber : COLORS.red },
+      { label: 'Asked By Your Name', value: `${counts.byNameNamed} of ${counts.byName}`, color: COLORS.primary },
     ];
 
     for (let i = 0; i < stats.length; i++) {
       const sx = this.margin + i * (statsCardW + 4);
-      const bgColor = getScoreBgColor(cs.mentionRate >= 50 ? 80 : cs.mentionRate >= 25 ? 50 : 20);
-      this.drawInfoCard(sx, statsY, statsCardW, 18, i === 2 ? bgColor : COLORS.borderLight, COLORS.border);
+      const bgColor = getScoreBgColor(openRate >= 50 ? 80 : openRate >= 25 ? 50 : 20);
+      this.drawInfoCard(sx, statsY, statsCardW, 18, i === 1 ? bgColor : COLORS.borderLight, COLORS.border);
       this.pdf.setFontSize(7);
       this.pdf.setFont('helvetica', 'normal');
       this.pdf.setTextColor(...COLORS.textLight);
@@ -720,7 +724,8 @@ export class AuditPDFGenerator {
         this.pdf.text(e.label, this.margin + 2, this.y);
         this.pdf.setFont('helvetica', 'normal');
         this.pdf.setTextColor(...COLORS.textLight);
-        this.pdf.text(e.failed ? 'Did not answer' : `${e.mentionRate}%, named in ${e.mentionedCount} of ${e.answered} answers`, this.margin + 40, this.y);
+        const ec = countAnswers(cs.promptResults, companyName, e.id);
+        this.pdf.text(e.failed ? 'Did not answer' : `Named in ${ec.openNamed} of ${ec.open} without your name, ${ec.byNameNamed} of ${ec.byName} by name`, this.margin + 40, this.y);
         this.y += 5;
       }
       this.y += 3;
