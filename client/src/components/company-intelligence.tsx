@@ -10,6 +10,8 @@ interface CompanyIntelligenceProps {
 export default function CompanyIntelligenceComponent({ companyIntelligence, websiteUrl }: CompanyIntelligenceProps) {
   const domain = (() => { try { return new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname.replace('www.', ''); } catch { return websiteUrl; } })();
 
+  const hasFocus = !!(companyIntelligence.geographicFocus?.length || companyIntelligence.serviceOfferings?.length);
+
   return (
     <section className="mb-8">
       <div className="text-center mb-6">
@@ -17,7 +19,7 @@ export default function CompanyIntelligenceComponent({ companyIntelligence, webs
         <p className="text-muted-foreground">Business context confirmed for {domain}</p>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className={`grid md:grid-cols-2 ${hasFocus ? "lg:grid-cols-3" : ""} gap-6`}>
         {/* Industry & Business Type */}
         <Card className="bg-card border border-border shadow-lg fade-in-up">
           <CardContent className="p-6">
@@ -68,20 +70,17 @@ export default function CompanyIntelligenceComponent({ companyIntelligence, webs
           </CardContent>
         </Card>
 
-        {/* Market Position */}
+        {/* Only old audits carry these two lists */}
+        {hasFocus && (
         <Card className="bg-card border border-border shadow-lg fade-in-up md:col-span-2 lg:col-span-1">
           <CardContent className="p-6">
             <div className="flex items-center mb-4">
               <div className="w-8 h-8 bg-gray-500/20 rounded-lg flex items-center justify-center mr-3">
                 <Trophy className="h-4 w-4 text-gray-500" />
               </div>
-              <h3 className="text-lg font-semibold">Market Position</h3>
+              <h3 className="text-lg font-semibold">Focus</h3>
             </div>
             <div className="space-y-3">
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Positioning</div>
-                <div className="text-sm text-muted-foreground leading-relaxed">{companyIntelligence.marketPosition}</div>
-              </div>
               {companyIntelligence.geographicFocus && companyIntelligence.geographicFocus.length > 0 && (
                 <div>
                   <div className="text-xs text-muted-foreground mb-2">Geographic Focus</div>
@@ -116,6 +115,7 @@ export default function CompanyIntelligenceComponent({ companyIntelligence, webs
             </div>
           </CardContent>
         </Card>
+        )}
       </div>
     </section>
   );

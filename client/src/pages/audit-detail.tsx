@@ -7,6 +7,9 @@ import {
 import AppShell from "@/components/app-shell";
 import AuditResults from "@/components/audit-results";
 import CitationSnapshot from "@/components/citation-snapshot";
+import CitationMultiEngine from "@/components/citation-multi-engine";
+import CitationEnginePicker from "@/components/citation-engine-picker";
+import AuditHistoryCard from "@/components/audit-history";
 import NewAudit from "@/components/new-audit";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -38,6 +41,7 @@ export default function AuditDetailPage() {
   const { me } = useAuth();
   const [rerun, setRerun] = useState(false);
   const [citationRunning, setCitationRunning] = useState(false);
+  const [topicsRunning, setTopicsRunning] = useState(false);
   const [zipping, setZipping] = useState(false);
 
   const queryKey = ["/api/audits", auditId];
@@ -86,12 +90,39 @@ export default function AuditDetailPage() {
     }
   };
 
-  const runCitationCheck = async () => {
+  const writeQuestions = async (avoid: string[]) => {
+    if (!audit) return [];
+    try {
+      const { questions } = await api<{ questions: string[] }>("POST", `/api/audits/${audit.auditId}/citation-questions`, { avoid });
+      return questions;
+    } catch (err) {
+      fail(err);
+      return [];
+    }
+  };
+
+  const moreTopics = async () => {
+    if (!audit) return;
+    setTopicsRunning(true);
+    try {
+      const { contentTopics } = await api<{ contentTopics: NonNullable<AuditData["contentTopics"]> }>("POST", `/api/audits/${audit.auditId}/topics`);
+      queryClient.setQueryData<AuditDetail>(queryKey, (prev) =>
+        prev?.auditData ? { ...prev, auditData: { ...prev.auditData, contentTopics } } : prev,
+      );
+      toast({ title: "New content ideas added" });
+    } catch (err) {
+      fail(err);
+    } finally {
+      setTopicsRunning(false);
+    }
+  };
+
+  const runCitationCheck = async (engines: string[], questions?: string[]) => {
     if (!audit) return;
     setCitationRunning(true);
     try {
       const { citationSnapshot } = await api<{ citationSnapshot: AuditData["citationSnapshot"] }>(
-        "POST", `/api/audits/${audit.auditId}/citation-snapshot`,
+        "POST", `/api/audits/${audit.auditId}/citation-snapshot`, { engines, ...(questions ? { questions } : {}) },
       );
       queryClient.setQueryData<AuditDetail>(queryKey, (prev) =>
         prev?.auditData ? { ...prev, auditData: { ...prev.auditData, citationSnapshot } } : prev,
@@ -133,20 +164,25 @@ export default function AuditDetailPage() {
   const snapshot = auditData?.citationSnapshot ?? null;
   const citationSlot = (
     <section className="space-y-4">
-      {snapshot ? (
+      {snapshot?.engines?.length ? (
+        <CitationMultiEngine snapshot={snapshot} lastCheckedAt={snapshot.generatedAt ?? snapshot.snapshotDate} companyName={audit.context?.companyName ?? ""} />
+      ) : snapshot ? (
         <CitationSnapshot citationSnapshot={snapshot} lastCheckedAt={snapshot.generatedAt ?? snapshot.snapshotDate} />
       ) : (
         <div className="text-center">
           <h2 className="text-3xl font-bold mb-2">AI Citation Check</h2>
-          <p className="text-muted-foreground">AI writes {me?.limits.citationPrompts ?? 8} questions real customers ask about businesses like yours, asks them to a live AI search engine, and shows whether you are mentioned.</p>
+          <p className="text-muted-foreground">AI writes {me?.limits.citationPrompts ?? 8} questions real customers ask about businesses like yours, asks them to the live AI engines you choose, and shows whether you are mentioned.</p>
         </div>
       )}
-      <div className="flex justify-center">
-        <Button onClick={runCitationCheck} disabled={citationRunning} variant={snapshot ? "outline" : "default"} data-testid="button-citation-check">
-          {citationRunning ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Checking AI answers (≈1 min)…</> : <><Search className="h-4 w-4 mr-2" />{snapshot ? "Run citation check again" : "Run citation check"}</>}
-        </Button>
-      </div>
-      <p className="text-center text-xs text-muted-foreground">About $0.04 on your OpenRouter key with the default model. Only the latest result is kept.</p>
+      <CitationEnginePicker
+        defaultQuestions={me?.limits.citationPrompts ?? 8}
+        customModel={me?.aiModels.webSearch ?? null}
+        running={citationRunning}
+        hasResult={!!snapshot}
+        lastQuestions={Array.from(new Set((snapshot?.promptResults ?? []).map((r) => r.prompt)))}
+        onRun={runCitationCheck}
+        onWriteQuestions={writeQuestions}
+      />
     </section>
   );
 
@@ -223,6 +259,9 @@ export default function AuditDetailPage() {
             auditData={auditData}
             websiteUrl={audit.websiteUrl}
             citationSlot={citationSlot}
+            historySlot={<AuditHistoryCard auditId={audit.auditId} refreshKey={snapshot?.snapshotDate ?? audit.createdAt} />}
+            onMoreTopics={moreTopics}
+            topicsRunning={topicsRunning}
             aeoPackSlot={
               <Card>
                 <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

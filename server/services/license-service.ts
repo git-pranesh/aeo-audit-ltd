@@ -14,9 +14,19 @@
 import crypto from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminDb } from '../firebase-admin';
+import type { EncryptedSecret } from '../security/encryption';
 
 export type LicenseStatus = 'available' | 'active' | 'revoked' | 'refunded';
 export type SalesChannel = 'direct' | 'marketplace' | 'partner';
+
+/** Admin invite: a partner licence that arrives with a capped OpenRouter key (see invite-service.ts). */
+export interface InviteMeta {
+  name: string;
+  capUsd: number;
+  createdBy: string;
+  /** OpenRouter key hash, for usage lookups and revocation. */
+  keyHash?: string;
+}
 
 export interface License {
   product: 'lifetime';
@@ -33,6 +43,13 @@ export interface License {
   note?: string;
   /** Direct sales: what the buyer paid, in cents (founding price steps). */
   amountPaid?: number;
+  /** 'invite' marks admin invites so they can be listed; absent on every other licence. */
+  kind?: 'invite';
+  invite?: InviteMeta;
+  /** Encrypted OpenRouter key copied into the account on activation (never sent to a browser). */
+  sponsoredKey?: EncryptedSecret & { last4: string };
+  /** Encrypted invite code so admin can copy the link again until it is used. */
+  inviteCode?: EncryptedSecret;
 }
 
 export async function getLicense(licenseId: string): Promise<License | null> {
@@ -113,7 +130,13 @@ async function bindLicense(licenseId: string, uid: string): Promise<Entitlement>
     const activatedAt = new Date().toISOString();
     const entitlement = toEntitlement(licenseId, license, activatedAt);
     tx.update(licenseRef, { status: 'active', activatedBy: uid, activatedAt });
-    tx.set(userRef, { entitlement }, { merge: true });
+    // Invite licences carry a capped OpenRouter key: it becomes the account's key
+    // exactly as if the person had pasted it, unless they already saved their own.
+    const hasOwnKey = !!(userSnap.exists && userSnap.data()?.openRouterKey);
+    const sponsored = license.sponsoredKey && !hasOwnKey
+      ? { openRouterKey: { ...license.sponsoredKey, updatedAt: activatedAt, sponsored: true } }
+      : {};
+    tx.set(userRef, { entitlement, ...sponsored }, { merge: true });
     return entitlement;
   });
 }

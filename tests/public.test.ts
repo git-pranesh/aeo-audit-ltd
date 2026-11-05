@@ -57,7 +57,7 @@ describe('public API', () => {
 
   it('creates a Dodo checkout session at the current step price with the metadata', async () => {
     const calls = stubDodo(() => ({ session_id: 'cks_1', checkout_url: 'https://checkout.dodopayments.com/session/cks_1' }));
-    const res = await call('POST', '/api/public/checkout', undefined, { plan: 'agency', metadata: { consent: 'allowed', hy_vid: '11111111-2222-3333-4444-555555555555' } });
+    const res = await call('POST', '/api/public/checkout', undefined, { plan: 'agency', metadata: { consent: 'allowed', affonso_referral: 'ref_test_123' } });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ url: 'https://checkout.dodopayments.com/session/cks_1', price: 149, step: 1 });
     expect(calls).toHaveLength(1);
@@ -65,7 +65,7 @@ describe('public API', () => {
     expect(calls[0].body).toMatchObject({
       product_cart: [{ product_id: 'prod_agency', quantity: 1, amount: 14900 }],
       return_url: 'https://app.citationrocket.com/welcome/agency',
-      metadata: { consent: 'allowed', hy_vid: '11111111-2222-3333-4444-555555555555', plan: 'agency', price: '149', step: '1' },
+      metadata: { consent: 'allowed', affonso_referral: 'ref_test_123', plan: 'agency', price: '149', step: '1' },
     });
   });
 

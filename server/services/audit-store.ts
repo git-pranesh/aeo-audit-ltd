@@ -11,7 +11,7 @@
 import crypto from 'crypto';
 import { adminDb } from '../firebase-admin';
 import type { AuditData } from '@shared/schema';
-import type { AuditDetail, AuditSummary, ConfirmedContext, FairUseLimits } from '@shared/api';
+import type { AuditDetail, AuditSummary, ConfirmedContext, FairUseLimits, AuditHistory, CheckSummary } from '@shared/api';
 import type { AeoInputs } from './audit-pipeline';
 import { MAX_CITATION_PROMPTS } from './citation-snapshot';
 
@@ -70,7 +70,11 @@ interface StoredAudit {
   context: ConfirmedContext;
   auditData?: AuditData;
   aeoInputs?: AeoInputs;
+  citationHistory?: CheckSummary[];
 }
+
+const MAX_CHECK_HISTORY = 30;
+const MAX_TOPICS_PER_CATEGORY = 40;
 
 export function auditIdFor(uid: string, idempotencyKey: string): string {
   return crypto.createHash('sha256').update(`${uid}:${idempotencyKey}`).digest('hex').slice(0, 24);
@@ -124,7 +128,7 @@ export async function startAudit(params: {
     const createdAt = new Date(now).toISOString();
     const doc: StoredAudit = { userId: uid, websiteUrl, domain, status: 'running', createdAt, context };
     tx.create(auditRef, doc);
-    // guarantee.auditsRun is a lifetime counter (money-back guarantee); deleting audits does not lower it.
+    // guarantee.auditsRun is a lifetime counter (money-back guarantee): deleting audits does not lower it, a failed audit does.
     const guarantee = userSnap.data()?.guarantee ?? {};
     tx.set(userRef, {
       usage: {
@@ -167,7 +171,30 @@ export async function failAudit(uid: string, auditId: string, message: string): 
     completedAt: new Date().toISOString(),
     error: message.slice(0, 300),
   }).catch(() => {});
-  await releaseSlot(uid, auditId).catch(() => {});
+  await refundFailedAudit(uid, auditId).catch(() => {});
+}
+
+/**
+ * A failed audit gave the customer nothing, so it frees the running slot and
+ * also gives back its place in the hourly and daily limits and in the
+ * money-back guarantee count. The burst limiter on the route still stops tight
+ * retry loops. Keyed on the active entry, so a repeated call cannot refund twice.
+ */
+async function refundFailedAudit(uid: string, auditId: string): Promise<void> {
+  const userRef = users().doc(uid);
+  await adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const usage: Usage = { active: [], recent: [], ...(snap.data()?.usage || {}) };
+    const entry = usage.active.find((a) => a.id === auditId);
+    if (!entry) return;
+    const index = usage.recent.indexOf(entry.startedAt);
+    const recent = index === -1 ? usage.recent : usage.recent.filter((_, i) => i !== index);
+    const guarantee = snap.data()?.guarantee ?? {};
+    tx.set(userRef, {
+      usage: { active: usage.active.filter((a) => a.id !== auditId), recent },
+      guarantee: { ...guarantee, auditsRun: Math.max(0, (guarantee.auditsRun ?? 0) - 1) },
+    }, { merge: true });
+  });
 }
 
 /** Keep the newest SAVED_AUDITS audits per account; never touches running audits. */
@@ -244,8 +271,42 @@ export async function deleteAudit(uid: string, auditId: string): Promise<boolean
 }
 
 /** Only the latest citation snapshot is kept, inside the audit report. */
-export async function saveCitationSnapshot(uid: string, auditId: string, snapshot: NonNullable<AuditData['citationSnapshot']>): Promise<void> {
+export async function saveCitationSnapshot(uid: string, auditId: string, snapshot: NonNullable<AuditData['citationSnapshot']>, summary?: CheckSummary): Promise<void> {
   const d = await getOwned(uid, auditId);
   if (!d) return;
-  await audits().doc(auditId).update({ 'auditData.citationSnapshot': JSON.parse(JSON.stringify(snapshot)) });
+  const history = [...(d.citationHistory ?? []), ...(summary ? [summary] : [])].slice(-MAX_CHECK_HISTORY);
+  await audits().doc(auditId).update({
+    'auditData.citationSnapshot': JSON.parse(JSON.stringify(snapshot)),
+    ...(summary ? { citationHistory: JSON.parse(JSON.stringify(history)) } : {}),
+  });
+}
+
+/** Adds new topic ideas to a saved audit. Returns the updated lists, or null if it is not yours. */
+export async function appendTopics(uid: string, auditId: string, fresh: Record<string, any[]>): Promise<Record<string, any[]> | null> {
+  const d = await getOwned(uid, auditId);
+  if (!d?.auditData) return null;
+  const current = (d.auditData.contentTopics ?? {}) as unknown as Record<string, any[]>;
+  const merged: Record<string, any[]> = { ...current };
+  for (const [category, list] of Object.entries(fresh)) {
+    const seen = new Set((current[category] ?? []).map((t) => String(t.topic).toLowerCase()));
+    const added = list.filter((t) => !seen.has(String(t.topic).toLowerCase()));
+    merged[category] = [...(current[category] ?? []), ...added].slice(0, MAX_TOPICS_PER_CATEGORY);
+  }
+  await audits().doc(auditId).update({ 'auditData.contentTopics': JSON.parse(JSON.stringify(merged)) });
+  return merged;
+}
+
+/** Scores and citation checks for one website across this account's saved audits, oldest score first. */
+export async function auditHistoryFor(uid: string, auditId: string): Promise<AuditHistory | null> {
+  const owned = await getOwned(uid, auditId);
+  if (!owned) return null;
+  const snap = await audits().where('userId', '==', uid).select('domain', 'status', 'createdAt', 'overallScore', 'letterGrade', 'citationHistory').get();
+  const same = snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as StoredAudit) })).filter((a) => a.domain === owned.domain);
+  return {
+    scores: same
+      .filter((a) => a.status === 'completed' && typeof a.overallScore === 'number')
+      .map((a) => ({ date: a.createdAt, score: a.overallScore as number, grade: a.letterGrade, auditId: a.id }))
+      .sort((a, b) => a.date.localeCompare(b.date)),
+    checks: same.flatMap((a) => a.citationHistory ?? []).sort((a, b) => b.date.localeCompare(a.date)),
+  };
 }

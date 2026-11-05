@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Info } from "lucide-react";
 import {
   Tooltip,
@@ -18,7 +19,7 @@ export type MethodologyType =
 const methodologyDescriptions: Record<MethodologyType, { label: string; description: string }> = {
   'sample-based': {
     label: 'Estimated from sample',
-    description: 'Measured by analyzing a representative sample of up to 20 pages spread across your site, then scaled proportionally. A full crawl of large sites could take hours, so sampling balances accuracy with speed.',
+    description: 'Measured by analyzing a sample of up to 10 pages from your site, then scaled proportionally. A full crawl of large sites could take hours, so sampling balances accuracy with speed.',
   },
   'url-pattern': {
     label: 'Detected from sitemap',
@@ -41,8 +42,8 @@ const methodologyDescriptions: Record<MethodologyType, { label: string; descript
     description: 'Computed using a deterministic formula based on your content signals. No AI opinions: purely mathematical, weighted scoring.',
   },
   'benchmark': {
-    label: 'Industry benchmark',
-    description: 'Based on content signal analysis patterns observed across this industry. These are representative ranges, not live data from a specific dataset.',
+    label: 'Reference value',
+    description: 'A reference value set by Citation Rocket for this type of site. It is our own target, not measured from other companies.',
   },
 };
 
@@ -55,20 +56,32 @@ interface MethodologyTooltipProps {
 export default function MethodologyTooltip({ type, className = '', size = 'sm' }: MethodologyTooltipProps) {
   const info = methodologyDescriptions[type];
   const iconSize = size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5';
+  // Phones cannot hover, so a tap opens and closes it. preventDefault stops Radix closing it again.
+  const [open, setOpen] = useState(false);
 
   return (
     <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip open={open} onOpenChange={setOpen}>
+        <TooltipTrigger
+          asChild
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+        >
           <button
             type="button"
-            className={`inline-flex items-center justify-center text-muted-foreground/50 hover:text-muted-foreground transition-colors ${className}`}
+            data-methodology-info
+            className={`inline-flex items-center justify-center p-2 -m-2 text-muted-foreground/50 hover:text-muted-foreground transition-colors ${className}`}
             aria-label={`How we measure: ${info.label}`}
           >
             <Info className={iconSize} />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[280px] p-3">
+        <TooltipContent
+          side="top"
+          collisionPadding={12}
+          className="max-w-[280px] p-3"
+          onPointerDownOutside={(e) => { if ((e.target as Element | null)?.closest?.('[data-methodology-info]')) e.preventDefault(); }}
+        >
           <div className="space-y-1">
             <div className="text-xs font-semibold text-foreground">{info.label}</div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">{info.description}</p>
@@ -89,7 +102,7 @@ export function MethodologyBanner({ className = '' }: MethodologyBannerProps) {
       <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
       <span>
         Metrics use a mix of methods: sitemap URL pattern matching, direct page content analysis, and representative page sampling. 
-        Hover over the <Info className="h-2.5 w-2.5 inline-block mx-0.5 -mt-0.5" /> icon next to each metric to see exactly how it was measured.
+        Tap or hover on the <Info className="h-2.5 w-2.5 inline-block mx-0.5 -mt-0.5" /> icon next to each metric to see exactly how it was measured.
         All scores use deterministic formulas, no AI opinions.
       </span>
     </div>

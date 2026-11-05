@@ -74,8 +74,7 @@ export class CSVExporter {
       ['Industry', companyIntelligence.industry],
       ['Business Type', companyIntelligence.businessType],
       ['Target Audience', companyIntelligence.targetAudience],
-      ['Value Proposition', companyIntelligence.valueProposition],
-      ['Market Position', companyIntelligence.marketPosition]
+      ['Value Proposition', companyIntelligence.valueProposition]
     ];
 
     if (companyIntelligence.businessModel) {

@@ -1,20 +1,18 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { MeResponse } from '@shared/api';
+import type { KeyUsage, MeResponse } from '@shared/api';
 import { requireAuth, isAdminUser, type AuthenticatedRequest } from '../security/auth';
 import { keyLimiter } from '../security/rate-limits';
 import { handler } from './http';
 import {
-  deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, markRefundRequested, recordDownload, saveBranding,
-  saveModelChoice, saveOpenRouterKey, setRefundResult,
+  deleteAccount, deleteOpenRouterKey, getOrCreateUserWithFlag, getUser, markRefundRequested, recordDownload, requireOpenRouterKey,
+  saveBranding, saveModelChoice, saveOpenRouterKey, setRefundResult,
 } from '../services/user-service';
 import { claimPurchasedLicense, getLicense, setLicenseStatus, unusedPurchasesFor } from '../services/license-service';
 import { guaranteeStatus, type GuaranteeStatus } from '../../shared/guarantee';
 import { createRefund, DodoError } from '../services/dodo';
 import { invalidateFoundingCache } from '../services/founding';
-import { cookieValue, requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
-import { cv, sendXrayEvent, xrayVisitorId } from '../services/xray';
-import { XRAY_COOKIE } from '../../shared/meta';
+import { requestAllowsTracking, requestUserData, sendMetaEvent, sha256 } from '../services/meta-capi';
 import { inspectOpenRouterKey, MODEL_MAP } from '../services/openrouter';
 import { estimateAuditCost, estimateSnapshotCost, getCatalog, resolveModel } from '../services/model-catalog';
 import { limitsFor } from '../services/audit-store';
@@ -34,13 +32,6 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
       event_source_url: 'https://app.citationrocket.com/',
       action_source: 'website',
       user_data: { ...requestUserData(req), external_id: [sha256(uid)], ...(email ? { em: [sha256(email)] } : {}) },
-    });
-    await sendXrayEvent(cv.registrationComplete, {
-      distinctId: uid,
-      eventId: metaRegistrationEventId,
-      visitorId: xrayVisitorId(cookieValue(req, XRAY_COOKIE)),
-      url: 'https://app.citationrocket.com/',
-      ...(email ? { identity: { email } } : {}),
     });
   }
   if (!user.entitlement) {
@@ -66,7 +57,9 @@ export async function buildMe(req: AuthenticatedRequest): Promise<MeResponse> {
     email: email || user.email,
     emailVerified,
     entitlement: user.entitlement ?? null,
-    openRouterKey: user.openRouterKey ? { last4: user.openRouterKey.last4, updatedAt: user.openRouterKey.updatedAt } : null,
+    openRouterKey: user.openRouterKey
+      ? { last4: user.openRouterKey.last4, updatedAt: user.openRouterKey.updatedAt, ...(user.openRouterKey.sponsored ? { sponsored: true } : {}) }
+      : null,
     branding: user.entitlement?.whiteLabel ? user.branding ?? null : null,
     isAdmin: isAdminUser(req.user),
     limits: limitsFor(user.entitlement?.whiteLabel),
@@ -109,6 +102,23 @@ meRouter.put('/openrouter-key', keyLimiter, handler<AuthenticatedRequest>(async 
 meRouter.delete('/openrouter-key', handler<AuthenticatedRequest>(async (req, res) => {
   await deleteOpenRouterKey(req.user!.uid);
   res.json({ ok: true });
+}));
+
+/** Live spending on the saved key (limit, remaining), read from OpenRouter with the key itself. */
+meRouter.get('/openrouter-key/usage', handler<AuthenticatedRequest>(async (req, res) => {
+  const user = await getUser(req.user!.uid);
+  if (!user?.openRouterKey) {
+    res.status(404).json({ error: 'No key saved.', code: 'KEY_MISSING' });
+    return;
+  }
+  const info = await inspectOpenRouterKey(await requireOpenRouterKey(req.user!.uid));
+  const usage: KeyUsage = {
+    limit: info.valid ? info.limit ?? null : null,
+    limitRemaining: info.valid ? info.limitRemaining ?? null : null,
+    usage: info.valid && typeof info.usage === 'number' ? info.usage : null,
+    sponsored: !!user.openRouterKey.sponsored,
+  };
+  res.json(usage);
 }));
 
 // ─── AI model choice (any OpenRouter model, free to premium) ─────────────────

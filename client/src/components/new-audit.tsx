@@ -10,6 +10,7 @@ import LoadingState from "@/components/loading-state";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { api, ApiError, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/AuthContext";
 import type { AuditDetail, ConfirmedContext, ContextSuggestion } from "@shared/api";
 
 type Step = "url" | "analyzing" | "context" | "running";
@@ -24,6 +25,7 @@ export default function NewAudit({ maxCompetitors = 3, initialUrl = "", initialC
   initialContext?: ConfirmedContext;
 }) {
   const { toast } = useToast();
+  const { me } = useAuth();
   const [, navigate] = useLocation();
   const [step, setStep] = useState<Step>(initialContext ? "context" : "url");
   const [websiteUrl, setWebsiteUrl] = useState(initialUrl);
@@ -33,10 +35,13 @@ export default function NewAudit({ maxCompetitors = 3, initialUrl = "", initialC
 
   const showError = (err: unknown) => {
     const e = err instanceof ApiError ? err : null;
-    const needsSettings = e?.code === "KEY_MISSING" || e?.code === "KEY_INVALID" || e?.code === "LICENSE_REQUIRED";
+    const trialUsedUp = e?.code === "KEY_NO_CREDIT" && !!me?.openRouterKey?.sponsored;
+    const needsSettings = trialUsedUp || e?.code === "KEY_MISSING" || e?.code === "KEY_INVALID" || e?.code === "LICENSE_REQUIRED";
     toast({
-      title: "Something went wrong",
-      description: e?.message || "Please try again.",
+      title: trialUsedUp ? "Your trial credit is used up" : "Something went wrong",
+      description: trialUsedUp
+        ? "The free audit credit from Citation Rocket is spent. Your licence stays. Add your own OpenRouter key in Settings to keep auditing."
+        : e?.message || "Please try again.",
       variant: "destructive",
       ...(needsSettings ? { action: <ToastAction altText="Open settings" onClick={() => navigate("/settings")}>Settings</ToastAction> } : {}),
     });
@@ -187,7 +192,7 @@ export default function NewAudit({ maxCompetitors = 3, initialUrl = "", initialC
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Takes about 1–2 minutes. Uses your OpenRouter key for one topic-generation call.
+          Takes about 1 to 2 minutes. Makes one small AI call on your OpenRouter key, usually under a cent.
         </p>
       </CardContent>
     </Card>

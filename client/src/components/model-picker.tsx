@@ -113,7 +113,7 @@ export function ModelSettings() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label>Analysis model: business details & topic ideas (2 calls per audit)</Label>
+        <Label>Analysis model: business details and topic ideas</Label>
         <ModelList task="structured" value={s} onChange={setStructured} models={data.models} defaultId={me.aiModels.defaults.structured} />
         {chosen?.free && (
           <p className="text-xs text-amber-700 flex items-start gap-1">
@@ -127,7 +127,7 @@ export function ModelSettings() {
       </div>
 
       <div className="space-y-2">
-        <Label>Citation-check model: needs live web search (8 calls per check)</Label>
+        <Label>Your model for citation checks: appears beside the five engines, needs live web search</Label>
         <ModelList task="webSearch" value={w} onChange={setWebSearch} models={data.models} defaultId={me.aiModels.defaults.webSearch} />
         <div className="flex gap-2">
           <Input placeholder='Or any model with web search, e.g. "openai/gpt-5-mini:online"' value={customSearch} onChange={(e) => setCustomSearch(e.target.value)} />

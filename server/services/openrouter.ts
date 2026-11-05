@@ -39,6 +39,12 @@ export interface LlmOptions {
   model?: string;
   /** False when the chosen model doesn't support response_format. */
   supportsJson?: boolean;
+  /** Never swap to a backup: the answer must really come from this model (each engine in a citation check). */
+  exactModel?: boolean;
+  /** Receives what OpenRouter actually charged for this call, in USD. */
+  onCost?: (usd: number) => void;
+  /** Budget ceiling for this auditId, when a check legitimately needs more than the default. */
+  budgetCalls?: number;
 }
 
 /** Customer model preferences (validated when saved). */
@@ -74,15 +80,63 @@ function mapHttpError(status: number): OpenRouterError {
   return new OpenRouterError(`The AI provider returned an error (${status}). Please try again.`, 'UPSTREAM', 502);
 }
 
+/**
+ * Backup when the chosen provider stalls, rate limits or errors. OpenRouter's own
+ * `models` fallback covers returned errors but not a provider that simply hangs,
+ * so the retry lives here. Both are inexpensive and were measured on 5 Nov 2026.
+ */
+export const FALLBACK_MODEL: Record<LlmTask, string> = {
+  structured: 'google/gemini-2.5-flash-lite',
+  webSearch: 'google/gemini-2.5-flash-lite:online',
+};
+
+/** How long the first model gets before the backup takes over. */
+const FIRST_ATTEMPT_MS = 60_000;
+
+/**
+ * The model to try second, or null. A customer's chosen model falls back to our
+ * default, the default falls back to the backup. Free models never fall back,
+ * because that would start charging someone who chose not to pay.
+ */
+export function fallbackFor(task: LlmTask, model: string): string | null {
+  if (model.endsWith(':free')) return null;
+  if (model !== MODEL_MAP[task]) return MODEL_MAP[task];
+  return FALLBACK_MODEL[task] !== model ? FALLBACK_MODEL[task] : null;
+}
+
+/** Worth trying another model: the provider was busy, down or slow. Key and credit errors are not. */
+function isRetryable(err: unknown): boolean {
+  if (!(err instanceof OpenRouterError)) return false;
+  return err.code === 'RATE_LIMITED' || err.code === 'UPSTREAM';
+}
+
 export async function llmCall(options: LlmOptions): Promise<LlmResponse> {
-  const { task, messages, apiKey, maxTokens = 2048, temperature = 0.2, json, auditId, timeoutMs = 90_000, supportsJson = true } = options;
+  const { task, apiKey, auditId, timeoutMs = 90_000 } = options;
   if (!apiKey) {
     throw new OpenRouterError('Add your OpenRouter key in Settings before running audits.', 'KEY_MISSING', 400);
   }
-  if (auditId) checkAuditCallBudget(auditId);
+  // One budget entry per logical call: a backup attempt is bounded to one, so it cannot run away.
+  if (auditId) checkAuditCallBudget(auditId, options.budgetCalls);
 
   const model = options.model || MODEL_MAP[task];
-  const body: Record<string, unknown> = { model, messages, max_tokens: maxTokens, temperature };
+  const backup = options.exactModel ? null : fallbackFor(task, model);
+  try {
+    return await attemptCall(options, model, options.supportsJson ?? true, backup ? Math.min(FIRST_ATTEMPT_MS, timeoutMs) : timeoutMs);
+  } catch (err) {
+    if (!backup || !isRetryable(err)) throw err;
+    console.warn(`OpenRouter ${model} failed (${(err as OpenRouterError).message}). Trying ${backup}.`);
+    try {
+      return await attemptCall(options, backup, true, timeoutMs);
+    } catch (second) {
+      if (!isRetryable(second)) throw second;
+      throw new OpenRouterError('The AI providers are slow or busy right now. Please try again in a minute.', 'UPSTREAM', 502);
+    }
+  }
+}
+
+async function attemptCall(options: LlmOptions, model: string, supportsJson: boolean, timeoutMs: number): Promise<LlmResponse> {
+  const { task, messages, apiKey, maxTokens = 2048, temperature = 0.2, json } = options;
+  const body: Record<string, unknown> = { model, messages, max_tokens: maxTokens, temperature, usage: { include: true } };
   if (json && supportsJson && !model.startsWith('perplexity/')) body.response_format = { type: 'json_object' };
   // Structured extraction must not "think": reasoning tokens count against
   // max_tokens (empty answers) and cost the customer money for no benefit.
@@ -117,6 +171,18 @@ export async function llmCall(options: LlmOptions): Promise<LlmResponse> {
     throw new OpenRouterError('Could not reach OpenRouter. Please try again.', 'UPSTREAM', 502);
   }
 
+  if (!response.ok) {
+    // Log OpenRouter's own reason (message + provider code, never the key) so a
+    // timeout or 429 can be told apart from a provider outage in the server log.
+    const detail = await response.clone().json().catch(() => null) as any;
+    const reason = detail?.error?.message ?? detail?.message ?? '';
+    const provider = detail?.error?.metadata?.provider_name ?? detail?.error?.metadata?.provider_code ?? '';
+    console.error(`OpenRouter ${model} → ${response.status}${provider ? ` (${provider})` : ''}${reason ? `: ${String(reason).slice(0, 300)}` : ''}`);
+    // A key's own spending cap comes back as 403, not 402: the key is fine, it just ran out.
+    if (response.status === 403 && (detail?.error?.metadata?.limit_source === 'openrouter_key_limit' || /key limit|\bused; resets\b|limit exceeded/i.test(String(reason)))) {
+      throw new OpenRouterError('Your OpenRouter key reached its spending limit. Raise the limit at openrouter.ai, or save another key in Settings.', 'KEY_NO_CREDIT', 402);
+    }
+  }
   if (response.status === 429 && model.endsWith(':free')) {
     throw new OpenRouterError('This free model is rate-limited by its provider right now. Try again in a few minutes, or choose a paid model in Settings.', 'RATE_LIMITED', 429);
   }
@@ -129,6 +195,7 @@ export async function llmCall(options: LlmOptions): Promise<LlmResponse> {
     // The timeout can fire while the body is still streaming in.
     throw new OpenRouterError('The AI model took too long to answer. Please try again or pick a faster model in Settings.', 'UPSTREAM', 504);
   }
+  if (typeof data.usage?.cost === 'number') options.onCost?.(data.usage.cost);
   return {
     content: data.choices?.[0]?.message?.content ?? '',
     model,

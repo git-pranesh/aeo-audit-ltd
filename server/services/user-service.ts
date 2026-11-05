@@ -21,6 +21,8 @@ export interface Branding {
 export interface StoredKey extends EncryptedSecret {
   last4: string;
   updatedAt: string;
+  /** True while the key is the capped one an admin invite provided; cleared when the customer saves their own. */
+  sponsored?: boolean;
 }
 
 export interface UserRecord {
@@ -90,12 +92,14 @@ export async function getUser(uid: string): Promise<UserRecord | null> {
 }
 
 export async function saveOpenRouterKey(uid: string, plaintextKey: string): Promise<StoredKey> {
+  const { FieldValue } = await import('firebase-admin/firestore');
   const stored: StoredKey = {
     ...encryptSecret(plaintextKey),
     last4: plaintextKey.slice(-4),
     updatedAt: new Date().toISOString(),
   };
-  await users().doc(uid).set({ openRouterKey: stored }, { merge: true });
+  // A customer's own key replaces a sponsored invite key, so the flag must go too (merge keeps nested fields).
+  await users().doc(uid).set({ openRouterKey: { ...stored, sponsored: FieldValue.delete() } }, { merge: true });
   return stored;
 }
 

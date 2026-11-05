@@ -106,6 +106,7 @@ client/src/pages/          home · dashboard · audit-detail · settings · admi
 |---|---|
 | **Direct (Meta ads → your checkout)** | Dodo one-time products. Webhook `payment.succeeded` creates a license bound to the buyer's email; it **auto-activates when they sign in with that (verified) email**. `refund.succeeded` or a lost chargeback (`dispute.lost`) revokes it. No codes or emails to send. |
 | **Marketplaces / partners** | Admin → *Generate license codes* → CSV (shown once; only hashes are stored). Upload the CSV to the marketplace. Buyers enter the code in Settings. |
+| **Invites (reviewers, creators, partners)** | Admin → *Invites* → name + dollar cap → one link. Opening it and signing in activates a partner licence **and** drops a capped OpenRouter key (created per invite via OpenRouter's key-management API, `OPENROUTER_MANAGEMENT_KEY`) into the account, so the guest audits with nothing to set up. The licence is lifetime; when the cap is spent they add their own key. Admin sees who activated, audits run and dollars spent, and can revoke or change the cap. |
 | **Refund / replacement** | Admin → search email/code/order → *Mark refunded* / *Revoke*, then generate a new code if needed. |
 
 Campaign pricing and coupons live in the checkout platform, not in the app.

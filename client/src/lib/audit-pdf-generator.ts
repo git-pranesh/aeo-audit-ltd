@@ -633,9 +633,6 @@ export class AuditPDFGenerator {
     this.addKeyValue('Target Audience', ci.targetAudience, 4);
     this.y += 2;
 
-    if (ci.marketPosition) {
-      this.addKeyValue('Market Position', ci.marketPosition);
-    }
     if (ci.valueProposition) {
       this.y += 1;
       this.addSubsectionTitle('Value Proposition');
@@ -713,6 +710,41 @@ export class AuditPDFGenerator {
     }
     this.y = statsY + 24;
 
+    if (cs.engines?.length) {
+      this.addSubsectionTitle('Engine by Engine');
+      for (const e of cs.engines) {
+        this.checkPageBreak(6);
+        this.pdf.setFontSize(8.5);
+        this.pdf.setFont('helvetica', 'bold');
+        this.pdf.setTextColor(...COLORS.dark);
+        this.pdf.text(e.label, this.margin + 2, this.y);
+        this.pdf.setFont('helvetica', 'normal');
+        this.pdf.setTextColor(...COLORS.textLight);
+        this.pdf.text(e.failed ? 'Did not answer' : `${e.mentionRate}%, named in ${e.mentionedCount} of ${e.answered} answers`, this.margin + 40, this.y);
+        this.y += 5;
+      }
+      this.y += 3;
+      this.addSubsectionTitle('Question by Question');
+      const label = (id?: string) => cs.engines?.find((e) => e.id === id)?.label ?? id ?? '';
+      const questions = Array.from(new Set(cs.promptResults.map((r) => r.prompt)));
+      for (const q of questions) {
+        const answers = cs.promptResults.filter((r) => r.prompt === q && !r.error);
+        const named = answers.filter((a) => a.mentioned).map((a) => label(a.engine));
+        const lines: string[] = this.pdf.splitTextToSize(`"${q}"`, this.contentWidth - 4);
+        this.checkPageBreak(8 + lines.length * 4);
+        this.pdf.setFontSize(8);
+        this.pdf.setFont('helvetica', 'bold');
+        this.pdf.setTextColor(...COLORS.dark);
+        for (const line of lines) {
+          this.pdf.text(line, this.margin + 2, this.y);
+          this.y += 3.8;
+        }
+        this.pdf.setFont('helvetica', 'normal');
+        this.pdf.setTextColor(...(named.length ? COLORS.green : COLORS.red));
+        this.pdf.text(named.length ? `Named by: ${named.join(', ')}` : 'Not named by any engine', this.margin + 2, this.y);
+        this.y += 6;
+      }
+    } else {
     this.addSubsectionTitle('Prompt-by-Prompt Results');
 
     for (const result of cs.promptResults) {
@@ -772,6 +804,7 @@ export class AuditPDFGenerator {
       }
 
       this.y += 3;
+    }
     }
 
     if (cs.topCompetitorsCited && cs.topCompetitorsCited.length > 0) {

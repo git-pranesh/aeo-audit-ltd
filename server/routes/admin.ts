@@ -5,19 +5,26 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAdmin } from '../security/auth';
+import { requireAdmin, type AuthenticatedRequest } from '../security/auth';
 import { handler } from './http';
 import { adminAuth, adminDb } from '../firebase-admin';
 import {
   generateCodes, hashCode, setLicenseStatus, setLicenseWhiteLabel, type License,
 } from '../services/license-service';
 import { deleteAccount } from '../services/user-service';
+import {
+  createInvite, getInviteLink, INVITE_CAP_DEFAULT_USD, INVITE_CAP_MAX_USD, listInvites, revokeInvite, setInviteCap,
+} from '../services/invite-service';
+import { isKeyManagementConfigured } from '../services/openrouter-keys';
 
 export const adminRouter = Router();
 adminRouter.use(requireAdmin);
 
+const APP_URL = (process.env.APP_PUBLIC_URL || 'https://app.citationrocket.com').replace(/\/$/, '');
+
 function publicLicense(id: string, l: License) {
-  const { codeHash: _hash, ...rest } = l;
+  // Never send secrets to a browser, admin or not.
+  const { codeHash: _hash, sponsoredKey: _key, inviteCode: _code, ...rest } = l;
   return { id, ...rest };
 }
 
@@ -117,6 +124,37 @@ adminRouter.delete('/users/:uid', handler(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ─── Invites: partner licence + capped OpenRouter key, as one link ───────────
+
+adminRouter.get('/invites', handler(async (_req, res) => {
+  res.json({ invites: await listInvites(), configured: isKeyManagementConfigured(), defaultCapUsd: INVITE_CAP_DEFAULT_USD, maxCapUsd: INVITE_CAP_MAX_USD });
+}));
+
+adminRouter.post('/invites', handler<AuthenticatedRequest>(async (req, res) => {
+  const body = z.object({
+    name: z.string().trim().min(1, 'Give the invite a name.').max(80),
+    note: z.string().trim().max(200).optional(),
+    capUsd: z.number().min(0).max(INVITE_CAP_MAX_USD).default(INVITE_CAP_DEFAULT_USD),
+    whiteLabel: z.boolean().default(false),
+  }).parse(req.body);
+  const { id, link } = await createInvite({ ...body, createdBy: req.user!.email ?? req.user!.uid, appUrl: APP_URL });
+  res.status(201).json({ id, link });
+}));
+
+/** The link again, while unused. */
+adminRouter.get('/invites/:id/link', handler(async (req, res) => {
+  res.json({ link: await getInviteLink(req.params.id, APP_URL) });
+}));
+
+adminRouter.post('/invites/:id/revoke', handler(async (req, res) => {
+  res.json(await revokeInvite(req.params.id));
+}));
+
+adminRouter.post('/invites/:id/cap', handler(async (req, res) => {
+  const { capUsd } = z.object({ capUsd: z.number().min(0).max(INVITE_CAP_MAX_USD) }).parse(req.body);
+  res.json({ invite: await setInviteCap(req.params.id, capUsd) });
+}));
+
 /** Recent failures + basic counts. */
 adminRouter.get('/status', handler(async (_req, res) => {
   const [failed, users, licenses, active] = await Promise.all([
@@ -140,6 +178,7 @@ adminRouter.get('/status', handler(async (_req, res) => {
       webhookSecret: !!process.env.DODO_WEBHOOK_SECRET,
       lifetimeProduct: !!process.env.DODO_PRODUCT_LIFETIME,
       agencyProduct: !!process.env.DODO_PRODUCT_AGENCY,
+      inviteKeys: isKeyManagementConfigured(),
     },
   });
 }));

@@ -88,7 +88,7 @@ export const companyIntelligenceSchema = z.object({
   businessType: z.string(),
   targetAudience: z.string(),
   valueProposition: z.string(),
-  marketPosition: z.string(),
+  marketPosition: z.string().optional(), // old audits only: was a fixed placeholder, no longer written or shown
   businessModel: z.string().optional(),
   geographicFocus: z.array(z.string()).optional(),
   serviceOfferings: z.array(z.string()).optional()
@@ -272,12 +272,28 @@ export const auditDataSchema = z.object({
       mentioned: z.boolean(),
       mentionContext: z.string().nullable(),
       competitorsMentioned: z.array(z.string()),
-      fullResponse: z.string()
+      fullResponse: z.string(),
+      /** Which engine gave this answer (multi-engine checks). */
+      engine: z.string().optional(),
+      error: z.string().optional()
     })),
     topCompetitorsCited: z.array(z.object({
       name: z.string(),
       timesFound: z.number()
     })),
+    /** One entry per engine asked. Absent on older, single-engine checks. */
+    engines: z.array(z.object({
+      id: z.string(),
+      label: z.string(),
+      model: z.string(),
+      answered: z.number(),
+      mentionedCount: z.number(),
+      mentionRate: z.number(),
+      failed: z.boolean(),
+      topCompetitorsCited: z.array(z.object({ name: z.string(), timesFound: z.number() }))
+    })).optional(),
+    /** Set when the key ran out part way: the answers already paid for are kept. */
+    stoppedEarly: z.string().optional(),
     snapshotDate: z.string(),
     generatedAt: z.string().optional(),
     estimatedCost: z.number()

@@ -22,6 +22,8 @@ export interface TopicContext {
   signals: ContentSignals;
   platformScores: PlatformScores;
   lowestPlatform: keyof PlatformScores;
+  /** Questions already written: new ideas must be different. */
+  avoid?: string[];
 }
 
 export interface CompetitorInsights {
@@ -102,7 +104,9 @@ RULES:
 - Never imply the company offers, uses or believes something not stated in the context (no invented technologies, policies, awards, prices or numbers).
 - Never claim citation counts or facts you cannot verify.
 - ${hasCompetitors ? 'Only mention the competitors listed above.' : 'Do not mention any competitor names.'}
-- Every list item under 25 words. Output JSON only.`;
+- Every list item under 25 words. Output JSON only.${input.avoid?.length ? `
+- These questions already exist. Write different ones, do not repeat or rephrase them:
+${input.avoid.slice(0, 80).map((q) => `  - ${q}`).join('\n')}` : ''}`;
 }
 
 const CONTENT_TYPES = ['tutorial', 'case-study', 'faq', 'data-driven', 'framework', 'how-to'];

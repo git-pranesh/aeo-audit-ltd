@@ -304,8 +304,8 @@ export function generatePlaybook(
         `Identify your top ${Math.max(safeGap, 3)} most-visited pages`,
         'Write 3-5 frequently asked questions for each page based on real customer inquiries',
         'Add the FAQ JSON-LD schema markup to each page\'s <head> section',
-        'Test with Google Rich Results Test (search.google.com/test/rich-results)',
-        'Monitor for FAQ rich snippets appearing in search within 1-2 weeks',
+        'Check the markup with validator.schema.org',
+        'Re-run this audit to confirm the FAQ schema is detected',
       ],
       codeSnippet: {
         language: 'json',

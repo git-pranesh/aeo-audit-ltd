@@ -3,6 +3,7 @@
  *   GET  /founding  current founding-1,000 count and prices
  *   POST /checkout  Dodo checkout session at the current price step
  *   POST /preview   free preview audit (deterministic part only, no AI call)
+ *   GET  /invite/:code  what an admin invite link may show before sign-in (name, still open?)
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -14,6 +15,7 @@ import { extractDomain } from '../engine/domain-utils';
 import { runAudit } from '../services/audit-pipeline';
 import { getFoundingStatus } from '../services/founding';
 import { createCheckoutSession, DodoError } from '../services/dodo';
+import { lookupInvite } from '../services/invite-service';
 import type { PreviewResult } from '@shared/api';
 
 export const publicRouter = Router();
@@ -85,6 +87,14 @@ publicRouter.post('/checkout', perIp(60 * 60 * 1000, 30, 'Too many checkout atte
     }
     throw err;
   }
+}));
+
+// ─── Invite links ─────────────────────────────────────────────────────────────
+
+publicRouter.get('/invite/:code', perIp(15 * 60 * 1000, 30, 'Too many attempts. Please wait a few minutes.'), handler(async (req, res) => {
+  const code = z.string().trim().min(4).max(80).parse(req.params.code);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(await lookupInvite(code));
 }));
 
 // ─── Free preview audit ───────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import archiver from 'archiver';
 import { requireAuth, requireLicense, type AuthenticatedRequest } from '../security/auth';
+import { CUSTOM_ENGINE, ENGINE_IDS, ENGINES, MAX_OWN_QUESTIONS } from '../../shared/engines';
 import { analyzeLimiter, auditStartLimiter, citationLimiter } from '../security/rate-limits';
 import { assertPublicUrl } from '../security/ssrf';
 import { handler } from './http';
@@ -9,9 +10,10 @@ import { getModelChoice, getUser, recordDownload, requireOpenRouterKey } from '.
 import { analyzeWebsite, runAudit } from '../services/audit-pipeline';
 import {
   FAIR_USE, completeAudit, limitsFor, deleteAudit, failAudit, getAudit, getAuditForFiles, listAudits,
-  previousScoreFor, saveCitationSnapshot, startAudit,
+  appendTopics, auditHistoryFor, previousScoreFor, saveCitationSnapshot, startAudit,
 } from '../services/audit-store';
-import { generateCitationSnapshot } from '../services/citation-snapshot';
+import { generateCitationSnapshot, summarizeCheck, writeCitationQuestions } from '../services/citation-snapshot';
+import { generateTopics } from '../services/topics';
 import { generateAeoFiles } from '../services/aeo-pack';
 import { extractDomain } from '../engine/domain-utils';
 import { OpenRouterError } from '../services/openrouter';
@@ -104,6 +106,7 @@ auditsRouter.post('/', requireLicense, auditStartLimiter, handler<AuthenticatedR
 // ─── Manual Citation Snapshot (latest only, customer key) ─────────────────────
 
 const snapshotsInFlight = new Set<string>();
+const questionSchema = z.string().trim().min(5, 'Each question needs at least 5 characters.').max(200, 'Each question can be up to 200 characters.');
 
 auditsRouter.post('/:auditId/citation-snapshot', requireLicense, citationLimiter, handler<AuthenticatedRequest>(async (req, res) => {
   const uid = req.user!.uid;
@@ -117,8 +120,24 @@ auditsRouter.post('/:auditId/citation-snapshot', requireLicense, citationLimiter
     res.status(409).json({ error: 'A citation check is already running.', code: 'SNAPSHOT_RUNNING' });
     return;
   }
+  const body = z.object({
+    engines: z.array(z.enum([...ENGINE_IDS, CUSTOM_ENGINE])).min(1).max(ENGINE_IDS.length + 1).optional(),
+    questions: z.array(questionSchema).min(1).max(MAX_OWN_QUESTIONS).optional(),
+  }).parse(req.body ?? {});
   const apiKey = await requireOpenRouterKey(uid);
   const models = await getModelChoice(uid);
+
+  const engines = body.engines && Array.from(new Set(body.engines)).flatMap((id) => {
+    if (id !== CUSTOM_ENGINE) {
+      const def = ENGINES.find((e) => e.id === id)!;
+      return [{ id: def.id as string, label: def.label, model: def.model }];
+    }
+    return models.webSearch?.id ? [{ id: CUSTOM_ENGINE as string, label: 'Your model', model: models.webSearch.id }] : [];
+  });
+  if (engines && engines.length === 0) {
+    res.status(400).json({ error: 'Choose at least one AI engine.', code: 'BAD_REQUEST' });
+    return;
+  }
 
   snapshotsInFlight.add(uid);
   try {
@@ -130,14 +149,70 @@ auditsRouter.post('/:auditId/citation-snapshot', requireLicense, citationLimiter
       apiKey,
       auditId: `${audit.auditId}-snapshot-${Date.now()}`,
       model: models.webSearch?.id,
+      engines,
+      questions: body.questions && Array.from(new Set(body.questions)),
       questionModel: models.structured,
     });
     const stored = { ...snapshot, generatedAt: snapshot.snapshotDate };
-    await saveCitationSnapshot(uid, audit.auditId, stored);
+    await saveCitationSnapshot(uid, audit.auditId, stored, summarizeCheck(snapshot, audit.context.companyName));
     res.json({ citationSnapshot: stored });
   } finally {
     snapshotsInFlight.delete(uid);
   }
+}));
+
+/** A fresh set of questions to review and edit, before spending anything on engines. */
+auditsRouter.post('/:auditId/citation-questions', requireLicense, analyzeLimiter, handler<AuthenticatedRequest>(async (req, res) => {
+  const uid = req.user!.uid;
+  const audit = await getAudit(uid, req.params.auditId);
+  if (!audit || audit.status !== 'completed') {
+    res.status(404).json({ error: 'Audit not found.' });
+    return;
+  }
+  const { avoid } = z.object({ avoid: z.array(z.string().trim().max(200)).max(60).default([]) }).parse(req.body ?? {});
+  const apiKey = await requireOpenRouterKey(uid);
+  const models = await getModelChoice(uid);
+  const questions = await writeCitationQuestions({
+    websiteUrl: audit.websiteUrl,
+    industry: audit.context.industry || 'General',
+    companyName: audit.context.companyName,
+    keywords: audit.context.keywords,
+    apiKey,
+    questionModel: models.structured,
+  }, avoid);
+  res.json({ questions });
+}));
+
+/** Scores and citation checks for this website across saved audits. */
+auditsRouter.get('/:auditId/history', handler<AuthenticatedRequest>(async (req, res) => {
+  const history = await auditHistoryFor(req.user!.uid, req.params.auditId);
+  if (!history) {
+    res.status(404).json({ error: 'Audit not found.' });
+    return;
+  }
+  res.json(history);
+}));
+
+/** More content ideas on a saved audit, different from the ones already written. One AI call. */
+auditsRouter.post('/:auditId/topics', requireLicense, analyzeLimiter, handler<AuthenticatedRequest>(async (req, res) => {
+  const uid = req.user!.uid;
+  const audit = await getAuditForFiles(uid, req.params.auditId);
+  if (!audit || audit.status !== 'completed' || !audit.auditData || !audit.aeoInputs) {
+    res.status(404).json({ error: 'Audit not found.' });
+    return;
+  }
+  const apiKey = await requireOpenRouterKey(uid);
+  const models = await getModelChoice(uid);
+  const existing = Object.values(audit.auditData.contentTopics ?? {}).flat().map((t: any) => String(t.topic));
+  const scores = audit.auditData.auditResults.platformScores;
+  const lowestPlatform = (Object.entries(scores) as [keyof typeof scores, number][]).sort((a, b) => a[1] - b[1])[0][0];
+  const siteText = (audit.aeoInputs.facts?.pages ?? []).flatMap((p) => [p.title, p.description, p.h1, ...p.paragraphs]).filter(Boolean).join(' ');
+  const { topics } = await generateTopics(
+    { websiteUrl: audit.websiteUrl, context: audit.context, signals: audit.aeoInputs.signals, platformScores: scores, lowestPlatform, avoid: existing },
+    apiKey, `${req.params.auditId}-topics-${Date.now()}`, models, siteText,
+  );
+  const contentTopics = await appendTopics(uid, req.params.auditId, topics);
+  res.json({ contentTopics });
 }));
 
 // ─── AEO Pack ZIP (generated from saved inputs; no re-scrape) ─────────────────

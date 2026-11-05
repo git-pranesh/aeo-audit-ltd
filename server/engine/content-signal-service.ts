@@ -416,7 +416,7 @@ function generateChatGPTRationale(signals: ContentSignals, score: number): strin
   } else if (score >= 65) {
     return `Moderate how-to coverage with ${signals.tutorialCount} tutorials; could expand step-by-step guides`;
   } else {
-    return `Limited practical content: ${signals.tutorialCount} tutorials found; ChatGPT prefers more how-to guides and FAQs`;
+    return `Limited practical content: ${signals.tutorialCount} tutorials found; our ChatGPT score gives most weight to how-to guides and FAQs`;
   }
 }
 
@@ -426,7 +426,7 @@ function generatePerplexityRationale(signals: ContentSignals, score: number): st
   } else if (score >= 65) {
     return `Moderate research depth with ${signals.dataPointCount} data points; adding more citations would improve Perplexity visibility`;
   } else {
-    return `Limited research backing: ${signals.statisticMentionCount} statistics found; Perplexity prefers data-driven, citation-heavy content`;
+    return `Limited research backing: ${signals.statisticMentionCount} statistics found; our Perplexity score gives most weight to data and cited sources`;
   }
 }
 
@@ -438,7 +438,7 @@ function generateGeminiRationale(signals: ContentSignals, score: number): string
   } else if (score >= 65) {
     return `Moderate structure with ${schemaStatus}; improving heading hierarchy and adding more schema markup would help`;
   } else {
-    return `Weak structure: ${schemaStatus}, heading score ${signals.headingHierarchyScore}/100; Gemini favors well-organized, schema-rich content`;
+    return `Weak structure: ${schemaStatus}, heading score ${signals.headingHierarchyScore}/100; our Gemini score gives most weight to clear structure and schema`;
   }
 }
 
@@ -448,7 +448,7 @@ function generateClaudeRationale(signals: ContentSignals, score: number): string
   } else if (score >= 65) {
     return `Moderate analytical content with ${signals.caseStudyCount} case studies; adding more frameworks and in-depth analysis would improve Claude visibility`;
   } else {
-    return `Limited analytical depth: ${signals.caseStudyCount} case studies, ${signals.frameworkMentionCount} frameworks; Claude prefers nuanced, long-form analysis`;
+    return `Limited analytical depth: ${signals.caseStudyCount} case studies, ${signals.frameworkMentionCount} frameworks; our Claude score gives most weight to long-form analysis`;
   }
 }
 
@@ -515,15 +515,16 @@ export function generateSignalBasedWeaknesses(
   const weaknesses: string[] = [];
   // Every count below comes from the pages we fetched plus sitemap URL patterns, never the
   // whole site, so each line says what we found rather than claiming the content is absent.
-  const found = (n: number, what: string) => `In the pages we read we found ${n} ${what}`;
+  const singular = (what: string) => what.replace(/studies\b/, 'study').replace(/s\b/, '');
+  const found = (n: number, what: string) => `In the pages we read we found ${n} ${n === 1 ? singular(what) : what}`;
 
   // Each weakness fires only when the count is below the benchmark it quotes.
   if (signals.tutorialCount < benchmarks.tutorials) {
-    weaknesses.push(`${found(signals.tutorialCount, 'tutorials')} (sites that get cited typically have ${benchmarks.tutorials}+): practical how-to content is what ChatGPT prefers to quote`);
+    weaknesses.push(`${found(signals.tutorialCount, 'tutorials')} (our reference target: ${benchmarks.tutorials}+): practical how-to content gives AI assistants clear steps to quote`);
   }
 
   if (signals.caseStudyCount < benchmarks.caseStudies) {
-    weaknesses.push(`${found(signals.caseStudyCount, 'case studies')} (sites that get cited typically have ${benchmarks.caseStudies}+): social proof AI assistants can point to`);
+    weaknesses.push(`${found(signals.caseStudyCount, 'case studies')} (our reference target: ${benchmarks.caseStudies}+): proof AI assistants can point to`);
   }
 
   if (signals.schemaTypeCount < 2) {
@@ -531,15 +532,15 @@ export function generateSignalBasedWeaknesses(
   }
 
   if (signals.dataPointCount < benchmarks.dataPoints) {
-    weaknesses.push(`${found(signals.dataPointCount, 'data points')} (benchmark: ${benchmarks.dataPoints}+); statistics and research citations are what Perplexity favours`);
+    weaknesses.push(`${found(signals.dataPointCount, 'data points')} (our reference target: ${benchmarks.dataPoints}+); statistics and sources give AI answers something to cite`);
   }
 
   if (signals.faqSectionCount < benchmarks.faqSections) {
-    weaknesses.push(`${found(signals.faqSectionCount, 'FAQ sections')} (benchmark: ${benchmarks.faqSections}+); structured FAQs improve ChatGPT citation potential`);
+    weaknesses.push(`${found(signals.faqSectionCount, 'FAQ sections')} (our reference target: ${benchmarks.faqSections}+); clear questions and answers are easy for AI assistants to reuse`);
   }
 
   if (signals.frameworkMentionCount < benchmarks.frameworkMentions) {
-    weaknesses.push(`${found(signals.frameworkMentionCount, 'named frameworks or methodologies')} (benchmark: ${benchmarks.frameworkMentions}+); Claude prefers content with clear models`);
+    weaknesses.push(`${found(signals.frameworkMentionCount, 'named frameworks or methodologies')} (our reference target: ${benchmarks.frameworkMentions}+); a named method is easy for AI assistants to explain and credit`);
   }
 
   // Ensure at least one weakness

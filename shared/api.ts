@@ -25,7 +25,8 @@ export interface MeResponse {
   email: string;
   emailVerified: boolean;
   entitlement: Entitlement | null;
-  openRouterKey: { last4: string; updatedAt: string } | null;
+  /** sponsored: the capped trial key an admin invite provided (until the customer saves their own). */
+  openRouterKey: { last4: string; updatedAt: string; sponsored?: boolean } | null;
   branding: Branding | null;
   isAdmin: boolean;
   limits: FairUseLimits;
@@ -74,6 +75,60 @@ export interface CatalogEntry {
   webSearch: boolean;
   estAuditUsd: number;
   estSnapshotUsd: number;
+}
+
+/** One finished citation check, kept after the full answers are replaced. */
+export interface CheckSummary {
+  date: string;
+  engines: string[];
+  totalAnswers: number;
+  mentioned: number;
+  /** Answers where the question did not contain the business name. */
+  openTotal: number;
+  openNamed: number;
+  cost: number;
+}
+
+/** Every audit and citation check saved for one website. */
+export interface AuditHistory {
+  scores: { date: string; score: number; grade?: string; auditId: string }[];
+  checks: CheckSummary[];
+}
+
+/** Spending on the account's OpenRouter key, read live from OpenRouter. */
+export interface KeyUsage {
+  limit: number | null;
+  limitRemaining: number | null;
+  usage: number | null;
+  sponsored: boolean;
+}
+
+/** Admin invite: a partner licence plus a capped OpenRouter key, handed out as one link. */
+export interface AdminInvite {
+  id: string;
+  name: string;
+  note?: string;
+  capUsd: number;
+  whiteLabel: boolean;
+  status: 'available' | 'active' | 'revoked' | 'refunded';
+  createdAt: string;
+  createdBy: string;
+  activatedAt?: string;
+  activatedEmail: string | null;
+  audits: number;
+  /** Live from OpenRouter; null when the lookup failed. */
+  key: { usage: number; limit: number | null; limitRemaining: number | null; disabled: boolean; lastUsedAt: string | null } | null;
+  /** The link can still be copied (unused invite). */
+  linkAvailable: boolean;
+}
+
+/** What /api/public/invite/:code reveals before sign-in. */
+export interface PublicInvite {
+  valid: boolean;
+  name?: string;
+  status?: 'open' | 'used' | 'inactive';
+  whiteLabel?: boolean;
+  capUsd?: number;
 }
 
 export interface FairUseLimits {

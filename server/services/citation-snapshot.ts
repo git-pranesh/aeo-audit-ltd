@@ -1,18 +1,26 @@
 /**
  * Citation Snapshot Service
  *
- * Queries the Perplexity Sonar model (via OpenRouter: not a direct Perplexity
- * API integration) with real prompts to check if a business is actually being
- * mentioned/recommended by AI. This is a manual, one-time check started by the
- * customer and paid for by the customer's OpenRouter key: never scheduled.
+ * Asks live web-search AI engines (via OpenRouter, not the vendors' consumer apps)
+ * real customer questions to check whether a business is actually being
+ * mentioned or recommended. A manual check started by the customer and paid for
+ * by the customer's OpenRouter key: never scheduled.
  */
 
 import { extractDomain } from '../engine/domain-utils';
 import { llmCall, llmJson, OpenRouterError } from './openrouter';
 import { detectIndustryKey } from '../engine/industry';
+import { MAX_OWN_QUESTIONS } from '../../shared/engines';
+import type { CheckSummary } from '../../shared/api';
 
 /** Manual, one-off check. Hard cap keeps each run predictable on the customer's key. */
 export const MAX_CITATION_PROMPTS = 8;
+
+export interface CheckEngine {
+  id: string;
+  label: string;
+  model: string;
+}
 
 export interface CitationSnapshotParams {
   websiteUrl: string;
@@ -22,6 +30,10 @@ export interface CitationSnapshotParams {
   apiKey: string;
   auditId?: string;
   model?: string;
+  /** Ask these engines the same questions. Omitted: one engine, `model`, as before. */
+  engines?: CheckEngine[];
+  /** The customer's own questions. Omitted: AI writes a fresh set. */
+  questions?: string[];
   /** Model used to write the questions (the customer's analysis model). */
   questionModel?: { id: string; supportsJson: boolean };
 }
@@ -32,7 +44,19 @@ export interface PromptResult {
   mentionContext: string | null;
   competitorsMentioned: string[];
   fullResponse: string;
+  engine?: string;
   error?: string;
+}
+
+export interface EngineSummary {
+  id: string;
+  label: string;
+  model: string;
+  answered: number;
+  mentionedCount: number;
+  mentionRate: number;
+  failed: boolean;
+  topCompetitorsCited: CompetitorCitation[];
 }
 
 export interface CompetitorCitation {
@@ -46,9 +70,17 @@ export interface CitationSnapshotResult {
   mentionRate: number;
   promptResults: PromptResult[];
   topCompetitorsCited: CompetitorCitation[];
+  engines?: EngineSummary[];
+  /** Why the check stopped early. Answers already paid for are kept. */
+  stoppedEarly?: string;
   snapshotDate: string;
+  /** What OpenRouter charged for this check, in USD. */
   estimatedCost: number;
 }
+
+/** Keeps any check well inside the audit document's size limit, however many answers it has. */
+const MAX_ANSWER_CHARS = 3000;
+const MAX_STORED_ANSWERS_CHARS = 200_000;
 
 function simplifyIndustry(industry: string): string {
   const lower = industry.toLowerCase();
@@ -110,11 +142,12 @@ function templatePrompts(params: CitationSnapshotParams): string[] {
  * template fallback. 3 brand questions + 5 category questions where the
  * company is not named (that's where being recommended matters).
  */
-async function generatePrompts(params: CitationSnapshotParams): Promise<string[]> {
+async function generatePrompts(params: CitationSnapshotParams, onCost?: (usd: number) => void, avoid: string[] = []): Promise<string[]> {
   try {
     const result = await llmJson<string[]>(
       {
         task: 'structured',
+        onCost,
         apiKey: params.apiKey,
         model: params.questionModel?.id,
         supportsJson: params.questionModel?.supportsJson,
@@ -129,16 +162,26 @@ Industry: ${params.industry || 'unknown'}
 Keywords: ${params.keywords.join(', ') || 'none'}
 
 Return JSON {"brand": [3 questions that name ${params.companyName}], "category": [5 questions that do NOT name ${params.companyName} — the questions where AI decides which businesses to recommend]}.
-Natural phrasing, under 15 words each, no years, no invented facts. If location matters for this business (restaurants, clinics, law firms, trades), phrase it generally ("near me" is fine). JSON only.`,
+Natural phrasing, under 15 words each, no years, no invented facts. If location matters for this business (restaurants, clinics, law firms, trades), phrase it generally ("near me" is fine).${avoid.length ? `
+
+These questions were already asked. Every question you write must be about a different angle, use case or buyer. Do not reuse or lightly reword any of them:
+${avoid.slice(0, 40).map((q) => `- ${q}`).join('\n')}` : ''}
+
+JSON only.`,
         }],
       },
       (raw) => {
+        // The instruction above is not enough on its own: models do repeat, so repeats are removed here too.
+        const norm = (q: string) => q.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+        const used = new Set(avoid.map(norm));
         const clean = (list: unknown) => (Array.isArray(list) ? list : [])
           .filter((q): q is string => typeof q === 'string' && q.trim().length > 8 && q.length < 160)
-          .map((q) => q.trim());
+          .map((q) => q.trim())
+          .filter((q) => !used.has(norm(q)));
         const brand = clean(raw?.brand).slice(0, 3);
         const category = clean(raw?.category).filter((q) => !q.toLowerCase().includes(params.companyName.toLowerCase())).slice(0, 5);
-        return brand.length + category.length >= 6 ? [...brand, ...category] : null;
+        // With an avoid list, take what is genuinely new; a retry follows if there is too little.
+        return brand.length + category.length >= (avoid.length ? 4 : 6) ? [...brand, ...category] : null;
       },
     );
     return result.slice(0, MAX_CITATION_PROMPTS);
@@ -148,11 +191,35 @@ Natural phrasing, under 15 words each, no years, no invented facts. If location 
   }
 }
 
-async function callPerplexitySonar(
+/** A fresh set of questions for the customer to review before spending anything on engines. */
+export async function writeCitationQuestions(params: CitationSnapshotParams, avoid: string[] = []): Promise<string[]> {
+  return generatePrompts(params, undefined, avoid);
+}
+
+/** A short record of a finished check, kept for history after the full answers are replaced. */
+export function summarizeCheck(result: CitationSnapshotResult, companyName: string): CheckSummary {
+  const brand = companyName.trim().toLowerCase();
+  const answered = result.promptResults.filter((r) => !r.error);
+  const open = answered.filter((r) => !brand || !r.prompt.toLowerCase().includes(brand));
+  return {
+    date: result.snapshotDate,
+    engines: result.engines ? result.engines.filter((e) => !e.failed).map((e) => e.label) : ['Single engine'],
+    totalAnswers: answered.length,
+    mentioned: answered.filter((r) => r.mentioned).length,
+    openTotal: open.length,
+    openNamed: open.filter((r) => r.mentioned).length,
+    cost: result.estimatedCost,
+  };
+}
+
+async function askEngine(
   prompt: string,
   apiKey: string,
-  auditId?: string,
-  model?: string,
+  auditId: string | undefined,
+  model: string | undefined,
+  exactModel: boolean,
+  onCost: (usd: number) => void,
+  budgetCalls: number,
 ): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
   const response = await llmCall({
     task: 'webSearch',
@@ -162,6 +229,9 @@ async function callPerplexitySonar(
     apiKey,
     auditId,
     model,
+    exactModel,
+    onCost,
+    budgetCalls,
   });
   return { content: response.content, inputTokens: response.inputTokens, outputTokens: response.outputTokens };
 }
@@ -244,57 +314,44 @@ function normalizeResponse(raw: string): string {
 }
 
 // BUG-04 FIX: Hard guard against empty company name matching everything
-function checkMention(
+const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Words that don't identify a business on their own: "Acme Inc" is still "Acme". */
+const COMPANY_SUFFIXES = new Set(['inc', 'llc', 'ltd', 'limited', 'corp', 'corporation', 'co', 'company', 'gmbh', 'plc', 'pty', 'group', 'holdings']);
+
+/**
+ * Does this answer really name the business? A name of several words must appear
+ * whole ("Citation Rocket", "citation-rocket", "CitationRocket"), or as its domain.
+ * Its first word alone never counts: an answer about "citation" tools is not an
+ * answer about Citation Rocket. Spacing, punctuation and "&" or "and" may vary.
+ */
+export function checkMention(
   responseText: string,
   companyName: string,
   domain: string
 ): { mentioned: boolean; mentionContext: string | null } {
-  // CRITICAL: empty name → regex \b\b matches every position → always true
+  // CRITICAL: empty name would match every position.
   if (!companyName || companyName.trim().length < 2) {
     return { mentioned: false, mentionContext: null };
   }
 
-  const lowerResponse = responseText.toLowerCase();
-  const lowerCompany = companyName.toLowerCase();
-  const lowerDomain = domain.toLowerCase();
+  const words = companyName.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w && w !== 'and');
+  while (words.length > 1 && COMPANY_SUFFIXES.has(words[words.length - 1])) words.pop();
+  if (words.length === 0) return { mentioned: false, mentionContext: null };
 
-  const companyWords = lowerCompany.split(/\s+/);
-  const primaryName = companyWords[0];
+  const separator = String.raw`(?:[\s\p{P}\p{S}]+(?:and[\s\p{P}\p{S}]+)?|[\s\p{P}\p{S}]*)`;
+  const nameRegex = new RegExp(`(?<![\\p{L}\\p{N}])${words.map(esc).join(separator)}(?:['’]s)?(?![\\p{L}\\p{N}])`, 'iu');
+  const nameMatch = nameRegex.exec(responseText);
 
-  const exactRegex = new RegExp(`\\b${lowerCompany.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-  const exactMatch = exactRegex.exec(responseText);
+  const domainIndex = domain ? responseText.toLowerCase().indexOf(domain.toLowerCase()) : -1;
+  const stem = domain.toLowerCase().replace(/^www\./, '').split('.')[0];
+  const stemMatch = stem.length >= 5 && words.length > 1 ? new RegExp(`(?<![\\p{L}\\p{N}])${esc(stem)}(?![\\p{L}\\p{N}])`, 'iu').exec(responseText) : null;
 
-  // BUG-06 FIX: Expanded commonNouns to include brand names that are also everyday words
-  const commonNouns = new Set([
-    'square', 'box', 'stripe', 'slack', 'sage', 'oracle', 'apple', 'shell',
-    'bolt', 'wave', 'tide', 'spark', 'bloom', 'dash', 'hive', 'nest', 'pulse',
-    'snap', 'flow', 'base', 'core', 'edge', 'mint', 'seed', 'clay', 'iron',
-    'ruby', 'notion', 'monday', 'linear', 'mercury', 'aurora', 'prism',
-    'beacon', 'compass', 'anchor', 'bridge', 'signal', 'relay', 'motion',
-    'orbit', 'summit', 'peak', 'pivot', 'arc', 'loop', 'canvas', 'fiber',
-    'spring', 'copper', 'zinc', 'loom', 'craft', 'draft', 'launch', 'pilot',
-  ]);
-  const primaryRegex = new RegExp(`\\b${primaryName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-  const isCommonNoun = commonNouns.has(primaryName.toLowerCase());
-  const primaryMatch = primaryName.length >= 4 && !isCommonNoun ? primaryRegex.exec(responseText) : null;
-
-  const brandVariationRegex = new RegExp(
-    `\\b${primaryName.replace(
-      /[.*+?^${}()|[\]\\]/g, '\\$&'
-    )}\\s+[A-Z][a-z]+`, 'i'
-  );
-  const brandVariationMatch = primaryName.length >= 3
-    ? brandVariationRegex.exec(responseText) : null;
-
-  const domainIndex = lowerResponse.indexOf(lowerDomain);
-
-  const match = exactMatch || primaryMatch || brandVariationMatch || (domainIndex !== -1 ? { index: domainIndex } : null);
-
-  if (!match) {
+  const matchIndex = nameMatch?.index ?? (domainIndex !== -1 ? domainIndex : stemMatch?.index);
+  if (matchIndex === undefined) {
     return { mentioned: false, mentionContext: null };
   }
 
-  const matchIndex = 'index' in match ? match.index : 0;
   const start = Math.max(0, matchIndex - 80);
   const end = Math.min(responseText.length, matchIndex + 120);
   let snippet = responseText.substring(start, end).trim();
@@ -302,10 +359,7 @@ function checkMention(
   if (start > 0) snippet = '…' + snippet;
   if (end < responseText.length) snippet = snippet + '…';
 
-  return {
-    mentioned: true,
-    mentionContext: snippet,
-  };
+  return { mentioned: true, mentionContext: snippet };
 }
 
 // BUG-07 FIX: Tightened competitor extraction to reject descriptor words and section headers
@@ -464,13 +518,14 @@ export function isOwnProduct(name: string, companyName: string, answer: string):
   return re.test(answer);
 }
 
-async function refineCompetitorNames(results: PromptResult[], params: CitationSnapshotParams): Promise<void> {
+async function refineCompetitorNames(results: PromptResult[], params: CitationSnapshotParams, onCost?: (usd: number) => void): Promise<void> {
   const answered = results.map((r, i) => ({ i, text: r.fullResponse.slice(0, 1800) })).filter((r) => r.text);
   if (answered.length === 0) return;
   try {
     const parsed = await llmJson<{ i: number; names: string[]; own?: string[] }[]>(
       {
         task: 'structured',
+        onCost,
         apiKey: params.apiKey,
         model: params.questionModel?.id,
         supportsJson: params.questionModel?.supportsJson,
@@ -529,105 +584,132 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Asks one engine every question, in small batches, and cleans the competitor names it named. */
+async function runEngine(
+  prompts: string[],
+  params: CitationSnapshotParams,
+  model: string | undefined,
+  auditId: string | undefined,
+  exactModel: boolean,
+  onCost: (usd: number) => void,
+): Promise<{ results: PromptResult[]; fatal: OpenRouterError | null }> {
+  const { companyName, websiteUrl, apiKey } = params;
+  const domain = extractDomain(websiteUrl);
+  const promptResults: PromptResult[] = [];
+  const batchSize = 4;
+  let fatalKeyError: OpenRouterError | null = null;
+
+  for (let i = 0; i < prompts.length; i += batchSize) {
+    const batch = prompts.slice(i, i + batchSize);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (prompt) => {
+        const { content } = await askEngine(prompt, apiKey, auditId, model, exactModel, onCost, prompts.length + 2);
+        const { mentioned, mentionContext } = checkMention(content, companyName, domain);
+        const competitorsMentioned = extractCompetitors(content, companyName, domain);
+        return { prompt, mentioned, mentionContext, competitorsMentioned, fullResponse: normalizeResponse(content) } as PromptResult;
+      }),
+    );
+
+    batchResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        promptResults.push(result.value);
+        return;
+      }
+      if (result.reason instanceof OpenRouterError && result.reason.code !== 'UPSTREAM' && result.reason.code !== 'RATE_LIMITED') {
+        fatalKeyError = result.reason;
+      }
+      console.error(`  Prompt failed on ${model ?? 'default model'}: ${result.reason?.message || 'Unknown error'}`);
+      promptResults.push({ prompt: batch[index], mentioned: false, mentionContext: null, competitorsMentioned: [], fullResponse: '', error: 'API call failed' });
+    });
+
+    // A rejected or empty key will fail every remaining prompt too: stop asking, keep what was paid for.
+    if (fatalKeyError) return { results: promptResults, fatal: fatalKeyError };
+    if (i + batchSize < prompts.length) await delay(2000);
+  }
+
+  try {
+    await refineCompetitorNames(promptResults, params, onCost);
+  } catch (err) {
+    if (err instanceof OpenRouterError) return { results: promptResults, fatal: err };
+    throw err;
+  }
+  return { results: promptResults, fatal: null };
+}
+
+function rate(mentioned: number, total: number): number {
+  return total > 0 ? Math.round((mentioned / total) * 100) : 0;
+}
+
 export async function generateCitationSnapshot(
   params: CitationSnapshotParams
 ): Promise<CitationSnapshotResult> {
-  const { companyName, websiteUrl, apiKey, auditId, model } = params;
-  const domain = extractDomain(websiteUrl);
-  const prompts = await generatePrompts(params);
+  const { companyName, websiteUrl, auditId, model, engines } = params;
+  let spent = 0;
+  const onCost = (usd: number) => { spent += usd; };
+  const prompts = params.questions?.length ? params.questions.slice(0, MAX_OWN_QUESTIONS) : await generatePrompts(params, onCost);
+  const finish = () => parseFloat(spent.toFixed(6));
 
-  console.log(`\n🔍 Citation Snapshot: Checking ${prompts.length} prompts for "${companyName}" (${domain})`);
-  console.log(`📝 Prompts generated:`, prompts.map((p, i) => `  ${i + 1}. ${p}`).join('\n'));
+  console.log(`Citation check: ${prompts.length} questions for "${companyName}" (${extractDomain(websiteUrl)}) on ${engines ? engines.map((e) => e.label).join(', ') : model ?? 'default model'}`);
 
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-  const promptResults: PromptResult[] = [];
-
-  const batchSize = 4;
-  let fatalKeyError: OpenRouterError | null = null;
-  for (let i = 0; i < prompts.length; i += batchSize) {
-    const batch = prompts.slice(i, i + batchSize);
-    const batchNumber = Math.floor(i / batchSize) + 1;
-    const totalBatches = Math.ceil(prompts.length / batchSize);
-
-    console.log(`\n⏳ Processing batch ${batchNumber}/${totalBatches} (${batch.length} prompts)...`);
-
-    const batchResults = await Promise.allSettled(
-      batch.map(async (prompt) => {
-        const { content, inputTokens, outputTokens } = await callPerplexitySonar(prompt, apiKey, auditId, model);
-        totalInputTokens += inputTokens;
-        totalOutputTokens += outputTokens;
-
-        const { mentioned, mentionContext } = checkMention(content, companyName, domain);
-        const competitorsMentioned = extractCompetitors(content, companyName, domain);
-
-        console.log(`  ${mentioned ? '✅' : '❌'} "${prompt.substring(0, 60)}..." → ${mentioned ? 'MENTIONED' : 'not mentioned'} | ${competitorsMentioned.length} competitors found`);
-
-        return {
-          prompt,
-          mentioned,
-          mentionContext,
-          competitorsMentioned,
-          fullResponse: normalizeResponse(content),
-        } as PromptResult;
-      })
-    );
-
-    for (const result of batchResults) {
-      if (result.status === 'rejected' && result.reason instanceof OpenRouterError && result.reason.code !== 'UPSTREAM') {
-        fatalKeyError = result.reason;
-      }
-      if (result.status === 'fulfilled') {
-        promptResults.push(result.value);
-      } else {
-        const failedIndex = promptResults.length;
-        const failedPrompt = batch[batchResults.indexOf(result)] || prompts[i + failedIndex] || 'Unknown prompt';
-        console.error(`  ⚠️ Prompt failed: "${failedPrompt.substring(0, 60)}..." - ${result.reason?.message || 'Unknown error'}`);
-        promptResults.push({
-          prompt: failedPrompt,
-          mentioned: false,
-          mentionContext: null,
-          competitorsMentioned: [],
-          fullResponse: '',
-          error: 'API call failed',
-        });
-      }
-    }
-
-    // A rejected/empty key will fail every remaining prompt too: stop and tell the customer.
-    if (fatalKeyError) throw fatalKeyError;
-
-    if (i + batchSize < prompts.length) {
-      console.log(`  ⏸️ Waiting 2 seconds before next batch...`);
-      await delay(2000);
-    }
+  if (!engines) {
+    const { results: promptResults, fatal } = await runEngine(prompts, params, model, auditId, false, onCost);
+    if (fatal && !promptResults.some((r) => !r.error)) throw fatal;
+    const mentionedCount = promptResults.filter((r) => r.mentioned).length;
+    return {
+      ...(fatal ? { stoppedEarly: fatal.message } : {}),
+      totalPromptsChecked: promptResults.length,
+      mentionedCount,
+      mentionRate: rate(mentionedCount, promptResults.length),
+      promptResults,
+      topCompetitorsCited: aggregateCompetitors(promptResults),
+      snapshotDate: new Date().toISOString(),
+      estimatedCost: finish(),
+    };
   }
 
-  const mentionedCount = promptResults.filter((r) => r.mentioned).length;
-  const mentionRate = promptResults.length > 0
-    ? Math.round((mentionedCount / promptResults.length) * 100)
-    : 0;
+  // Same questions to every engine, side by side. Each engine has its own call budget,
+  // and never swaps to a backup, so every answer is labelled with who really gave it.
+  const settled = await Promise.allSettled(engines.map((engine) =>
+    runEngine(prompts, params, engine.model, auditId ? `${auditId}-${engine.id}` : undefined, true, onCost),
+  ));
 
-  const totalTokens = totalInputTokens + totalOutputTokens;
-  const estimatedCost = parseFloat(((totalTokens / 1_000_000) * 1).toFixed(6));
+  const fatal = settled.flatMap((r) => (r.status === 'fulfilled' && r.value.fatal ? [r.value.fatal] : []))[0] ?? null;
 
-  await refineCompetitorNames(promptResults, params);
-  const topCompetitorsCited = aggregateCompetitors(promptResults);
+  const answerLimit = Math.min(MAX_ANSWER_CHARS, Math.floor(MAX_STORED_ANSWERS_CHARS / Math.max(prompts.length * engines.length, 1)));
+  const summaries: EngineSummary[] = [];
+  const promptResults: PromptResult[] = [];
+  settled.forEach((result, index) => {
+    const engine = engines[index];
+    const results = result.status === 'fulfilled' ? result.value.results : [];
+    const answered = results.filter((r) => !r.error);
+    const mentionedCount = answered.filter((r) => r.mentioned).length;
+    summaries.push({
+      id: engine.id,
+      label: engine.label,
+      model: engine.model,
+      answered: answered.length,
+      mentionedCount,
+      mentionRate: rate(mentionedCount, answered.length),
+      failed: answered.length === 0,
+      topCompetitorsCited: aggregateCompetitors(answered).slice(0, 5),
+    });
+    for (const r of results) promptResults.push({ ...r, engine: engine.id, fullResponse: r.fullResponse.slice(0, answerLimit) });
+  });
 
-  console.log(`\n📊 Citation Snapshot Complete:`);
-  console.log(`   Prompts checked: ${promptResults.length}`);
-  console.log(`   Mentioned in: ${mentionedCount}/${promptResults.length} (${mentionRate}%)`);
-  console.log(`   Top competitors: ${topCompetitorsCited.slice(0, 5).map((c) => `${c.name} (${c.timesFound}x)`).join(', ') || 'none'}`);
-  console.log(`   Estimated cost: $${estimatedCost}`);
-  console.log(`   Total tokens: ${totalTokens} (in: ${totalInputTokens}, out: ${totalOutputTokens})`);
-
+  const answers = promptResults.filter((r) => !r.error);
+  if (answers.length === 0) {
+    throw fatal ?? new OpenRouterError('None of the AI engines answered just now. Please try again in a minute.', 'UPSTREAM', 502);
+  }
+  const mentionedCount = answers.filter((r) => r.mentioned).length;
   return {
-    totalPromptsChecked: promptResults.length,
+    ...(fatal ? { stoppedEarly: fatal.message } : {}),
+    totalPromptsChecked: answers.length,
     mentionedCount,
-    mentionRate,
+    mentionRate: rate(mentionedCount, answers.length),
     promptResults,
-    topCompetitorsCited,
+    topCompetitorsCited: aggregateCompetitors(answers),
+    engines: summaries,
     snapshotDate: new Date().toISOString(),
-    estimatedCost,
+    estimatedCost: finish(),
   };
 }

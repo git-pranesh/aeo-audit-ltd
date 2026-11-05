@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/lib/auth-service";
-import { api, ApiError } from "@/lib/queryClient";
-import type { MeResponse } from "@shared/api";
+import { api, ApiError, queryClient } from "@/lib/queryClient";
+import type { KeyUsage, MeResponse } from "@shared/api";
 
 export const BUY_URL = "https://citationrocket.com/pricing";
 
@@ -89,6 +90,13 @@ export function KeySetup() {
   const fail = useFail();
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
+  const sponsored = !!me?.openRouterKey?.sponsored;
+  // Live balance from OpenRouter. Shown for every saved key; essential for a sponsored one.
+  const usage = useQuery<KeyUsage>({
+    queryKey: ["/api/me/openrouter-key/usage"],
+    enabled: !!me?.openRouterKey,
+    staleTime: 60_000,
+  });
   if (!me) return null;
 
   const save = async () => {
@@ -97,6 +105,7 @@ export function KeySetup() {
       const res = await api<{ warning: string | null; limitRemaining: number | null }>("PUT", "/api/me/openrouter-key", { key });
       setKey("");
       await refreshMe();
+      await queryClient.invalidateQueries({ queryKey: ["/api/me/openrouter-key/usage"] });
       toast({
         title: "Key saved",
         description: res.warning ?? (res.limitRemaining != null ? `Remaining limit on this key: $${res.limitRemaining.toFixed(2)}` : "Encrypted and ready."),
@@ -117,18 +126,36 @@ export function KeySetup() {
     }
   };
 
+  const u = usage.data;
+  const balance = u && u.limit != null
+    ? `$${(u.limit - (u.limitRemaining ?? 0)).toFixed(2)} of $${u.limit.toFixed(2)} used`
+    : u && u.usage != null ? `$${u.usage.toFixed(2)} used, no limit set` : null;
+
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Audits run on your own OpenRouter account (under $0.001 per audit with the default model). One key covers every model.
-        Create a dedicated key with a low spending limit, e.g. $5.{" "}
-        <a className="text-primary inline-flex items-center gap-1 underline" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">
-          Create a key <ExternalLink className="h-3 w-3" />
-        </a>
-      </p>
+      {sponsored ? (
+        <p className="text-sm text-muted-foreground">
+          Citation Rocket is covering your audit credit. When it runs out your licence stays; add your own OpenRouter key below to keep auditing.{" "}
+          <a className="text-primary inline-flex items-center gap-1 underline" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">
+            Create a key <ExternalLink className="h-3 w-3" />
+          </a>
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Audits run on your own OpenRouter account (under $0.001 per audit with the default model). One key covers every model.
+          Create a dedicated key with a low spending limit, e.g. $5.{" "}
+          <a className="text-primary inline-flex items-center gap-1 underline" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">
+            Create a key <ExternalLink className="h-3 w-3" />
+          </a>
+        </p>
+      )}
       {me.openRouterKey && (
-        <div className="flex items-center justify-between rounded-md border p-3 text-sm">
-          <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" />Key ending in <code>…{me.openRouterKey.last4}</code></span>
+        <div className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm" data-testid="key-status">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            {sponsored ? <>Trial key from Citation Rocket</> : <>Key ending in <code>…{me.openRouterKey.last4}</code></>}
+            {balance && <span className="text-muted-foreground">· {balance}</span>}
+          </span>
           <Button variant="ghost" size="sm" onClick={remove}>Remove</Button>
         </div>
       )}

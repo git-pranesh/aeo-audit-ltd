@@ -167,7 +167,6 @@ export async function runAudit(params: {
     businessType: context.businessType || 'Unknown',
     targetAudience: context.targetAudience || 'General audience',
     valueProposition: context.valueProposition || 'Not specified',
-    marketPosition: 'Not specified',
   };
   const signals = extractContentSignals(scrape.html, scrape.text, scrape.sitemapUrls, companyIntelligence, domain);
   const scoring = calculatePlatformScoresV2(signals, scrape.sitemapUrls.length, 0, context.industry, signals.totalPageCount || 0);
@@ -218,10 +217,10 @@ export async function runAudit(params: {
     },
     {
       when: !scrape.llmsTxtFound,
-      weakness: 'No llms.txt file: AI assistants get no curated summary of your key pages.',
+      weakness: 'No llms.txt file: any AI tool that reads one gets no curated summary of your key pages.',
       action: {
         id: 'publish-llms-txt', priority: 'medium', title: 'Publish an llms.txt File', targetPlatform: 'All Platforms',
-        estimatedImpact: 'Gives AI assistants a clean map of your key pages', timeToImplement: '10 minutes', difficulty: 'easy',
+        estimatedImpact: 'Gives any AI tool that reads llms.txt a clean map of your key pages', timeToImplement: '10 minutes', difficulty: 'easy',
         currentState: 'No llms.txt found at your domain root',
         targetState: 'llms.txt served at /llms.txt listing your key pages',
         stepByStep: ['Take llms.txt from your AEO Pack', 'Review the page list and summary', 'Upload it to the root of your domain', `Check it loads at ${websiteUrl.replace(/\/$/, '')}/llms.txt`],
@@ -441,7 +440,7 @@ function buildScoreExplanation(s: ContentSignals, lowest: PlatformKey): NonNulla
         Math.max(s.tutorialCount, s.howToGuideCount, s.faqSectionCount),
         'Strong practical content detected',
         'Some practical content found but below benchmark. More tutorials and FAQs will improve ChatGPT visibility.',
-        'No tutorials, how-to guides, or FAQ sections detected. ChatGPT favours practical step-by-step content.',
+        'No tutorials, how-to guides, or FAQ sections detected. Our ChatGPT score gives most weight to practical step-by-step content.',
       ),
       perplexity: driver(
         pick([[s.dataPointCount >= 15, `${s.dataPointCount} data points`], [s.externalLinkCount >= 10, `${s.externalLinkCount} external citations`], [s.statisticMentionCount >= 5, `${s.statisticMentionCount} statistics`]]),
@@ -455,14 +454,14 @@ function buildScoreExplanation(s: ContentSignals, lowest: PlatformKey): NonNulla
         Math.max(s.schemaTypeCount, s.imageCount),
         'Good technical structure detected',
         'Some structure detected but below benchmark. Schema markup and a clear heading hierarchy will improve Gemini visibility.',
-        'Minimal technical structure detected. Gemini favours well-organised pages with schema markup.',
+        'Minimal technical structure detected. Our Gemini score gives most weight to well-organised pages with schema markup.',
       ),
       claude: driver(
         pick([[s.caseStudyCount >= 3, `${s.caseStudyCount} case studies`], [s.frameworkMentionCount >= 3, `${s.frameworkMentionCount} frameworks`], [s.longFormContentScore >= 40, `long-form score ${s.longFormContentScore}/100`]]),
         Math.max(s.caseStudyCount, s.frameworkMentionCount),
         'Strong analytical depth detected',
         'Some analytical content found but below benchmark. Case studies and frameworks will improve Claude visibility.',
-        'Limited analytical depth detected. Claude favours long-form content with frameworks and case studies.',
+        'Limited analytical depth detected. Our Claude score gives most weight to long-form content with frameworks and case studies.',
       ),
     },
     weakestArea: {

@@ -21,9 +21,13 @@ interface AuditResultsProps {
   citationSlot?: ReactNode;
   /** The AEO Pack download card (schema, llms.txt, robots patch built from the site's real content). */
   aeoPackSlot?: ReactNode;
+  /** Score and citation-check history for this website. */
+  historySlot?: ReactNode;
+  onMoreTopics?: () => void;
+  topicsRunning?: boolean;
 }
 
-export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoPackSlot }: AuditResultsProps) {
+export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoPackSlot, historySlot, onMoreTopics, topicsRunning }: AuditResultsProps) {
   const [activeTopicCategory, setActiveTopicCategory] = useState<keyof typeof auditData.contentTopics>("authoritative");
   const [showAllTopics, setShowAllTopics] = useState(false);
   const [showScoreExplanation, setShowScoreExplanation] = useState(true);
@@ -424,6 +428,8 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
         <FixItPlaybook playbook={auditData.playbook} />
       )}
 
+      {historySlot}
+
       {aeoPackSlot}
 
       {/* Content Topics Section */}
@@ -433,6 +439,12 @@ export default function AuditResults({ auditData, websiteUrl, citationSlot, aeoP
             Content Opportunities
           </h2>
           <p className="text-muted-foreground">AI-generated topics to boost your AI readiness</p>
+          {onMoreTopics && (
+            <Button className="mt-4" variant="outline" onClick={onMoreTopics} disabled={topicsRunning} data-testid="button-more-topics">
+              {topicsRunning ? "Writing new ideas…" : "Write more ideas"}
+            </Button>
+          )}
+          {onMoreTopics && <p className="mt-2 text-xs text-muted-foreground">Under 1 cent on your OpenRouter key with the default model. New ideas are added to the lists below.</p>}
         </div>
 
         {/* Topic Categories Tabs */}
