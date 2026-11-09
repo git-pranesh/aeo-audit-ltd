@@ -43,7 +43,9 @@ auditsRouter.get('/', handler<AuthenticatedRequest>(async (req, res) => {
   res.json({ audits: await listAudits(req.user!.uid) });
 }));
 
-auditsRouter.get('/:auditId', requireLicense, handler<AuthenticatedRequest>(async (req, res) => {
+// Reading a saved report needs no active licence: after a refund or a revoked invite, people keep
+// read-only access to their past reports. Anything that runs AI or starts work still needs a licence.
+auditsRouter.get('/:auditId', handler<AuthenticatedRequest>(async (req, res) => {
   const audit = await getAudit(req.user!.uid, req.params.auditId);
   if (!audit) {
     res.status(404).json({ error: 'Audit not found.' });
@@ -217,7 +219,8 @@ auditsRouter.post('/:auditId/topics', requireLicense, analyzeLimiter, handler<Au
 
 // ─── AEO Pack ZIP (generated from saved inputs; no re-scrape) ─────────────────
 
-auditsRouter.get('/:auditId/aeo-pack', requireLicense, handler<AuthenticatedRequest>(async (req, res) => {
+// The AEO Pack is built from the saved audit with no AI call, so it is part of read-only access.
+auditsRouter.get('/:auditId/aeo-pack', handler<AuthenticatedRequest>(async (req, res) => {
   const audit = await getAuditForFiles(req.user!.uid, req.params.auditId);
   if (!audit || audit.status !== 'completed' || !audit.aeoInputs) {
     res.status(404).json({ error: 'Audit not found.' });

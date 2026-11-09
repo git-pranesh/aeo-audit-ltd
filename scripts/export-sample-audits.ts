@@ -10,13 +10,14 @@ import { analyzeWebsite, runAudit } from '../server/services/audit-pipeline';
 import { generateCitationSnapshot } from '../server/services/citation-snapshot';
 import { generateAeoFiles } from '../server/services/aeo-pack';
 import { MODEL_MAP } from '../server/services/openrouter';
+import { ENGINES } from '../shared/engines';
 
 const SITES = [
-  { slug: 'morgan-and-morgan', url: 'https://www.morganandmorgan.com', category: 'Legal / personal injury', competitors: [] as string[] },
   { slug: 'zapier', url: 'https://zapier.com', category: 'B2B SaaS / automation', competitors: ['make.com'] },
-  { slug: 'allbirds', url: 'https://www.allbirds.com', category: 'E-commerce / footwear', competitors: ['rothys.com'] },
-  { slug: 'shake-shack', url: 'https://shakeshack.com', category: 'Restaurant chain', competitors: ['fiveguys.com'] },
-  { slug: 'charity-water', url: 'https://www.charitywater.org', category: 'Nonprofit', competitors: ['water.org'] },
+  { slug: 'notion', url: 'https://www.notion.com', category: 'SaaS / workspace', competitors: ['coda.io'] },
+  { slug: 'hubspot', url: 'https://www.hubspot.com', category: 'B2B SaaS / CRM and marketing', competitors: ['salesforce.com'] },
+  { slug: 'calendly', url: 'https://calendly.com', category: 'SaaS / scheduling', competitors: ['cal.com'] },
+  { slug: 'plausible', url: 'https://plausible.io', category: 'SaaS / web analytics', competitors: ['usefathom.com'] },
 ];
 
 const [email, outDir, ...only] = process.argv.slice(2);
@@ -37,6 +38,7 @@ for (const site of SITES.filter((s) => !only.length || only.includes(s.slug))) {
   const kept = process.env.KEEP_CITATION && fs.existsSync(existing) ? JSON.parse(fs.readFileSync(existing, 'utf8')).citationSnapshot : null;
   const snapshot = kept ?? await generateCitationSnapshot({
     websiteUrl: site.url, industry: context.industry, companyName: context.companyName, keywords: context.keywords, apiKey,
+    engines: ENGINES,
   });
   const aeoFiles = await generateAeoFiles({
     websiteUrl: site.url, companyName: context.companyName, industry: context.industry, businessType: context.businessType,
@@ -47,10 +49,10 @@ for (const site of SITES.filter((s) => !only.length || only.includes(s.slug))) {
   const out = {
     slug: site.slug, category: site.category, websiteUrl: site.url,
     auditedAt: new Date().toISOString(), auditSeconds,
-    models: { analysis: MODEL_MAP.structured, citation: MODEL_MAP.webSearch },
+    models: { analysis: MODEL_MAP.structured, citation: ENGINES.map((e) => e.model).join(', ') },
     context, auditData, citationSnapshot: snapshot, aeoFiles,
   };
   fs.writeFileSync(path.join(outDir, `${site.slug}.json`), JSON.stringify(out, null, 1));
-  console.log(`saved ${site.slug}: score ${auditData.auditResults?.overallScore} mentioned ${snapshot.mentionRate ?? ''}`);
+  console.log(`saved ${site.slug}: score ${auditData.auditResults?.overallScore} mentioned ${snapshot.mentionRate ?? ''} cost $${snapshot.estimatedCost}`);
 }
 process.exit(0);

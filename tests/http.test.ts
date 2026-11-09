@@ -139,6 +139,25 @@ describe('HTTP API', () => {
     expect(me.unusedPurchases).toEqual([expect.objectContaining({ licenseId: 'order_pay_d2', whiteLabel: false })]);
   });
 
+  it('without a licence, past reports stay readable but nothing new can run', async () => {
+    const ID = 'b2b2b2b2b2b2b2b2b2b2b2b2';
+    await fakeDb.collection('audits').doc(ID).set({
+      userId: 'u9', status: 'completed', websiteUrl: 'https://acme.com/', domain: 'acme.com', createdAt: 'now',
+      context: { companyName: 'Acme', industry: 'Widgets', keywords: ['widgets'] },
+      auditData: { auditResults: { overallScore: 50 } },
+    });
+    const token = 'u9:guest@b.com:true';
+    expect((await (await call('GET', '/api/me', token)).json()).entitlement).toBeNull();
+    const report = await call('GET', `/api/audits/${ID}`, token);
+    expect(report.status).toBe(200);
+    expect((await report.json()).domain).toBe('acme.com');
+    expect((await call('POST', `/api/audits/${ID}/topics`, token)).status).toBe(402);
+    expect((await call('POST', `/api/audits/${ID}/citation-snapshot`, token, { engines: ['perplexity'] })).status).toBe(402);
+    expect((await call('POST', '/api/audits/analyze', token, { websiteUrl: 'example.com' })).status).toBe(402);
+    // Someone else's report is still out of reach.
+    expect((await call('GET', `/api/audits/${ID}`, 'u8:other@b.com:true')).status).toBe(404);
+  });
+
   it('account deletion removes audits and key and releases the license', async () => {
     const [code] = await generateCodes(1, { whiteLabel: false, channel: 'marketplace' });
     await call('POST', '/api/licenses/activate', 'u1:a@b.com:true', { code });

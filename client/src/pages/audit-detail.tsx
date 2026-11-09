@@ -52,6 +52,8 @@ export default function AuditDetailPage() {
 
   const auditData = audit?.auditData ?? null;
   const branding = me?.entitlement?.whiteLabel ? me.branding : null;
+  // No active licence (refunded, or an invite that was revoked): past reports stay readable, new work is off.
+  const readOnly = !!me && !me.entitlement;
   const { handleDownloadPDF, isGenerating } = usePDFExport({
     auditData,
     websiteUrl: audit?.websiteUrl ?? "",
@@ -153,7 +155,7 @@ export default function AuditDetailPage() {
     return (
       <AppShell>
         <div className="text-center space-y-4">
-          <p>This audit was not found. It may have been deleted.</p>
+          <p>{error instanceof ApiError && error.status !== 404 ? "This audit could not be loaded just now. Please refresh the page." : "This audit was not found. It may have been deleted."}</p>
           <Link href="/dashboard"><Button variant="outline">Back to audits</Button></Link>
         </div>
       </AppShell>
@@ -174,7 +176,7 @@ export default function AuditDetailPage() {
           <p className="text-muted-foreground">AI writes {me?.limits.citationPrompts ?? 8} questions real customers ask about businesses like yours, asks them to the live AI engines you choose, and shows whether you are mentioned.</p>
         </div>
       )}
-      <CitationEnginePicker
+      {!readOnly && <CitationEnginePicker
         defaultQuestions={me?.limits.citationPrompts ?? 8}
         customModel={me?.aiModels.webSearch ?? null}
         running={citationRunning}
@@ -182,7 +184,7 @@ export default function AuditDetailPage() {
         lastQuestions={Array.from(new Set((snapshot?.promptResults ?? []).map((r) => r.prompt)))}
         onRun={runCitationCheck}
         onWriteQuestions={writeQuestions}
-      />
+      />}
     </section>
   );
 
@@ -216,7 +218,7 @@ export default function AuditDetailPage() {
               <Button variant="outline" onClick={downloadAeoPack} disabled={zipping} data-testid="button-aeo-pack">
                 <FileArchive className="h-4 w-4 mr-2" />{zipping ? "Preparing…" : "AEO Pack"}
               </Button>
-              <Button variant="outline" onClick={() => setRerun((v) => !v)}><RotateCcw className="h-4 w-4 mr-2" />Re-audit</Button>
+              {!readOnly && <Button variant="outline" onClick={() => setRerun((v) => !v)}><RotateCcw className="h-4 w-4 mr-2" />Re-audit</Button>}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Delete audit"><Trash2 className="h-4 w-4" /></Button>
@@ -236,7 +238,16 @@ export default function AuditDetailPage() {
           )}
         </div>
 
-        {rerun && (
+        {readOnly && (
+          <Card className="border-amber-500/40 bg-amber-50 dark:bg-amber-950/20" data-testid="read-only-notice">
+            <CardContent className="p-4 text-sm">
+              <p className="font-medium">Read-only: this account has no active licence.</p>
+              <p className="text-muted-foreground">You can still read this report and download the PDF, CSV and AEO Pack. New audits and AI checks need an active licence.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {rerun && !readOnly && (
           <NewAudit maxCompetitors={me?.limits.maxCompetitors} initialUrl={audit.websiteUrl} initialContext={audit.context} />
         )}
 
@@ -250,7 +261,7 @@ export default function AuditDetailPage() {
         {audit.status === "failed" && (
           <Card><CardContent className="p-8 text-center space-y-4">
             <p className="text-destructive">{audit.error || "This audit failed."}</p>
-            <Button onClick={() => setRerun(true)}><RotateCcw className="h-4 w-4 mr-2" />Try again</Button>
+            {!readOnly && <Button onClick={() => setRerun(true)}><RotateCcw className="h-4 w-4 mr-2" />Try again</Button>}
           </CardContent></Card>
         )}
 
@@ -260,7 +271,7 @@ export default function AuditDetailPage() {
             websiteUrl={audit.websiteUrl}
             citationSlot={citationSlot}
             historySlot={<AuditHistoryCard auditId={audit.auditId} refreshKey={snapshot?.snapshotDate ?? audit.createdAt} />}
-            onMoreTopics={moreTopics}
+            onMoreTopics={readOnly ? undefined : moreTopics}
             topicsRunning={topicsRunning}
             aeoPackSlot={
               <Card>
