@@ -1,0 +1,6 @@
+# app.citationrocket.com is the signed-in product, not a public website.
+# Every page sends "noindex", so search engines must be allowed to crawl it to see that.
+# The public site is https://www.citationrocket.com
+User-agent: *
+Allow: /
+Disallow: /api/

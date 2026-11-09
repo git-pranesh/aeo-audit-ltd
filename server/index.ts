@@ -22,6 +22,12 @@ app.use(helmet({
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }));
 
+// The app is private: keep every response (pages, API, files) out of search results.
+app.use((_req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex');
+  next();
+});
+
 // Raw-body routes (signature verification) before the JSON parser.
 registerWebhooks(app);
 
