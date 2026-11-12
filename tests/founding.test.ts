@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fakeDb } from './setup';
-import { foundingStatus, FOUNDING_TOTAL, PRICE_AFTER, PRICE_STEPS } from '../shared/founding';
+import { foundingStatus, FOUNDING_TOTAL, PRICE_AFTER, PRICE_STEPS, SALE } from '../shared/founding';
 import { countSoldLicenses, invalidateFoundingCache } from '../server/services/founding';
 
 describe('founding price steps', () => {
@@ -27,5 +27,15 @@ describe('founding price steps', () => {
     await lic.doc('f').set({ channel: 'marketplace', status: 'available' });
     invalidateFoundingCache();
     expect(await countSoldLicenses()).toBe(2);
+  });
+
+  it('charges the Black Friday price only inside the sale window', () => {
+    const before = Date.parse('2026-11-11T00:00:00Z');
+    const during = Date.parse('2026-11-27T12:00:00Z');
+    const after = Date.parse('2026-12-03T08:00:00Z');
+    expect(foundingStatus(6, before)).toMatchObject({ prices: { lifetime: 99, agency: 149 }, regularPrices: { lifetime: 99, agency: 149 }, sale: { upcoming: true, active: false, percentOff: 40 } });
+    expect(foundingStatus(6, during)).toMatchObject({ prices: SALE!.prices, regularPrices: { lifetime: 99, agency: 149 }, sale: { active: true }, step: 1 });
+    expect(foundingStatus(6, after)).toMatchObject({ prices: { lifetime: 99, agency: 149 }, sale: null });
+    expect(foundingStatus(FOUNDING_TOTAL, during)).toMatchObject({ prices: SALE!.prices, regularPrices: PRICE_AFTER });
   });
 });
