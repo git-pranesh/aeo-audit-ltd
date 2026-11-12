@@ -40,7 +40,7 @@ export const SALE: Sale | null = {
   name: 'Black Friday',
   percentOff: 40,
   prices: { lifetime: 59, agency: 89 },
-  startsAt: '2026-11-20T00:00:00Z',
+  startsAt: '2026-11-12T00:00:00Z',
   // End of 2 December in US Pacific time.
   endsAt: '2026-12-03T08:00:00Z',
 };

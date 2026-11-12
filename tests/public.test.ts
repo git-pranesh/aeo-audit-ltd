@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
@@ -22,6 +22,7 @@ beforeAll(() => {
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(() => server.close());
+afterEach(() => vi.useRealTimers());
 afterEach(() => { globalThis.fetch = realFetch; invalidateFoundingCache(); });
 
 const call = (method: string, path: string, token?: string, body?: unknown) =>
@@ -47,6 +48,8 @@ function stubDodo(reply: (path: string, body: any) => object) {
 
 describe('public API', () => {
   it('reports the founding count from direct licences', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-01T00:00:00Z'));
     await createPurchasedLicense({ orderReference: 'pay_a', email: 'a@x.com', whiteLabel: false, amountPaid: 9900 });
     await createPurchasedLicense({ orderReference: 'pay_b', email: 'b@x.com', whiteLabel: true, amountPaid: 14900 });
     invalidateFoundingCache();
@@ -56,6 +59,8 @@ describe('public API', () => {
   });
 
   it('creates a Dodo checkout session at the current step price with the metadata', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-01T00:00:00Z'));
     const calls = stubDodo(() => ({ session_id: 'cks_1', checkout_url: 'https://checkout.dodopayments.com/session/cks_1' }));
     const res = await call('POST', '/api/public/checkout', undefined, { plan: 'agency', metadata: { consent: 'allowed', affonso_referral: 'ref_test_123' } });
     expect(res.status).toBe(200);
