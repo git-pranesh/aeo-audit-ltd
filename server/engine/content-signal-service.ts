@@ -69,6 +69,30 @@ export interface ScoringResult {
   signals: ContentSignals;
 }
 
+// ── FAQ detection ────────────────────────────────────────────────────────────
+// Sites title their FAQ in many ways ("FAQ", "Questions & answers", "Common questions"),
+// often with inline tags inside the heading, and many use question accordions with no
+// FAQ title at all. A page counts as having an FAQ section when any of these is present.
+const FAQ_TITLE = /\b(faqs?|frequently asked questions?|questions\s*(?:&|and)\s*answers|q\s*&\s*a|common(?:ly asked)? questions|your questions,? answered)\b/i;
+const QUESTION_START = /^(what|how|why|when|where|who|which|can|could|do|does|did|is|are|should|will|would|may|if)\b/i;
+const stripTagsFaq = (h: string) =>
+  h.replace(/<[^>]+>/g, ' ').replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ').replace(/&#x27;|&#39;|&rsquo;/gi, "'").replace(/\s+/g, ' ').trim();
+
+export function pageHasFaqSection(html: string): boolean {
+  if (/"@type"\s*:\s*\[?\s*"faqpage"/i.test(html)) return true;
+  if (/itemtype\s*=\s*["']https?:\/\/schema\.org\/faqpage/i.test(html)) return true;
+  for (const m of html.matchAll(/<h[1-4][^>]*>([\s\S]{0,400}?)<\/h[1-4]>/gi)) {
+    if (FAQ_TITLE.test(stripTagsFaq(m[1]))) return true;
+  }
+  // Three or more real questions in <details><summary> accordions.
+  let questions = 0;
+  for (const m of html.matchAll(/<summary[^>]*>([\s\S]{0,600}?)<\/summary>/gi)) {
+    const q = stripTagsFaq(m[1]);
+    if (q.endsWith('?') && QUESTION_START.test(q) && q.length <= 200 && ++questions >= 3) return true;
+  }
+  return false;
+}
+
 /**
  * Extract content signals from scraped HTML and text content
  */
@@ -88,6 +112,7 @@ export function extractContentSignals(
   sitemapUrls: string[] = [],
   _companyIntelligence: any = {},
   siteDomain = '',
+  pageHtmls: string[] = [],
 ): ContentSignals {
   const rawHtml = htmlContent;
   const html = htmlContent.toLowerCase();
@@ -161,9 +186,9 @@ export function extractContentSignals(
   const tutorialCount = buckets.tutorials || Math.min(2, Math.floor(tutorialTextMentions / 3));
   const howToGuideCount = count(text, /\bhow to [a-z]/g);
 
-  const faqSchemaBlocks = count(html, /"@type"\s*:\s*"faqpage"/g);
-  const faqHeadings = count(html, /<h[1-4][^>]*>[^<]*(frequently asked questions|faqs?\b)[^<]*<\/h[1-4]>/g);
-  const faqSectionCount = Math.max(buckets.faqs, faqSchemaBlocks + faqHeadings);
+  // One FAQ section per fetched page that has one; FAQ pages in the sitemap count as well.
+  const faqPagesOnSite = (pageHtmls.length > 0 ? pageHtmls : [rawHtml]).filter(pageHasFaqSection).length;
+  const faqSectionCount = Math.max(buckets.faqs, faqPagesOnSite);
 
   const stepByStepListCount = count(html, /<ol[\s>]/g) + count(text, /\bstep \d+[:.]/g);
 

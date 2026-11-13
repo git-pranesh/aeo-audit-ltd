@@ -23,7 +23,8 @@ import { getIndustryBenchmarks } from '../engine/industry-benchmarks';
 import { generatePlaybook } from '../engine/playbook-generator-service';
 import { runBlueprintAudit } from '../engine/blueprint-orchestrator';
 import { deriveNameFromDomain, extractDomain } from '../engine/domain-utils';
-import { adviceTopicOf, isAdviceRelevant } from '../engine/industry';
+import { adviceTopicOf, isAdviceRelevant, type AdviceTopic } from '../engine/industry';
+import { getBenchmarks } from '../engine/benchmarks';
 import { extractSiteFacts, type SiteFacts } from '../engine/site-facts';
 import { scrapeHomepageLite, scrapeWebsite } from './scraper';
 import { generateTopics, TOPIC_CATEGORIES, type TopicResult } from './topics';
@@ -168,7 +169,7 @@ export async function runAudit(params: {
     targetAudience: context.targetAudience || 'General audience',
     valueProposition: context.valueProposition || 'Not specified',
   };
-  const signals = extractContentSignals(scrape.html, scrape.text, scrape.sitemapUrls, companyIntelligence, domain);
+  const signals = extractContentSignals(scrape.html, scrape.text, scrape.sitemapUrls, companyIntelligence, domain, scrape.pages.map((p) => p.html));
   const scoring = calculatePlatformScoresV2(signals, scrape.sitemapUrls.length, 0, context.industry, signals.totalPageCount || 0);
   const platformScores = scoring.platformScores;
   const lowestPlatform = (Object.entries(platformScores) as [PlatformKey, number][]).sort((a, b) => a[1] - b[1])[0][0];
@@ -311,7 +312,7 @@ export async function runAudit(params: {
       largeSiteDetected: scrape.timedOut,
       ...(scrape.timedOut ? { largeSiteNote: `Partial results: analysis based on ${scrape.pagesFetched} sampled pages.` } : {}),
     },
-    scoreExplanation: buildScoreExplanation(signals, lowestPlatform),
+    scoreExplanation: buildScoreExplanation(signals, context.industry),
     auditResults: {
       overallScore: scoring.overallScore,
       letterGrade: scoring.letterGrade as AuditData['auditResults']['letterGrade'],
@@ -411,16 +412,26 @@ function driver(found: string[], best: number, strong: string, some: string, non
   return best > 0 ? some : none;
 }
 
-function buildScoreExplanation(s: ContentSignals, lowest: PlatformKey): NonNullable<AuditData['scoreExplanation']> {
+export function buildScoreExplanation(s: ContentSignals, industry: string | undefined): NonNullable<AuditData['scoreExplanation']> {
   const pick = (pairs: [boolean, string][]) => pairs.filter(([ok]) => ok).map(([, label]) => label);
 
-  const strongest = [
-    { label: 'Case Studies', score: s.caseStudyCount * 3 },
-    { label: 'Data & Research', score: s.dataPointCount * 0.5 },
-    { label: 'Tutorials', score: s.tutorialCount * 2 },
-    { label: 'FAQ Content', score: s.faqSectionCount * 2.5 },
-    { label: 'Schema Markup', score: s.schemaTypeCount * 4 },
-  ].reduce((a, b) => (b.score > a.score ? b : a));
+  // Strongest and weakest are measured on one scale: each area against its own benchmark, so the
+  // summary can never call the same thing both strong and weak. Areas that don't apply to the
+  // business type (tutorials for a restaurant, say) are left out.
+  const bm = getBenchmarks(industry, s.totalPageCount);
+  const pct = (v: number, target: number) => (target > 0 ? Math.min(150, (v / target) * 100) : 0);
+  const areas = ([
+    ['Tutorials & How-to Content', Math.max(pct(s.tutorialCount, bm.tutorials), pct(s.howToGuideCount, bm.howToGuides)), 'howto'],
+    ['FAQ Content', pct(s.faqSectionCount, bm.faqSections), 'faq'],
+    ['Case Studies', pct(s.caseStudyCount, bm.caseStudies), 'caseStudies'],
+    ['Frameworks & Analysis', pct(s.frameworkMentionCount, bm.frameworkMentions), 'frameworks'],
+    ['Data & Citations', Math.max(pct(s.dataPointCount, bm.dataPoints), pct(s.externalLinkCount, bm.externalLinks)), 'data'],
+    ['Schema Markup', pct(s.schemaTypeCount, bm.schemaTypes), 'schema'],
+  ] as [string, number, AdviceTopic][])
+    .filter(([, , topic]) => isAdviceRelevant(industry, topic))
+    .map(([label, score]) => ({ label, score }));
+  const strongest = areas.reduce((x, y) => (y.score > x.score ? y : x));
+  const weakest = areas.reduce((x, y) => (y.score < x.score ? y : x));
 
   return {
     contentSignals: {
@@ -464,12 +475,7 @@ function buildScoreExplanation(s: ContentSignals, lowest: PlatformKey): NonNulla
         'Limited analytical depth detected. Our Claude score gives most weight to long-form content with frameworks and case studies.',
       ),
     },
-    weakestArea: {
-      chatgpt: 'Tutorials & How-to Content',
-      perplexity: 'Data & Citations',
-      gemini: 'Schema & Structure',
-      claude: 'Case Studies & Frameworks',
-    }[lowest],
-    strongestArea: strongest.score > 0 ? strongest.label : null,
+    weakestArea: weakest.label,
+    strongestArea: strongest.score > 0 && strongest.score > weakest.score ? strongest.label : null,
   };
 }
