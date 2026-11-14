@@ -16,6 +16,8 @@ import { runAudit } from '../services/audit-pipeline';
 import { getFoundingStatus } from '../services/founding';
 import { createCheckoutSession, DodoError } from '../services/dodo';
 import { lookupInvite } from '../services/invite-service';
+import { getTestimonialPhoto, listPublicTestimonials, lookupReviewRequest, MAX_PHOTO_CHARS, submitReview } from '../services/testimonial-service';
+import { optionalAuth, type AuthenticatedRequest } from '../security/auth';
 import type { PreviewResult } from '@shared/api';
 
 export const publicRouter = Router();
@@ -95,6 +97,51 @@ publicRouter.get('/invite/:code', perIp(15 * 60 * 1000, 30, 'Too many attempts. 
   const code = z.string().trim().min(4).max(80).parse(req.params.code);
   res.setHeader('Cache-Control', 'no-store');
   res.json(await lookupInvite(code));
+}));
+
+// ─── Testimonials: review links and the website wall ─────────────────────────
+
+publicRouter.get('/review/:id', perIp(15 * 60 * 1000, 60, 'Too many attempts. Please wait a few minutes.'), handler(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(await lookupReviewRequest(String(req.params.id)));
+}));
+
+const optionalText = (max: number) => z.string().trim().max(max).optional().transform((v) => (v ? v : undefined));
+
+publicRouter.post('/review/:id', perIp(60 * 60 * 1000, 20, 'Too many submissions. Please try again later.'), optionalAuth, handler<AuthenticatedRequest>(async (req, res) => {
+  const body = z.object({
+    rating: z.number().int().min(1).max(5),
+    text: z.string().trim().min(20, 'Please write at least a sentence or two.').max(1500, 'Please keep it under 1,500 characters.'),
+    name: z.string().trim().min(2, 'Add your name.').max(80),
+    role: optionalText(80),
+    company: optionalText(80),
+    linkedin: optionalText(200),
+    photoData: z.string().max(MAX_PHOTO_CHARS).optional(),
+    photoUrl: z.string().max(500).optional(),
+    consent: z.literal(true, { errorMap: () => ({ message: 'Please confirm we can show your review.' }) }),
+  }).parse(req.body);
+  await submitReview(String(req.params.id), { ...body, uid: req.user?.uid, email: req.user?.email });
+  res.json({ ok: true });
+}));
+
+publicRouter.get('/testimonials', handler(async (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.json({ testimonials: await listPublicTestimonials(APP_URL) });
+}));
+
+publicRouter.get('/testimonials/:id/photo', handler(async (req, res) => {
+  const photo = await getTestimonialPhoto(String(req.params.id));
+  if (!photo) {
+    res.status(404).end();
+    return;
+  }
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  if ('redirect' in photo) {
+    res.redirect(302, photo.redirect);
+    return;
+  }
+  res.setHeader('Content-Type', photo.type);
+  res.send(photo.data);
 }));
 
 // ─── Free preview audit ───────────────────────────────────────────────────────

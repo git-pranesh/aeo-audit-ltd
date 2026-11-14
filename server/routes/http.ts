@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { OpenRouterError } from '../services/openrouter';
 import { ManagedKeyError } from '../services/openrouter-keys';
 import { LicenseError } from '../services/license-service';
+import { TestimonialError } from '../services/testimonial-service';
 import { FairUseError } from '../services/audit-store';
 import { UnsafeUrlError } from '../security/ssrf';
 
@@ -15,7 +16,7 @@ export function handler<R extends Request = Request>(fn: (req: R, res: Response,
 
 export function sendError(res: Response, err: unknown): void {
   if (res.headersSent) return;
-  if (err instanceof OpenRouterError || err instanceof ManagedKeyError || err instanceof LicenseError || err instanceof FairUseError) {
+  if (err instanceof OpenRouterError || err instanceof ManagedKeyError || err instanceof LicenseError || err instanceof FairUseError || err instanceof TestimonialError) {
     res.status(err.status).json({ error: err.message, code: err.code });
     return;
   }

@@ -9,6 +9,21 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
+/** Reads the signed-in user when a valid token is sent; never blocks. */
+export async function optionalAuth(req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> {
+  const header = req.headers.authorization;
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : '';
+  if (token) {
+    try {
+      const decoded = await adminAuth.verifyIdToken(token);
+      req.user = { uid: decoded.uid, email: decoded.email, emailVerified: decoded.email_verified === true };
+    } catch {
+      // Treat as signed out.
+    }
+  }
+  next();
+}
+
 /** Comma-separated list in ADMIN_EMAILS. Admin rights are never stored client-writable. */
 function adminEmails(): string[] {
   return (process.env.ADMIN_EMAILS || '')

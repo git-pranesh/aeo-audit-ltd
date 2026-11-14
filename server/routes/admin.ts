@@ -16,6 +16,7 @@ import {
   createInvite, getInviteLink, INVITE_CAP_DEFAULT_USD, INVITE_CAP_MAX_USD, listInvites, revokeInvite, setInviteCap,
 } from '../services/invite-service';
 import { isKeyManagementConfigured } from '../services/openrouter-keys';
+import { createReviewRequest, deleteTestimonial, listAdminTestimonials, updateTestimonial } from '../services/testimonial-service';
 
 export const adminRouter = Router();
 adminRouter.use(requireAdmin);
@@ -153,6 +154,31 @@ adminRouter.post('/invites/:id/revoke', handler(async (req, res) => {
 adminRouter.post('/invites/:id/cap', handler(async (req, res) => {
   const { capUsd } = z.object({ capUsd: z.number().min(0).max(INVITE_CAP_MAX_USD) }).parse(req.body);
   res.json({ invite: await setInviteCap(req.params.id, capUsd) });
+}));
+
+// ─── Testimonials: review links, show/hide, pin ──────────────────────────────
+
+adminRouter.get('/testimonials', handler(async (_req, res) => {
+  res.json({ testimonials: await listAdminTestimonials(APP_URL) });
+}));
+
+adminRouter.post('/testimonials', handler<AuthenticatedRequest>(async (req, res) => {
+  const body = z.object({
+    name: z.string().trim().min(1, 'Give the person a name.').max(80),
+    note: z.string().trim().max(200).optional().transform((v) => (v ? v : undefined)),
+  }).parse(req.body);
+  res.status(201).json(await createReviewRequest({ ...body, createdBy: req.user!.email ?? req.user!.uid, appUrl: APP_URL }));
+}));
+
+adminRouter.post('/testimonials/:id', handler(async (req, res) => {
+  const patch = z.object({ shown: z.boolean().optional(), pinned: z.boolean().optional() }).parse(req.body);
+  await updateTestimonial(req.params.id, patch);
+  res.json({ ok: true });
+}));
+
+adminRouter.delete('/testimonials/:id', handler(async (req, res) => {
+  await deleteTestimonial(req.params.id);
+  res.json({ ok: true });
 }));
 
 /** Recent failures + basic counts. */

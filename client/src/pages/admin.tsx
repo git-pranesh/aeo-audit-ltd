@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Link2 } from "lucide-react";
+import { Copy, Link2, Pin, Star } from "lucide-react";
 import AppShell from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { api, apiFetch, ApiError, queryClient } from "@/lib/queryClient";
-import type { AdminInvite } from "@shared/api";
+import type { AdminInvite, AdminTestimonial } from "@shared/api";
 
 interface AdminLicense {
   id: string;
@@ -187,6 +187,7 @@ export default function AdminPage() {
         </CardContent></Card>
 
         <InvitesCard />
+        <TestimonialsCard />
 
         {status.data && status.data.recentFailures.length > 0 && (
           <Card><CardContent className="p-6 space-y-2">
@@ -363,6 +364,144 @@ function InvitesCard() {
                   <Button size="sm" variant="outline" onClick={() => revoke(inv)}>Revoke</Button>
                 </>
               )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </CardContent></Card>
+  );
+}
+
+function TestimonialsCard() {
+  const { toast } = useToast();
+  const data = useQuery<{ testimonials: AdminTestimonial[] }>({ queryKey: ["/api/admin/testimonials"], staleTime: 15_000 });
+  const [form, setForm] = useState({ name: "", note: "" });
+  const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<{ name: string; link: string } | null>(null);
+
+  const fail = (err: unknown) =>
+    toast({ title: "Failed", description: err instanceof ApiError ? err.message : "Please try again.", variant: "destructive" });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/testimonials"] });
+
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Link copied" });
+    } catch {
+      window.prompt("Copy this link", text);
+    }
+  };
+
+  const create = async () => {
+    setBusy(true);
+    try {
+      const res = await api<{ id: string; link: string }>("POST", "/api/admin/testimonials", { name: form.name.trim(), note: form.note.trim() || undefined });
+      setCreated({ name: form.name.trim(), link: res.link });
+      setForm({ name: "", note: "" });
+      await refresh();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const update = async (t: AdminTestimonial, patch: { shown?: boolean; pinned?: boolean }) => {
+    try {
+      await api("POST", `/api/admin/testimonials/${encodeURIComponent(t.id)}`, patch);
+      await refresh();
+    } catch (err) {
+      fail(err);
+    }
+  };
+
+  const remove = async (t: AdminTestimonial) => {
+    if (!window.confirm(`Delete ${t.name || t.requestName}'s review link${t.status === "requested" ? "" : " and their review"}? This cannot be undone.`)) return;
+    try {
+      await api("DELETE", `/api/admin/testimonials/${encodeURIComponent(t.id)}`);
+      await refresh();
+    } catch (err) {
+      fail(err);
+    }
+  };
+
+  const items = data.data?.testimonials ?? [];
+  const shownCount = items.filter((t) => t.status === "shown").length;
+
+  return (
+    <Card data-testid="admin-testimonials"><CardContent className="p-6 space-y-4">
+      <div>
+        <h2 className="font-semibold">Testimonials</h2>
+        <p className="text-sm text-muted-foreground">
+          Make a review link for each person. Reviews arrive hidden; switch on the ones to show on the website ({shownCount} shown now). Pinned ones go first.
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-3 items-end">
+        <div className="space-y-1.5"><Label htmlFor="tm-name">Name</Label>
+          <Input id="tm-name" placeholder="e.g. Stella" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+        <div className="space-y-1.5"><Label htmlFor="tm-note">Note</Label>
+          <Input id="tm-note" placeholder="e.g. invite user, agency" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+        <Button onClick={create} disabled={busy || form.name.trim().length === 0} data-testid="button-create-review-link">
+          {busy ? "Creating…" : "Create review link"}
+        </Button>
+      </div>
+
+      {created && (
+        <div className="rounded-md border border-green-600/30 bg-green-50 dark:bg-green-950/20 p-3 text-sm space-y-2" data-testid="review-link-created">
+          <p className="font-medium">Review link for {created.name} is ready</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="break-all text-xs">{created.link}</code>
+            <Button size="sm" variant="outline" onClick={() => copy(created.link)}><Copy className="h-3.5 w-3.5 mr-1" />Copy</Button>
+          </div>
+        </div>
+      )}
+
+      {data.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {!data.isLoading && items.length === 0 && <p className="text-sm text-muted-foreground">No review links yet.</p>}
+      <div className="space-y-2 text-sm">
+        {items.map((t) => (
+          <div key={t.id} className="rounded-md border p-3 space-y-2" data-testid={`testimonial-${t.id}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={t.status === "shown" ? "default" : t.status === "hidden" ? "secondary" : "outline"}>
+                {t.status === "requested" ? "waiting for review" : t.status}
+              </Badge>
+              {t.pinned && <Badge variant="outline"><Pin className="h-3 w-3 mr-1" />pinned</Badge>}
+              <b>{t.requestName}</b>
+              {t.note && <span className="text-muted-foreground">· {t.note}</span>}
+            </div>
+
+            {t.status !== "requested" && (
+              <div className="flex gap-3">
+                {t.photo
+                  ? <img src={t.photo} alt="" className="h-10 w-10 rounded-full object-cover border flex-shrink-0" referrerPolicy="no-referrer" />
+                  : <div className="h-10 w-10 rounded-full bg-muted flex-shrink-0" />}
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((n) => <Star key={n} className={`h-3.5 w-3.5 ${n <= (t.rating || 0) ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />)}
+                  </div>
+                  <p className="whitespace-pre-wrap">{t.text}</p>
+                  <p className="text-muted-foreground">
+                    {t.name}{t.role ? `, ${t.role}` : ""}{t.company ? `, ${t.company}` : ""}
+                    {t.linkedin && <> · <a href={t.linkedin} target="_blank" rel="noreferrer" className="underline">LinkedIn</a></>}
+                    {t.submittedAt && <> · {new Date(t.submittedAt).toLocaleDateString()}</>}
+                    {t.submittedByEmail && <> · signed in as {t.submittedByEmail}</>}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              {t.status !== "requested" && (
+                <label className="flex items-center gap-2">
+                  <Switch checked={t.status === "shown"} onCheckedChange={(v) => update(t, { shown: v })} data-testid={`toggle-show-${t.id}`} /> Show on website
+                </label>
+              )}
+              {t.status !== "requested" && (
+                <Button size="sm" variant="outline" onClick={() => update(t, { pinned: !t.pinned })}>{t.pinned ? "Unpin" : "Pin to top"}</Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => copy(t.link)}><Link2 className="h-3.5 w-3.5 mr-1" />Copy link</Button>
+              <Button size="sm" variant="ghost" onClick={() => remove(t)}>Delete</Button>
             </div>
           </div>
         ))}

@@ -131,6 +131,49 @@ export interface PublicInvite {
   capUsd?: number;
 }
 
+/** What /api/public/review/:id reveals: whether the review link works and who it is for. */
+export interface PublicReviewRequest {
+  valid: boolean;
+  firstName?: string;
+  submitted?: boolean;
+}
+
+/** A testimonial as the admin sees it (all statuses). */
+export interface AdminTestimonial {
+  id: string;
+  requestName: string;
+  note?: string;
+  createdAt: string;
+  createdBy: string;
+  status: 'requested' | 'hidden' | 'shown';
+  pinned: boolean;
+  submittedAt?: string;
+  rating?: number;
+  text?: string;
+  name?: string;
+  role?: string;
+  company?: string;
+  linkedin?: string;
+  submittedByEmail?: string;
+  link: string;
+  /** Data URL or Google photo URL; admin responses only. */
+  photo: string | null;
+}
+
+/** A shown testimonial, as the website receives it. */
+export interface PublicTestimonial {
+  id: string;
+  name: string;
+  role: string | null;
+  company: string | null;
+  linkedin: string | null;
+  rating: number;
+  text: string;
+  photo: string | null;
+  pinned: boolean;
+  date: string;
+}
+
 export interface FairUseLimits {
   auditsPerDay: number;
   auditsPerHour: number;

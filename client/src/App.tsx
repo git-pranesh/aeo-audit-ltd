@@ -14,6 +14,7 @@ import AdminPage from "@/pages/admin";
 import HelpSupport from "@/pages/help";
 import Welcome from "@/pages/welcome";
 import InvitePage from "@/pages/invite";
+import ReviewPage from "@/pages/review";
 import ConsentBanner from "@/components/consent-banner";
 import NotFound from "@/pages/not-found";
 
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/welcome/:plan" component={Welcome} />
       <Route path="/invite/:code" component={InvitePage} />
+      <Route path="/review/:id" component={ReviewPage} />
       <Route path="/dashboard">{() => <Protected component={Dashboard} />}</Route>
       <Route path="/audit/:auditId">{() => <Protected component={AuditDetail} />}</Route>
       <Route path="/settings">{() => <Protected component={SettingsPage} />}</Route>
