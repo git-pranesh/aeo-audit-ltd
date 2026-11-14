@@ -104,6 +104,11 @@ describe('testimonials', () => {
     expect((await (await call('GET', '/api/public/testimonials')).json()).testimonials).toEqual([]);
   });
 
+  it('greets by a clean first name', async () => {
+    const { id } = await newRequest('TEST, delete me');
+    expect((await (await call('GET', `/api/public/review/${id}`)).json()).firstName).toBe('TEST');
+  });
+
   it('rejects bad input and unknown links', async () => {
     const { id } = await newRequest();
     expect((await call('POST', `/api/public/review/${id}`, undefined, { ...review, consent: false })).status).toBe(400);

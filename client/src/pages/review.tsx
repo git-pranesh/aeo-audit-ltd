@@ -82,7 +82,7 @@ export default function ReviewPage() {
       <AppShell>
         <div className="max-w-xl mx-auto text-center space-y-4 py-12" data-testid="review-thanks">
           <CheckCircle2 className="h-12 w-12 mx-auto text-primary" />
-          <h1 className="text-3xl font-bold">Thank you{form.name ? `, ${form.name.split(/\s+/)[0]}` : ""}</h1>
+          <h1 className="text-3xl font-bold">Thank you{d.firstName ? `, ${d.firstName}` : ""}</h1>
           <p className="text-muted-foreground">Your review has been sent. It means a lot to a small, independent product.</p>
         </div>
       </AppShell>

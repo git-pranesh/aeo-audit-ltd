@@ -73,7 +73,8 @@ export async function lookupReviewRequest(id: string): Promise<PublicReviewReque
   const snap = await col().doc(id).get();
   if (!snap.exists) return { valid: false };
   const d = snap.data() as TestimonialDoc;
-  return { valid: true, firstName: d.requestName.split(/\s+/)[0], submitted: d.status !== 'requested' };
+  const firstName = d.requestName.split(/\s+/)[0].replace(/[^\p{L}\p{N}'-]/gu, '');
+  return { valid: true, ...(firstName ? { firstName } : {}), submitted: d.status !== 'requested' };
 }
 
 export interface ReviewInput {
