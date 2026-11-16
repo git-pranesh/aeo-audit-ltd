@@ -3,6 +3,12 @@
  * Tracking is switched off while META_PIXEL_ID is empty.
  */
 export const META_PIXEL_ID = '1109689344985476';
+/**
+ * Second pixel (16 Nov 2026), owned by the Citation Rocket business portfolio and connected to the
+ * Citation Rocket ad account. Meta would not let the first one (owned by the Pressense portfolio) be
+ * shared yet, so every event goes to both. Its CAPI token is the META_CAPI_TOKEN_2 secret.
+ */
+export const META_PIXEL_ID_2 = '2905788376471360';
 
 /** DM Champ website chat widget (same bot as citationrocket.com). */
 export const CHAT_WIDGET_SRC = 'https://api.dmchamp.com/v1/chat-widget/0lMeDTT5zMPsR7OXhrEM';
