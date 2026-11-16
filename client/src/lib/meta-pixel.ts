@@ -3,7 +3,7 @@
  * may be tracked: outside the EEA/UK/CH, or after they accepted the consent
  * banner (choice shared with citationrocket.com through a .citationrocket.com cookie).
  */
-import { CHAT_WIDGET_SRC, CONSENT_COOKIE, GA_MEASUREMENT_ID, META_PIXEL_ID, REGION_COOKIE } from "@shared/meta";
+import { CHAT_WIDGET_SRC, CONSENT_COOKIE, GA_MEASUREMENT_ID, META_PIXEL_ID, META_PIXEL_ID_2, REGION_COOKIE } from "@shared/meta";
 
 type Fbq = ((...args: unknown[]) => void) & { callMethod?: (...a: unknown[]) => void; queue?: unknown[]; loaded?: boolean; version?: string; push?: unknown };
 declare global { interface Window { fbq?: Fbq; _fbq?: Fbq } }
@@ -46,8 +46,11 @@ export function loadPixel() {
   s.src = "https://connect.facebook.net/en_US/fbevents.js";
   document.head.appendChild(s);
   // Only our own events: no automatic button-click or page-metadata events.
-  window.fbq("set", "autoConfig", false, META_PIXEL_ID)
-  window.fbq("init", META_PIXEL_ID);
+  // Both pixels get the same events: every fbq("track") after init goes to each initialised pixel.
+  for (const id of [META_PIXEL_ID, META_PIXEL_ID_2].filter(Boolean)) {
+    window.fbq("set", "autoConfig", false, id);
+    window.fbq("init", id);
+  }
   window.fbq("track", "PageView");
   for (const args of pending.splice(0)) window.fbq(...args);
 }
