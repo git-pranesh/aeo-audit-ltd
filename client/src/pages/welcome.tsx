@@ -23,11 +23,30 @@ export default function Welcome() {
     const key = `cr_purchase_${paymentId}`;
     try {
       if (sessionStorage.getItem(key)) return;
-      sessionStorage.setItem(key, "1");
     } catch { /* private mode: fire anyway */ }
     const p = plan as MetaPlan;
-    trackGa("purchase", { transaction_id: paymentId, currency: "USD", value: PLAN_VALUE_USD[p], items: [{ item_id: p, item_name: p === "agency" ? "Lifetime Agency" : "Lifetime", price: PLAN_VALUE_USD[p], quantity: 1 }] });
-    trackMeta("Purchase", { value: PLAN_VALUE_USD[p], currency: "USD", content_name: p === "agency" ? "Lifetime Agency" : "Lifetime", content_type: "product" }, paymentId);
+    let cancelled = false;
+    // Real amount paid (sale prices, discount codes). The webhook may land a moment after the redirect, so ask a few times.
+    (async () => {
+      let value: number = PLAN_VALUE_USD[p];
+      for (let i = 0; i < 5 && !cancelled; i++) {
+        try {
+          const r = await fetch(`/api/public/purchase/${encodeURIComponent(paymentId)}`);
+          const d = r.ok ? await r.json() : null;
+          if (d?.known) { value = d.value; break; }
+        } catch { /* ignore */ }
+        await new Promise((ok) => setTimeout(ok, 1500));
+      }
+      if (cancelled || value <= 0) return; // $0 test orders are not purchases
+      try {
+        if (sessionStorage.getItem(key)) return;
+        sessionStorage.setItem(key, "1");
+      } catch { /* private mode: fire anyway */ }
+      const name = p === "agency" ? "Lifetime Agency" : "Lifetime";
+      trackGa("purchase", { transaction_id: paymentId, currency: "USD", value, items: [{ item_id: p, item_name: name, price: value, quantity: 1 }] });
+      trackMeta("Purchase", { value, currency: "USD", content_name: name, content_type: "product" }, paymentId);
+    })();
+    return () => { cancelled = true; };
   }, [plan]);
 
   // Signed in as someone other than the buyer: say so instead of silently opening that account.

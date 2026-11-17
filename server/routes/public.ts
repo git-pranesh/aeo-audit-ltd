@@ -53,6 +53,15 @@ const perIp = (windowMs: number, max: number, error: string) =>
 
 // ─── Founding 1,000 ───────────────────────────────────────────────────────────
 
+/** Amount actually paid for a purchase (USD), so the welcome page reports real revenue. Unknown until the webhook lands. */
+publicRouter.get('/purchase/:paymentId', perIp(15 * 60 * 1000, 60, 'Too many attempts. Please wait a few minutes.'), handler(async (req, res) => {
+  const id = String(req.params.paymentId || '');
+  if (!/^pay_[A-Za-z0-9]{8,40}$/.test(id)) { res.status(400).json({ error: 'Bad payment id.' }); return; }
+  const snap = await adminDb.collection('licenses').doc(`order_${id}`).get();
+  const cents = snap.exists ? snap.get('amountPaid') : undefined;
+  res.json(typeof cents === 'number' ? { known: true, value: cents / 100 } : { known: false });
+}));
+
 publicRouter.get('/founding', handler(async (_req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=30');
   res.json(await getFoundingStatus());

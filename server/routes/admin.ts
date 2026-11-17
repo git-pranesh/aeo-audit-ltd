@@ -190,7 +190,7 @@ adminRouter.delete('/testimonials/:id', handler(async (req, res) => {
 adminRouter.get('/people', handler(async (_req, res) => {
   const [lic, usr, aud, tst] = await Promise.all([
     adminDb.collection('licenses').where('channel', '==', 'direct')
-      .select('purchaserEmail', 'orderReference', 'whiteLabel', 'amountPaid', 'status', 'createdAt', 'activatedBy', 'activatedAt').get(),
+      .select('purchaserEmail', 'orderReference', 'whiteLabel', 'amountPaid', 'status', 'createdAt', 'activatedBy', 'activatedAt', 'source', 'partnerReferral').get(),
     adminDb.collection('users').select('email', 'displayName', 'createdAt', 'entitlement', 'openRouterKey', 'guarantee', 'aiSpend').limit(5000).get(),
     adminDb.collection('audits').select('userId', 'createdAt').limit(20000).get(),
     adminDb.collection('testimonials').select('forLicenseId', 'submittedByEmail', 'status', 'rating', 'createdAt').get(),
@@ -225,6 +225,7 @@ adminRouter.get('/people', handler(async (_req, res) => {
       licenseId: d.id, email: x.purchaserEmail || '', orderReference: x.orderReference || '', agency: !!x.whiteLabel,
       amountPaid: x.amountPaid ?? null, status: x.status, createdAt: x.createdAt, signedUpAt: x.activatedAt || null,
       claimed: !!x.activatedBy, stage, refundWindowEnds: g.until,
+      source: x.source ?? null, partner: !!x.partnerReferral,
       audits: x.activatedBy ? auditsBy.get(x.activatedBy)?.n ?? 0 : 0,
       lastAuditAt: x.activatedBy ? auditsBy.get(x.activatedBy)?.last || null : null,
       downloads: u?.guarantee?.downloads ?? 0,

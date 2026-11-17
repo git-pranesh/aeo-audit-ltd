@@ -19,6 +19,7 @@ import { invalidateFoundingCache } from '../services/founding';
 import { PLAN_VALUE_USD } from '../../shared/meta';
 import { sendSaleAlert, sendWelcomeEmail } from '../services/email';
 import { adminDb } from '../firebase-admin';
+import { describeSaleSource, parseSaleSource } from '../../shared/source';
 
 /** Paid direct licences (not refunded or revoked), for the sale alert. */
 async function paidLicenceCount(): Promise<number | undefined> {
@@ -69,7 +70,12 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
         console.error(`Webhook: payment ${paymentId} has no customer email: create a code manually in Admin`);
       } else {
         const amountPaid = typeof data.total_amount === 'number' ? data.total_amount : undefined;
-        const { created } = await createPurchasedLicense({ orderReference: paymentId, email, whiteLabel: isAgency, amountPaid });
+        const metaIn = (data.metadata ?? {}) as Record<string, string>;
+        const saleSource = parseSaleSource(metaIn);
+        const { created } = await createPurchasedLicense({
+          orderReference: paymentId, email, whiteLabel: isAgency, amountPaid,
+          source: saleSource, partnerReferral: metaIn.affonso_referral?.slice(0, 120) || undefined,
+        });
         if (created) invalidateFoundingCache();
         console.log(`Webhook: payment ${paymentId} → license ${created ? 'created' : 'already existed'}${isAgency ? ' (agency)' : ''}${amountPaid != null ? ` paid ${amountPaid / 100} USD` : ''}`);
         const meta0 = (data.metadata ?? {}) as Record<string, string>;
@@ -79,11 +85,12 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
             sendWelcomeEmail({ email, name, agency: isAgency, paymentId }),
             paidLicenceCount().then((totalSold) => sendSaleAlert({
               kind: 'sale', paymentId, email, name, agency: isAgency, amountPaid,
-              partner: !!meta0.affonso_referral, source: meta0.utm_source, totalSold,
+              partner: !!meta0.affonso_referral, source: describeSaleSource(saleSource), totalSold,
             })),
           ]);
         }
-        if (created && meta0.consent === 'allowed') {
+        // $0 orders (100% test codes) are not purchases for ad measurement.
+        if (created && meta0.consent === 'allowed' && amountPaid !== 0) {
           // Browser identifiers captured by citationrocket.com/buy and passed through Dodo checkout metadata.
           const meta = (data.metadata ?? {}) as Record<string, string>;
           const plan = isAgency ? 'agency' : 'lifetime';
@@ -98,7 +105,7 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
               fbp: meta.fbp || undefined,
               fbc: meta.fbc || undefined,
             },
-            custom_data: { value: PLAN_VALUE_USD[plan], currency: 'USD', content_name: plan === 'agency' ? 'Lifetime Agency' : 'Lifetime', content_type: 'product' },
+            custom_data: { value: amountPaid != null ? amountPaid / 100 : PLAN_VALUE_USD[plan], currency: 'USD', content_name: plan === 'agency' ? 'Lifetime Agency' : 'Lifetime', content_type: 'product' },
           });
         }
       }

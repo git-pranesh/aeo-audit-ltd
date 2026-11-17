@@ -43,6 +43,10 @@ export interface License {
   note?: string;
   /** Direct sales: what the buyer paid, in cents (founding price steps). */
   amountPaid?: number;
+  /** Direct sales: where the buyer first came from, parsed from checkout metadata (see shared/source.ts). */
+  source?: { source: string; medium: string; campaign: string; landing: string; buyPage: string; firstSeen: string; consent: boolean };
+  /** Direct sales: Affonso referral id when a partner link sent the buyer. */
+  partnerReferral?: string;
   /** 'invite' marks admin invites so they can be listed; absent on every other licence. */
   kind?: 'invite';
   invite?: InviteMeta;
@@ -218,6 +222,8 @@ export async function createPurchasedLicense(params: {
   email: string;
   whiteLabel: boolean;
   amountPaid?: number;
+  source?: License['source'];
+  partnerReferral?: string;
 }): Promise<{ created: boolean; licenseId: string }> {
   const licenseId = `order_${params.orderReference.replace(/[^A-Za-z0-9_-]/g, '')}`;
   const license: License = {
@@ -229,6 +235,8 @@ export async function createPurchasedLicense(params: {
     orderReference: params.orderReference,
     createdAt: new Date().toISOString(),
     ...(typeof params.amountPaid === 'number' ? { amountPaid: params.amountPaid } : {}),
+    ...(params.source ? { source: params.source } : {}),
+    ...(params.partnerReferral ? { partnerReferral: params.partnerReferral } : {}),
   };
   try {
     await licenses().doc(licenseId).create(license);

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { api, ApiError, queryClient } from "@/lib/queryClient";
+import { describeSaleSource, type SaleSource } from "@shared/source";
 
 type Stage = "test" | "paid_no_account" | "refund_window" | "kept" | "kept_used" | "refunded" | "chargeback";
 
@@ -14,6 +15,7 @@ interface Sale {
   claimed: boolean; stage: Stage; refundWindowEnds: string;
   audits: number; lastAuditAt: string | null; downloads: number; hasKey: boolean; aiSpendUsd: number;
   review: { state: "none" | "asked" | "reviewed"; rating: number | null };
+  source: SaleSource | null; partner: boolean;
 }
 interface Signup {
   uid: string; email: string; name: string; createdAt: string;
@@ -101,7 +103,7 @@ export default function AdminPeople() {
             <>
               <thead><tr className="text-left text-muted-foreground">
                 <th className="py-2 pr-3 font-medium">Bought</th><th className="pr-3 font-medium">Buyer</th><th className="pr-3 font-medium">Plan</th>
-                <th className="pr-3 font-medium">Paid</th><th className="pr-3 font-medium">Stage</th><th className="pr-3 font-medium">Usage</th>
+                <th className="pr-3 font-medium">Paid</th><th className="pr-3 font-medium">Came from</th><th className="pr-3 font-medium">Stage</th><th className="pr-3 font-medium">Usage</th>
                 <th className="pr-3 font-medium">AI cost</th><th className="pr-3 font-medium">Review</th><th className="font-medium" />
               </tr></thead>
               <tbody>
@@ -111,6 +113,10 @@ export default function AdminPeople() {
                     <td className="pr-3 break-all">{s.email}{s.signedUpAt && <div className="text-xs text-muted-foreground">signed up {when(s.signedUpAt)}</div>}</td>
                     <td className="pr-3">{s.agency ? "Agency" : "Lifetime"}</td>
                     <td className="pr-3">{s.amountPaid == null ? "?" : usd(s.amountPaid)}</td>
+                    <td className="pr-3 text-xs max-w-[200px]">
+                      {s.partner && <Badge variant="secondary" className="mr-1">Partner</Badge>}
+                      {s.source ? describeSaleSource(s.source) : <span className="text-muted-foreground">not recorded</span>}
+                    </td>
                     <td className="pr-3"><StageBadge s={s} /></td>
                     <td className="pr-3 whitespace-nowrap text-xs">
                       {s.claimed ? (
