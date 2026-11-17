@@ -146,6 +146,8 @@ publicRouter.get('/testimonials/:id/photo', handler(async (req, res) => {
     return;
   }
   res.setHeader('Cache-Control', 'public, max-age=3600');
+  // Shown on www.citationrocket.com (another origin); the app-wide default would block it.
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   if ('redirect' in photo) {
     res.redirect(302, photo.redirect);
     return;
