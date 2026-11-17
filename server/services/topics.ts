@@ -179,7 +179,7 @@ function stringList(v: unknown): string[] {
   return Array.isArray(v) ? v.map((x) => clampText(x, 160)).filter(Boolean).slice(0, 5) : [];
 }
 
-export async function generateTopics(input: TopicContext, apiKey: string, auditId: string, models: ModelChoice = {}, siteText = ''): Promise<TopicResult> {
+export async function generateTopics(input: TopicContext, apiKey: string, auditId: string, models: ModelChoice = {}, siteText = '', onCost?: (usd: number) => void): Promise<TopicResult> {
   const year = new Date().getFullYear();
   const hasCompetitors = input.context.competitors.length > 0;
 
@@ -188,6 +188,7 @@ export async function generateTopics(input: TopicContext, apiKey: string, auditI
       task: 'structured',
       apiKey,
       auditId,
+      onCost,
       model: models.structured?.id,
       supportsJson: models.structured?.supportsJson,
       maxTokens: 6000,

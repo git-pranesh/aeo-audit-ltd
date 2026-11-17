@@ -143,8 +143,10 @@ export async function runAudit(params: {
   models?: ModelChoice;
   /** Skip the AI topic call (free preview on the website). */
   preview?: boolean;
+  /** Called with the OpenRouter cost (USD) of each AI call. */
+  onCost?: (usd: number) => void;
 }): Promise<AuditOutput> {
-  const { auditId, websiteUrl, context, apiKey, models = {}, preview = false } = params;
+  const { auditId, websiteUrl, context, apiKey, models = {}, preview = false, onCost } = params;
   const startedAt = Date.now();
   const domain = extractDomain(websiteUrl);
   const companyName = context.companyName || deriveNameFromDomain(websiteUrl) || domain;
@@ -189,7 +191,7 @@ export async function runAudit(params: {
     // Preview audits (website, no account) skip the only AI call: everything else is deterministic and free.
     preview
       ? Promise.resolve<TopicResult>({ topics: Object.fromEntries(TOPIC_CATEGORIES.map((c) => [c, []])) as unknown as TopicResult['topics'], competitorInsights: null })
-      : generateTopics({ websiteUrl, context, signals, platformScores, lowestPlatform }, apiKey, auditId, models, scrape.text),
+      : generateTopics({ websiteUrl, context, signals, platformScores, lowestPlatform }, apiKey, auditId, models, scrape.text, onCost),
   ]);
 
   const competitors = context.competitors;

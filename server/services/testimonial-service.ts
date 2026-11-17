@@ -38,6 +38,8 @@ export interface TestimonialDoc {
   photoUrl?: string;
   submittedByUid?: string;
   submittedByEmail?: string;
+  /** Set when the request was made from a sale row in Admin (review-for-upgrade). */
+  forLicenseId?: string;
 }
 
 export class TestimonialError extends Error {
@@ -54,11 +56,12 @@ export function newReviewId(): string {
 
 const validId = (id: string) => /^[A-Za-z0-9]{12,40}$/.test(id);
 
-export async function createReviewRequest(opts: { name: string; note?: string; createdBy: string; appUrl: string }): Promise<{ id: string; link: string }> {
+export async function createReviewRequest(opts: { name: string; note?: string; createdBy: string; appUrl: string; forLicenseId?: string }): Promise<{ id: string; link: string }> {
   const id = newReviewId();
   const doc: TestimonialDoc = {
     requestName: opts.name,
     ...(opts.note ? { note: opts.note } : {}),
+    ...(opts.forLicenseId ? { forLicenseId: opts.forLicenseId } : {}),
     createdAt: new Date().toISOString(),
     createdBy: opts.createdBy,
     status: 'requested',

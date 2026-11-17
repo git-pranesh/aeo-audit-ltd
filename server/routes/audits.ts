@@ -17,6 +17,7 @@ import { generateTopics } from '../services/topics';
 import { generateAeoFiles } from '../services/aeo-pack';
 import { extractDomain } from '../engine/domain-utils';
 import { OpenRouterError } from '../services/openrouter';
+import { addAiSpend, recordAuditResearch, recordCheckResearch } from '../services/research-store';
 
 export const auditsRouter = Router();
 auditsRouter.use(requireAuth);
@@ -93,9 +94,12 @@ auditsRouter.post('/', requireLicense, auditStartLimiter, handler<AuthenticatedR
 
   const { auditId } = start;
   try {
-    const { auditData, aeoInputs } = await runAudit({ auditId, websiteUrl, context, apiKey, models: await getModelChoice(uid) });
+    let aiCost = 0;
+    const { auditData, aeoInputs } = await runAudit({ auditId, websiteUrl, context, apiKey, models: await getModelChoice(uid), onCost: (usd) => { aiCost += usd; } });
     const previousScore = await previousScoreFor(uid, domain, auditId);
     await completeAudit(uid, auditId, auditData, aeoInputs, previousScore, limits.savedAudits);
+    void addAiSpend(uid, 'audits', aiCost);
+    void recordAuditResearch({ source: 'app', websiteUrl, domain, context, auditData, aiCostUsd: aiCost, agency: limits.savedAudits > 25 });
     res.json(await getAudit(uid, auditId));
   } catch (err) {
     const message = err instanceof OpenRouterError ? err.message : 'The audit could not be completed. Please try again.';
@@ -157,6 +161,8 @@ auditsRouter.post('/:auditId/citation-snapshot', requireLicense, citationLimiter
     });
     const stored = { ...snapshot, generatedAt: snapshot.snapshotDate };
     await saveCitationSnapshot(uid, audit.auditId, stored, summarizeCheck(snapshot, audit.context.companyName));
+    void addAiSpend(uid, 'checks', snapshot.estimatedCost ?? 0);
+    void recordCheckResearch({ domain: extractDomain(audit.websiteUrl), context: audit.context, snapshot });
     res.json({ citationSnapshot: stored });
   } finally {
     snapshotsInFlight.delete(uid);

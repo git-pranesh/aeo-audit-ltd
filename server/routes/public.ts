@@ -6,6 +6,7 @@
  *   GET  /invite/:code  what an admin invite link may show before sign-in (name, still open?)
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
+import { recordAuditResearch } from '../services/research-store';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { z } from 'zod';
 import { handler } from './http';
@@ -154,6 +155,7 @@ const emptyContext = { companyName: '', industry: '', businessType: '', targetAu
 
 async function runPreview(websiteUrl: string, domain: string): Promise<PreviewResult> {
   const { auditData, aeoInputs } = await runAudit({ auditId: `preview-${domain}-${Date.now()}`, websiteUrl, context: emptyContext, apiKey: '', preview: true });
+  void recordAuditResearch({ source: 'preview', websiteUrl, domain, context: emptyContext, auditData });
   const bot = auditData.blueprintResult?.botAccess ?? {};
   const actions = auditData.playbook?.actions ?? [];
   const weaknesses = auditData.auditResults.weaknesses ?? [];

@@ -12,6 +12,7 @@ import {
   generateCodes, hashCode, setLicenseStatus, setLicenseWhiteLabel, type License,
 } from '../services/license-service';
 import { deleteAccount } from '../services/user-service';
+import { guaranteeStatus } from '../../shared/guarantee';
 import {
   createInvite, getInviteLink, INVITE_CAP_DEFAULT_USD, INVITE_CAP_MAX_USD, listInvites, revokeInvite, setInviteCap,
 } from '../services/invite-service';
@@ -187,36 +188,80 @@ adminRouter.delete('/testimonials/:id', handler(async (req, res) => {
  * Sales are direct (Dodo) licences; a $0 sale is a 100% test code. Signups are user records.
  */
 adminRouter.get('/people', handler(async (_req, res) => {
-  const [lic, usr, aud] = await Promise.all([
+  const [lic, usr, aud, tst] = await Promise.all([
     adminDb.collection('licenses').where('channel', '==', 'direct')
-      .select('purchaserEmail', 'orderReference', 'whiteLabel', 'amountPaid', 'status', 'createdAt', 'activatedBy').get(),
-    adminDb.collection('users').select('email', 'displayName', 'createdAt', 'entitlement', 'openRouterKey').limit(5000).get(),
-    adminDb.collection('audits').select('userId').limit(20000).get(),
+      .select('purchaserEmail', 'orderReference', 'whiteLabel', 'amountPaid', 'status', 'createdAt', 'activatedBy', 'activatedAt').get(),
+    adminDb.collection('users').select('email', 'displayName', 'createdAt', 'entitlement', 'openRouterKey', 'guarantee', 'aiSpend').limit(5000).get(),
+    adminDb.collection('audits').select('userId', 'createdAt').limit(20000).get(),
+    adminDb.collection('testimonials').select('forLicenseId', 'submittedByEmail', 'status', 'rating', 'createdAt').get(),
   ]);
-  const auditsBy = new Map<string, number>();
-  for (const d of aud.docs) { const u = d.get('userId'); if (u) auditsBy.set(u, (auditsBy.get(u) ?? 0) + 1); }
+  const auditsBy = new Map<string, { n: number; last: string }>();
+  for (const d of aud.docs) {
+    const u = d.get('userId'); if (!u) continue;
+    const c = String(d.get('createdAt') || '');
+    const cur = auditsBy.get(u) ?? { n: 0, last: '' };
+    auditsBy.set(u, { n: cur.n + 1, last: c > cur.last ? c : cur.last });
+  }
+  const userBy = new Map(usr.docs.map((d) => [d.id, d.data()]));
+  const spendOf = (x: any) => Number(((x?.aiSpend?.audits ?? 0) + (x?.aiSpend?.checks ?? 0)).toFixed(4));
   const byNewest = (a: { createdAt?: string }, b: { createdAt?: string }) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+
   const sales = lic.docs.map((d) => {
     const x = d.data() as License;
+    const u = x.activatedBy ? userBy.get(x.activatedBy) : undefined;
+    const g = guaranteeStatus({ channel: 'direct', purchasedAt: x.createdAt, usage: u?.guarantee });
+    const reviews = tst.docs.filter((t) => t.get('forLicenseId') === d.id || (x.purchaserEmail && t.get('submittedByEmail') === x.purchaserEmail));
+    const done = reviews.find((t) => t.get('status') !== 'requested');
+    // One plain-English stage per sale.
+    let stage: string;
+    if (x.status === 'revoked') stage = 'chargeback';
+    else if (x.status === 'refunded' || g.reason === 'refunded') stage = 'refunded';
+    else if ((x.amountPaid ?? 1) === 0) stage = 'test';
+    else if (!x.activatedBy) stage = 'paid_no_account';
+    else if (g.eligible) stage = 'refund_window';
+    else if (g.reason === 'expired') stage = 'kept';
+    else stage = 'kept_used'; // inside 14 days but used the product, so the sale is final
     return {
       licenseId: d.id, email: x.purchaserEmail || '', orderReference: x.orderReference || '', agency: !!x.whiteLabel,
-      amountPaid: x.amountPaid ?? null, status: x.status, createdAt: x.createdAt,
-      claimed: !!x.activatedBy, audits: x.activatedBy ? auditsBy.get(x.activatedBy) ?? 0 : 0,
+      amountPaid: x.amountPaid ?? null, status: x.status, createdAt: x.createdAt, signedUpAt: x.activatedAt || null,
+      claimed: !!x.activatedBy, stage, refundWindowEnds: g.until,
+      audits: x.activatedBy ? auditsBy.get(x.activatedBy)?.n ?? 0 : 0,
+      lastAuditAt: x.activatedBy ? auditsBy.get(x.activatedBy)?.last || null : null,
+      downloads: u?.guarantee?.downloads ?? 0,
+      hasKey: !!u?.openRouterKey,
+      aiSpendUsd: spendOf(u),
+      review: done ? { state: 'reviewed', rating: done.get('rating') ?? null } : reviews.length ? { state: 'asked', rating: null } : { state: 'none', rating: null },
     };
   }).sort(byNewest);
+
   const signups = usr.docs.map((d) => {
     const x = d.data();
     return {
       uid: d.id, email: x.email || '', name: x.displayName || '', createdAt: x.createdAt || '',
       licence: x.entitlement ? (x.entitlement.whiteLabel ? 'agency' : 'lifetime') : null,
-      hasKey: !!x.openRouterKey, audits: auditsBy.get(d.id) ?? 0,
+      hasKey: !!x.openRouterKey, audits: auditsBy.get(d.id)?.n ?? 0, lastAuditAt: auditsBy.get(d.id)?.last || null,
+      aiSpendUsd: spendOf(x),
     };
   }).sort(byNewest);
-  const paid = sales.filter((s) => (s.amountPaid ?? 1) > 0 && s.status !== 'refunded' && s.status !== 'revoked');
+  const paid = sales.filter((s) => !['test', 'refunded', 'chargeback'].includes(s.stage));
   res.json({
     sales, signups,
-    totals: { paidSales: paid.length, revenueCents: paid.reduce((n, s) => n + (s.amountPaid ?? 0), 0), signups: signups.length },
+    totals: {
+      paidSales: paid.length,
+      revenueCents: paid.reduce((n, s) => n + (s.amountPaid ?? 0), 0),
+      inRefundWindow: sales.filter((s) => s.stage === 'refund_window').length,
+      refunded: sales.filter((s) => s.stage === 'refunded').length,
+      signups: signups.length,
+    },
   });
+}));
+
+/** Review-for-upgrade: a review link tied to this sale, so Admin can see when it comes back. */
+adminRouter.post('/sales/:licenseId/review-request', handler<AuthenticatedRequest>(async (req, res) => {
+  const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(req.body);
+  const lic = await adminDb.collection('licenses').doc(req.params.licenseId).get();
+  if (!lic.exists) { res.status(404).json({ error: 'License not found.' }); return; }
+  res.status(201).json(await createReviewRequest({ name, note: 'Review for free Agency upgrade', createdBy: req.user!.email ?? req.user!.uid, appUrl: APP_URL, forLicenseId: lic.id }));
 }));
 
 adminRouter.get('/status', handler(async (_req, res) => {
