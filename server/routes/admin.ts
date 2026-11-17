@@ -182,6 +182,43 @@ adminRouter.delete('/testimonials/:id', handler(async (req, res) => {
 }));
 
 /** Recent failures + basic counts. */
+/**
+ * GET /api/admin/people: every direct sale and every signup, newest first.
+ * Sales are direct (Dodo) licences; a $0 sale is a 100% test code. Signups are user records.
+ */
+adminRouter.get('/people', handler(async (_req, res) => {
+  const [lic, usr, aud] = await Promise.all([
+    adminDb.collection('licenses').where('channel', '==', 'direct')
+      .select('purchaserEmail', 'orderReference', 'whiteLabel', 'amountPaid', 'status', 'createdAt', 'activatedBy').get(),
+    adminDb.collection('users').select('email', 'displayName', 'createdAt', 'entitlement', 'openRouterKey').limit(5000).get(),
+    adminDb.collection('audits').select('userId').limit(20000).get(),
+  ]);
+  const auditsBy = new Map<string, number>();
+  for (const d of aud.docs) { const u = d.get('userId'); if (u) auditsBy.set(u, (auditsBy.get(u) ?? 0) + 1); }
+  const byNewest = (a: { createdAt?: string }, b: { createdAt?: string }) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  const sales = lic.docs.map((d) => {
+    const x = d.data() as License;
+    return {
+      licenseId: d.id, email: x.purchaserEmail || '', orderReference: x.orderReference || '', agency: !!x.whiteLabel,
+      amountPaid: x.amountPaid ?? null, status: x.status, createdAt: x.createdAt,
+      claimed: !!x.activatedBy, audits: x.activatedBy ? auditsBy.get(x.activatedBy) ?? 0 : 0,
+    };
+  }).sort(byNewest);
+  const signups = usr.docs.map((d) => {
+    const x = d.data();
+    return {
+      uid: d.id, email: x.email || '', name: x.displayName || '', createdAt: x.createdAt || '',
+      licence: x.entitlement ? (x.entitlement.whiteLabel ? 'agency' : 'lifetime') : null,
+      hasKey: !!x.openRouterKey, audits: auditsBy.get(d.id) ?? 0,
+    };
+  }).sort(byNewest);
+  const paid = sales.filter((s) => (s.amountPaid ?? 1) > 0 && s.status !== 'refunded' && s.status !== 'revoked');
+  res.json({
+    sales, signups,
+    totals: { paidSales: paid.length, revenueCents: paid.reduce((n, s) => n + (s.amountPaid ?? 0), 0), signups: signups.length },
+  });
+}));
+
 adminRouter.get('/status', handler(async (_req, res) => {
   const [failed, users, licenses, active] = await Promise.all([
     adminDb.collection('audits').where('status', '==', 'failed').limit(50)
@@ -205,6 +242,7 @@ adminRouter.get('/status', handler(async (_req, res) => {
       lifetimeProduct: !!process.env.DODO_PRODUCT_LIFETIME,
       agencyProduct: !!process.env.DODO_PRODUCT_AGENCY,
       inviteKeys: isKeyManagementConfigured(),
+      email: !!process.env.RESEND_API_KEY,
     },
   });
 }));

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Link2, Pin, Star } from "lucide-react";
 import AppShell from "@/components/app-shell";
+import AdminPeople from "@/components/admin-people";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -116,6 +117,8 @@ export default function AdminPage() {
             </div>
           </CardContent></Card>
         )}
+
+        <AdminPeople />
 
         <Card><CardContent className="p-6 space-y-4">
           <h2 className="font-semibold">Find user or license</h2>

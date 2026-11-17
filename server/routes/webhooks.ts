@@ -17,6 +17,16 @@ import { createPurchasedLicense, findLicenseByOrder, setLicenseStatus } from '..
 import { sendMetaEvent, sha256 } from '../services/meta-capi';
 import { invalidateFoundingCache } from '../services/founding';
 import { PLAN_VALUE_USD } from '../../shared/meta';
+import { sendSaleAlert, sendWelcomeEmail } from '../services/email';
+import { adminDb } from '../firebase-admin';
+
+/** Paid direct licences (not refunded or revoked), for the sale alert. */
+async function paidLicenceCount(): Promise<number | undefined> {
+  try {
+    const snap = await adminDb.collection('licenses').where('channel', '==', 'direct').select('status', 'amountPaid').get();
+    return snap.docs.filter((d) => { const x = d.data(); return (x.amountPaid ?? 1) > 0 && x.status !== 'refunded' && x.status !== 'revoked'; }).length;
+  } catch { return undefined; }
+}
 
 export const webhooksRouter = Router();
 
@@ -63,6 +73,16 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
         if (created) invalidateFoundingCache();
         console.log(`Webhook: payment ${paymentId} → license ${created ? 'created' : 'already existed'}${isAgency ? ' (agency)' : ''}${amountPaid != null ? ` paid ${amountPaid / 100} USD` : ''}`);
         const meta0 = (data.metadata ?? {}) as Record<string, string>;
+        if (created) {
+          const name: string | undefined = data.customer?.name;
+          await Promise.all([
+            sendWelcomeEmail({ email, name, agency: isAgency, paymentId }),
+            paidLicenceCount().then((totalSold) => sendSaleAlert({
+              kind: 'sale', paymentId, email, name, agency: isAgency, amountPaid,
+              partner: !!meta0.affonso_referral, source: meta0.utm_source, totalSold,
+            })),
+          ]);
+        }
         if (created && meta0.consent === 'allowed') {
           // Browser identifiers captured by citationrocket.com/buy and passed through Dodo checkout metadata.
           const meta = (data.metadata ?? {}) as Record<string, string>;
@@ -87,6 +107,7 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
       if (licenseId) {
         await setLicenseStatus(licenseId, 'refunded');
         invalidateFoundingCache();
+        await sendSaleAlert({ kind: 'refund', paymentId, email: data.customer?.email });
         console.log(`Webhook: refund for ${paymentId} → license refunded`);
       }
     } else if (event?.type === 'dispute.lost' && paymentId) {
@@ -94,6 +115,7 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
       if (licenseId) {
         await setLicenseStatus(licenseId, 'revoked');
         invalidateFoundingCache();
+        await sendSaleAlert({ kind: 'chargeback', paymentId, email: data.customer?.email });
         console.log(`Webhook: chargeback lost for ${paymentId} → license revoked`);
       }
     }
