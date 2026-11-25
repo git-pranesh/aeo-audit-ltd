@@ -15,6 +15,7 @@ import { Router, text } from 'express';
 import { Webhook } from 'standardwebhooks';
 import { createPurchasedLicense, findLicenseByOrder, setLicenseStatus } from '../services/license-service';
 import { sendMetaEvent, sha256 } from '../services/meta-capi';
+import { sendOpenAiEvent } from '../services/openai-capi';
 import { invalidateFoundingCache } from '../services/founding';
 import { PLAN_VALUE_USD } from '../../shared/meta';
 import { sendSaleAlert, sendWelcomeEmail } from '../services/email';
@@ -94,6 +95,17 @@ webhooksRouter.post('/dodo', text({ type: '*/*', limit: '256kb' }), async (req, 
           // Browser identifiers captured by citationrocket.com/buy and passed through Dodo checkout metadata.
           const meta = (data.metadata ?? {}) as Record<string, string>;
           const plan = isAgency ? 'agency' : 'lifetime';
+          const name = plan === 'agency' ? 'Lifetime Agency' : 'Lifetime';
+          const valueUsd = amountPaid != null ? amountPaid / 100 : PLAN_VALUE_USD[plan];
+          // ChatGPT ads: same id as the browser order_created on the "Payment received" page.
+          await sendOpenAiEvent({
+            id: paymentId,
+            type: 'order_created',
+            source_url: 'https://www.citationrocket.com/pricing',
+            oppref: meta.oppref || undefined,
+            user: { obref: meta.obref || undefined, emails_sha256: [sha256(email)], user_agent: meta.ua || undefined },
+            data: { type: 'contents', amount: Math.round(valueUsd * 100), currency: 'USD', contents: [{ id: plan, name, content_type: 'product', quantity: 1 }] },
+          });
           await sendMetaEvent({
             event_name: 'Purchase',
             event_id: paymentId, // the "Payment received" page fires the browser Purchase with the same id

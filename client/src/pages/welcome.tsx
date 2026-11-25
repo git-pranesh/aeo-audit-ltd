@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/lib/auth-service";
 import { useParams } from "wouter";
 import Home from "@/pages/home";
-import { trackGa, trackMeta } from "@/lib/meta-pixel";
+import { trackGa, trackMeta, trackOai } from "@/lib/meta-pixel";
 import { PLAN_VALUE_USD, type MetaPlan } from "@shared/meta";
 
 /**
@@ -45,6 +45,7 @@ export default function Welcome() {
       const name = p === "agency" ? "Lifetime Agency" : "Lifetime";
       trackGa("purchase", { transaction_id: paymentId, currency: "USD", value, items: [{ item_id: p, item_name: name, price: value, quantity: 1 }] });
       trackMeta("Purchase", { value, currency: "USD", content_name: name, content_type: "product" }, paymentId);
+      trackOai("order_created", { type: "contents", amount: Math.round(value * 100), currency: "USD", contents: [{ id: p, name, content_type: "product", quantity: 1 }] }, { event_id: paymentId });
     })();
     return () => { cancelled = true; };
   }, [plan]);

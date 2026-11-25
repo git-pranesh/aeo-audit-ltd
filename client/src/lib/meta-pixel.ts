@@ -3,7 +3,7 @@
  * may be tracked: outside the EEA/UK/CH, or after they accepted the consent
  * banner (choice shared with citationrocket.com through a .citationrocket.com cookie).
  */
-import { CHAT_WIDGET_SRC, CONSENT_COOKIE, GA_MEASUREMENT_ID, META_PIXEL_ID, META_PIXEL_ID_2, REGION_COOKIE } from "@shared/meta";
+import { CHAT_WIDGET_SRC, CONSENT_COOKIE, GA_MEASUREMENT_ID, META_PIXEL_ID, META_PIXEL_ID_2, OPENAI_PIXEL_ID, REGION_COOKIE } from "@shared/meta";
 
 type Fbq = ((...args: unknown[]) => void) & { callMethod?: (...a: unknown[]) => void; queue?: unknown[]; loaded?: boolean; version?: string; push?: unknown };
 declare global { interface Window { fbq?: Fbq; _fbq?: Fbq } }
@@ -24,8 +24,8 @@ export function consentState(): ConsentState {
 export function saveConsent(granted: boolean) {
   const domain = location.hostname.endsWith("citationrocket.com") ? "; domain=.citationrocket.com" : "";
   document.cookie = `${CONSENT_COOKIE}=${granted ? "granted" : "denied"}; path=/; max-age=${60 * 60 * 24 * 180}; SameSite=Lax; Secure${domain}`;
-  if (granted) { loadPixel(); loadGa(); loadChat(); }
-  else { pending.length = 0; gaPending.length = 0; }
+  if (granted) { loadPixel(); loadGa(); loadOai(); loadChat(); }
+  else { pending.length = 0; gaPending.length = 0; oaiPending.length = 0; }
 }
 
 let loaded = false;
@@ -60,6 +60,36 @@ export function trackMeta(event: string, params: Record<string, unknown> = {}, e
   const args = ["track", event, params, ...(eventID ? [{ eventID }] : [])];
   if (window.fbq) window.fbq(...args);
   else if (META_PIXEL_ID && consentState() === "ask") pending.push(args);
+}
+
+/* ── ChatGPT ads Measurement Pixel (OpenAI): same consent rule as the Meta Pixel ── */
+type Oaiq = ((...args: unknown[]) => void) & { q?: unknown[][] };
+declare global { interface Window { oaiq?: Oaiq } }
+let oaiLoaded = false;
+const oaiPending: unknown[][] = [];
+
+export function loadOai() {
+  if (oaiLoaded || !OPENAI_PIXEL_ID || consentState() !== "allowed") return;
+  oaiLoaded = true;
+  if (!window.oaiq) {
+    const q: Oaiq = function (...args: unknown[]) { q.q!.push(args); } as Oaiq;
+    q.q = [];
+    window.oaiq = q;
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = "https://bzrcdn.openai.com/sdk/oaiq.min.js";
+    document.head.appendChild(s);
+  }
+  window.oaiq("init", { pixelId: OPENAI_PIXEL_ID });
+  window.oaiq("measure", "page_viewed", { type: "contents", contents: [{ id: location.pathname, content_type: "page" }] });
+  for (const args of oaiPending.splice(0)) window.oaiq(...args);
+}
+
+/** ChatGPT ads event with an id shared with the matching server event. Amounts are whole US cents. */
+export function trackOai(event: string, data: Record<string, unknown>, options?: Record<string, unknown>) {
+  const args = ["measure", event, data, ...(options ? [options] : [])];
+  if (window.oaiq && oaiLoaded) window.oaiq(...args);
+  else if (OPENAI_PIXEL_ID && consentState() === "ask") oaiPending.push(args);
 }
 
 /* ── Google Analytics 4: loaded only when the visitor may be tracked (same rule as the Meta Pixel) ── */

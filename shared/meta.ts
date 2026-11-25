@@ -10,6 +10,12 @@ export const META_PIXEL_ID = '1109689344985476';
  */
 export const META_PIXEL_ID_2 = '2905788376471360';
 
+/**
+ * ChatGPT ads (OpenAI Ads Manager) Measurement Pixel, data source "Citation Rocket". Same id as the website.
+ * The server order_created needs the OPENAI_CAPI_KEY secret.
+ */
+export const OPENAI_PIXEL_ID = 'XpwWMkDVBV2jC3AHvTfPik';
+
 /** DM Champ website chat widget (same bot as citationrocket.com). */
 export const CHAT_WIDGET_SRC = 'https://api.dmchamp.com/v1/chat-widget/0lMeDTT5zMPsR7OXhrEM';
 

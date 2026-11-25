@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { trackGa, trackMeta } from "@/lib/meta-pixel";
+import { trackGa, trackMeta, trackOai } from "@/lib/meta-pixel";
 import { auth } from "@/lib/firebase";
 import { api } from "@/lib/queryClient";
 import type { MeResponse } from "@shared/api";
@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Only the response that created the account carries this id (shared with the server event).
       if (data.metaRegistrationEventId) {
         trackMeta("CompleteRegistration", {}, data.metaRegistrationEventId);
+        trackOai("registration_completed", { type: "customer_action" }, { event_id: data.metaRegistrationEventId });
         trackGa("sign_up");
       }
       setMe(data);
