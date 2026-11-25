@@ -65,6 +65,9 @@
   },
   "overrides": {
     "protobufjs": "7.6.5",
-    "basic-ftp": "6.2.0"
+    "basic-ftp": "6.2.0",
+    "vitest": {
+      "vite": "8.3.8"
+    }
   }
 }
