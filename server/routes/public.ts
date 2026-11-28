@@ -7,6 +7,8 @@
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { recordAuditResearch } from '../services/research-store';
+import crypto from 'crypto';
+import { sendSupportTicket } from '../services/email';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { z } from 'zod';
 import { handler } from './http';
@@ -60,6 +62,32 @@ publicRouter.get('/purchase/:paymentId', perIp(15 * 60 * 1000, 60, 'Too many att
   const snap = await adminDb.collection('licenses').doc(`order_${id}`).get();
   const cents = snap.exists ? snap.get('amountPaid') : undefined;
   res.json(typeof cents === 'number' ? { known: true, value: cents / 100 } : { known: false });
+}));
+
+/**
+ * POST /api/public/support-ticket: the website chat bot (DM Champ custom function) opens a
+ * ticket when it cannot answer or the visitor wants a person. Emails the owner inbox with the
+ * visitor as Reply-To. Guarded by a shared key (SUPPORT_TICKET_KEY header x-ticket-key) and a rate limit.
+ */
+const ticketSchema = z.object({
+  question: z.string().trim().min(3).max(2000),
+  name: z.string().trim().max(120).optional(),
+  email: z.string().trim().max(200).optional(),
+  summary: z.string().trim().max(4000).optional(),
+  page: z.string().trim().max(300).optional(),
+});
+publicRouter.post('/support-ticket', perIp(60 * 60 * 1000, 30, 'Too many tickets. Please try again later.'), handler(async (req, res) => {
+  const expected = process.env.SUPPORT_TICKET_KEY || '';
+  const given = String(req.headers['x-ticket-key'] || '');
+  const ok = expected.length >= 24 && given.length === expected.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+  if (!ok) { res.status(401).json({ error: 'Not allowed.' }); return; }
+  const body = ticketSchema.parse(req.body);
+  const email = body.email && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(body.email) ? body.email.toLowerCase() : undefined;
+  const ticketId = `T-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+  const sent = await sendSupportTicket({ ...body, email, ticketId });
+  if (!sent) { res.status(502).json({ ok: false, error: 'Ticket email could not be sent.' }); return; }
+  console.log(`Support ticket ${ticketId} sent${email ? ' (visitor left an email)' : ''}`);
+  res.json({ ok: true, ticketId, visitorWillGetEmailReply: !!email });
 }));
 
 publicRouter.get('/founding', handler(async (_req, res) => {

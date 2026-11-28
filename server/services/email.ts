@@ -13,7 +13,7 @@ const DEMO = 'https://youtu.be/fOwpDB9JQjw';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
-async function send(msg: { to: string; subject: string; html: string; text: string; idempotencyKey?: string }): Promise<boolean> {
+async function send(msg: { to: string; subject: string; html: string; text: string; idempotencyKey?: string; replyTo?: string }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.warn(`Email skipped (RESEND_API_KEY not set): ${msg.subject}`);
@@ -27,7 +27,7 @@ async function send(msg: { to: string; subject: string; html: string; text: stri
         'Content-Type': 'application/json',
         ...(msg.idempotencyKey ? { 'Idempotency-Key': msg.idempotencyKey } : {}),
       },
-      body: JSON.stringify({ from: FROM, to: [msg.to], reply_to: 'support@citationrocket.com', subject: msg.subject, html: msg.html, text: msg.text }),
+      body: JSON.stringify({ from: FROM, to: [msg.to], reply_to: msg.replyTo || 'support@citationrocket.com', subject: msg.subject, html: msg.html, text: msg.text }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
@@ -108,4 +108,29 @@ export async function sendSaleAlert(p: {
 <table cellpadding="4">${rows.map(([k, v]) => `<tr><td style="color:#666">${k}</td><td><b>${esc(v)}</b></td></tr>`).join('')}</table>
 <p><a href="${APP}/admin">All sales in Admin</a></p></div>`;
   return send({ to: OWNER, subject, html, text, idempotencyKey: `alert-${p.kind}-${p.paymentId}` });
+}
+
+/**
+ * Support ticket from the website chat bot (DM Champ custom function) when it cannot answer
+ * or the visitor asks for a person. Goes to the owner inbox; Reply-To is the visitor, so a
+ * normal reply from the inbox reaches them directly.
+ */
+export async function sendSupportTicket(p: { name?: string; email?: string; question: string; summary?: string; page?: string; ticketId: string }): Promise<boolean> {
+  const who = [p.name, p.email].filter(Boolean).join(' · ') || 'No contact details left';
+  const short = p.question.replace(/\s+/g, ' ').trim().slice(0, 70);
+  const rows: [string, string][] = [
+    ['From', who],
+    ['Question', p.question],
+    ...(p.summary ? ([['Chat summary', p.summary]] as [string, string][]) : []),
+    ...(p.page ? ([['Page', p.page]] as [string, string][]) : []),
+    ['Ticket', p.ticketId],
+  ];
+  const note = p.email
+    ? 'Reply to this email to answer the visitor directly.'
+    : 'No email was left, so answer in DM Champ: https://app.dmchamp.com/chats';
+  const text = rows.map(([k, v]) => `${k}: ${v}`).join('\n\n') + `\n\n${note}`;
+  const html = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;color:#111;max-width:640px">
+<table cellpadding="6" style="border-collapse:collapse">${rows.map(([k, v]) => `<tr><td style="color:#666;vertical-align:top;white-space:nowrap">${k}</td><td style="white-space:pre-wrap">${esc(v)}</td></tr>`).join('')}</table>
+<p style="color:#444">${esc(note)}</p></div>`;
+  return send({ to: OWNER, subject: `Support ticket: ${short}`, html, text, replyTo: p.email, idempotencyKey: `ticket-${p.ticketId}` });
 }
